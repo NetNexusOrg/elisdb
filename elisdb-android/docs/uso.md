@@ -15,13 +15,13 @@ a importação dessa chave na app.
 No computador do servidor, na pasta `elisdb-server/`:
 
 ```bash
-python -m app.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
+docker compose exec elisdb-server python -m app.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
 ```
 
 Exemplo:
 
 ```bash
-python -m app.keys issue maria --server-url http://192.168.1.10:8000
+docker compose exec elisdb-server python -m app.keys issue maria --server-url http://192.168.1.10:8000
 ```
 
 Isto cria o ficheiro **`maria.config.json`** — o único ficheiro de que a app
@@ -82,7 +82,7 @@ de dados — se a sincronização falhar a meio, as fotos anteriores ficam intac
 | O que aparece na barra de estado   | O que está a acontecer                | O que fazer |
 | ---------------------------------- | ------------------------------------- | ----------- |
 | "Servidor não configurado. Abre as Definições para configurar." | Falta o URL ou a chave (nas Definições ou no build) | Preenche as Definições (ou emite e importa o `<nome>.config.json`) |
-| "Servidor rejeitou a sincronização (chave não registada)." | A chave pública não está registada no servidor | No servidor: `python -m app.keys issue <nome> --server-url <url>` e importa o ficheiro (ver passo 1) |
+| "Servidor rejeitou a sincronização (chave não registada)." | A chave pública não está registada no servidor | No servidor: `docker compose exec elisdb-server python -m app.keys issue <nome> --server-url <url>` e importa o ficheiro (ver passo 1) |
 | "Relógio do dispositivo dessincronizado. Verifique a hora do dispositivo." | O relógio do telemóvel está fora da janela de ±5 min do servidor | Ativa a hora automática no telemóvel (e no servidor) e sincroniza de novo |
 | "Falha na sincronização. Verifique a ligação." | O servidor não está acessível no URL definido | Confirma a rede e o URL (usa o IP do servidor, não `127.0.0.1`) |
 

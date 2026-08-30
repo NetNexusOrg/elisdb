@@ -1,0 +1,115 @@
+package com.example.elisdb
+
+import android.content.Context
+import android.util.Log
+import androidx.room.Room
+import androidx.room.withTransaction
+import com.example.elisdb.data.ClienteRepositoryImpl
+import com.example.elisdb.data.local.AppDatabase
+import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_1_2
+import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_2_3
+import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_3_4
+import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_4_5
+import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_5_6
+import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_6_7
+import com.example.elisdb.data.local.RoomPullWatermark
+import com.example.elisdb.location.LocationService
+import com.example.elisdb.remote.ApiClient
+import com.example.elisdb.remote.ApiClientProvider
+import com.example.elisdb.settings.PrefsSettingsStore
+import com.example.elisdb.settings.SettingsStore
+import com.example.elisdb.sync.ClockOffsetStore
+import com.example.elisdb.sync.FilePhotoStore
+import com.example.elisdb.sync.PhotoPushState
+import com.example.elisdb.sync.PhotoSweeper
+import com.example.elisdb.sync.PrefsClockOffsetStore
+import com.example.elisdb.sync.PrefsPhotoPushState
+import com.example.elisdb.sync.SyncCoordinator
+import com.example.elisdb.sync.SyncCoordinatorProvider
+import com.example.elisdb.sync.SyncManager
+import androidx.work.WorkManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+
+class AppContainer(context: Context) {
+  val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+  val database: AppDatabase =
+    Room.databaseBuilder(context, AppDatabase::class.java, "elisdb.db")
+      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+      .build()
+
+  val locationService: LocationService = LocationService(context)
+
+  val settingsStore: SettingsStore = PrefsSettingsStore(context)
+
+  val photoStore: FilePhotoStore = FilePhotoStore(context)
+
+  /** Reclaims files no photo row references; run post-pull and on app start. */
+  val photoSweeper: PhotoSweeper = PhotoSweeper(database.fotoDao(), photoStore)
+
+  /** High-water mark of server `updated_at` seen on pulls, used for incremental pulls (R7). */
+  val watermark = RoomPullWatermark(database.syncMetaDao())
+
+  /** Device↔server clock offset, refreshed on each successful sync. */
+  val clockOffsetStore: ClockOffsetStore = PrefsClockOffsetStore(context)
+
+  /** Photo content hashes at last successful push, for incremental photo push. */
+  val photoPushState: PhotoPushState = PrefsPhotoPushState(context)
+
+  /** Returns the API client built from the current runtime settings. */
+  fun createApiClient(): ApiClient = apiClient
+
+  /**
+   * A single long-lived [ApiClient] (and its underlying HTTP connection pool)
+   * shared by every request for the process lifetime, so syncs and history
+   * fetches do not leak a new client per call. The client is rebuilt only when
+   * the effective server settings (base URL or signing key) change; the
+   * previous client is closed first.
+   */
+  val apiClient: ApiClient
+    get() {
+      val settings = settingsStore.settings()
+      val signature = "${settings.baseUrl}|${settings.signingKey}"
+      if (cachedApiClient == null || cachedApiSignature != signature) {
+        cachedApiClient?.close()
+        cachedApiClient = ApiClientProvider.create(settingsStore)
+        cachedApiSignature = signature
+      }
+      return cachedApiClient!!
+    }
+
+  private var cachedApiClient: ApiClient? = null
+  private var cachedApiSignature: String? = null
+
+  val syncManager: SyncManager =
+    SyncManager(
+      SyncCoordinatorProvider {
+        SyncCoordinator(
+          api = createApiClient(),
+          clienteDao = database.clienteDao(),
+          fotoDao = database.fotoDao(),
+          photoStore = photoStore,
+          transaction = { block -> database.withTransaction { block() } },
+          pullWatermark = RoomPullWatermark(database.syncMetaDao()),
+          photoSweeper = photoSweeper,
+          clockOffsetStore = clockOffsetStore,
+          photoPushState = photoPushState,
+          onWarning = { msg -> Log.w("ElisdbSync", msg) },
+        )
+      },
+      workManager = WorkManager.getInstance(context),
+      clienteDao = database.clienteDao(),
+      pullWatermark = RoomPullWatermark(database.syncMetaDao()),
+      fetchLatestUpdatedAt = {
+        try {
+          createApiClient().fetchLatestUpdatedAt()
+        } catch (e: Exception) {
+          null
+        }
+      },
+    )
+
+  val repository: ClienteRepositoryImpl =
+    ClienteRepositoryImpl(context, database, database.clienteDao(), database.fotoDao(), syncManager)
+}

@@ -1,0 +1,40 @@
+# ---- Gradle / Android ----
+.gradle/
+**/build/
+.kotlin/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.iml
+.idea/
+.DS_Store
+
+# ---- Signing de release (segredos) ----
+keystore.properties
+*.keystore
+*.jks
+
+# ---- Python (servidor + migração) ----
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# ---- Configuração de dispositivo (contém seed ed25519 privada) ----
+*.config.json
+
+# ---- Dados reais de migração (não versionar) ----
+elisdb-memento/ELIS.csv
+elisdb-memento/memento-import.db
+
+# ---- Node / OpenCode ----
+node_modules/
+
+# ---- Diversos ----
+*.log
+*.tmp

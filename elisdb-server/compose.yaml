@@ -1,0 +1,30 @@
+services:
+  elisdb-server:
+    build: .
+    container_name: elisdb-server
+    ports:
+      - "8000:8000"
+    volumes:
+      - elisdb-data:/app/data
+    environment:
+      ELISDB_DB: /app/data/elisdb.db
+      ELISDB_PHOTOS: /app/data/photos
+      # Utilizadores a provisionar no arranque (lista separada por vírgulas).
+      # O container emite uma chave por utilizador e escreve as configs em
+      # /app/data/configs/ (recuperar com `docker cp` ou bind mount).
+      ELISDB_USERS: "maria,joao"
+      # URL que os telemóveis usam para chegar ao servidor (IP do host).
+      ELISDB_SERVER_URL: "http://<ip-do-host>:8000"
+      # Dono dos dados no arranque (chown feito pelo entrypoint).
+      # Ajusta ao teu utilizador do host se usares um bind mount.
+      PUID: "1000"
+      PGID: "1000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  elisdb-data:

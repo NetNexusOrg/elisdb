@@ -1,0 +1,130 @@
+package com.example.elisdb
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.NavDisplay
+import com.example.elisdb.ui.cliente.ClientListScreen
+import com.example.elisdb.ui.cliente.ClientListViewModel
+import com.example.elisdb.ui.detalhe.ClientDetailScreen
+import com.example.elisdb.ui.detalhe.ClientDetailViewModel
+import com.example.elisdb.ui.detalhe.MapFullscreenScreen
+import com.example.elisdb.ui.detalhe.PhotoViewerScreen
+import com.example.elisdb.ui.detalhe.PhotoViewerViewModel
+import com.example.elisdb.ui.form.ClientFormScreen
+import com.example.elisdb.ui.form.ClientFormViewModel
+import com.example.elisdb.ui.settings.SettingsScreen
+import com.example.elisdb.ui.settings.SettingsViewModel
+import com.example.elisdb.ui.rememberAppContainer
+
+@Composable
+fun MainNavigation() {
+  val backStack = rememberNavBackStack(ClientList)
+  val viewModelStoreOwner = checkNotNull(LocalViewModelStoreOwner.current)
+  val saveableStateHolderNavEntryDecorator =
+    rememberSaveableStateHolderNavEntryDecorator<NavKey>(rememberSaveableStateHolder())
+  val viewModelNavEntryDecorator =
+    rememberViewModelStoreNavEntryDecorator<NavKey>(
+      viewModelStoreOwner = viewModelStoreOwner,
+      removeViewModelStoreOnPop = { true },
+    )
+
+  NavDisplay(
+    backStack = backStack,
+    entryDecorators =
+      listOf(saveableStateHolderNavEntryDecorator, viewModelNavEntryDecorator),
+    onBack = { backStack.removeLastOrNull() },
+    entryProvider =
+      entryProvider {
+        entry<ClientList> {
+          val container = rememberAppContainer()
+          ClientListScreen(
+            viewModel = viewModel { ClientListViewModel(container.repository) },
+            onClienteClick = { id -> backStack.add(ClientDetail(id)) },
+            onAddClick = { backStack.add(ClientForm()) },
+            onSettingsClick = { backStack.add(Settings) },
+          )
+        }
+        entry<Settings> {
+          val container = rememberAppContainer()
+          SettingsScreen(
+            viewModel =
+              viewModel {
+                SettingsViewModel(
+                  settingsStore = container.settingsStore,
+                  syncManager = container.syncManager,
+                  fetchKeyIdentity = {
+                    try {
+                      container.createApiClient().fetchKeyIdentity()
+                    } catch (e: Exception) {
+                      null
+                    }
+                  },
+                )
+              },
+            onBack = { backStack.removeLastOrNull() },
+          )
+        }
+        entry<ClientForm> { key ->
+          val container = rememberAppContainer()
+          ClientFormScreen(
+            viewModel =
+              viewModel {
+                ClientFormViewModel(
+                  container.repository,
+                  container.locationService::getCurrentLocation,
+                  key.clienteId,
+                )
+              },
+            clienteId = key.clienteId,
+            onSaved = { backStack.removeLastOrNull() },
+            onBack = { backStack.removeLastOrNull() },
+          )
+        }
+        entry<ClientDetail> { key ->
+          val container = rememberAppContainer()
+          ClientDetailScreen(
+            viewModel =
+              viewModel {
+                ClientDetailViewModel(
+                  container.repository,
+                  key.clienteId,
+                  fetchHistory = { id ->
+                    container.createApiClient().fetchClientHistory(id)
+                  },
+                )
+              },
+            onBack = { backStack.removeLastOrNull() },
+            onEdit = { id -> backStack.add(ClientForm(id)) },
+            onDeleted = { backStack.removeLastOrNull() },
+            onPhotoClick = { index -> backStack.add(PhotoViewer(key.clienteId, index)) },
+            onOpenFullscreenMap = { id -> backStack.add(MapFullscreen(id)) },
+          )
+        }
+        entry<PhotoViewer> { key ->
+          val container = rememberAppContainer()
+          PhotoViewerScreen(
+            viewModel =
+              viewModel {
+                PhotoViewerViewModel(container.repository, key.clienteId, key.indiceFoto)
+              },
+            onBack = { backStack.removeLastOrNull() },
+          )
+        }
+        entry<MapFullscreen> { key ->
+          val container = rememberAppContainer()
+          MapFullscreenScreen(
+            repository = container.repository,
+            clienteId = key.clienteId,
+            onBack = { backStack.removeLastOrNull() },
+          )
+        }
+      },
+  )
+}

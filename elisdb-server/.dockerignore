@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+*.db
+*.sqlite
+*.sqlite3
+photos/
+data/
+.pytest_cache/
+docs/
+README.md

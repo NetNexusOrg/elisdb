@@ -1,0 +1,92 @@
+# Utilização da app — ligar ao servidor e usar no dia a dia
+
+Este é o guia de uso: como ligar a app ao servidor na primeira vez e como usá-la
+no dia a dia. Assumimos que o servidor está instalado e a correr
+(`../elisdb-server/docs/`) e que a app está no telemóvel
+([Execução](execucao.md)).
+
+## 1. Ligar a app ao servidor (primeira vez)
+
+Precisas de três coisas: o servidor a correr, a chave emitida nesse servidor, e
+a importação dessa chave na app.
+
+### 1.1 Emitir a chave (no servidor)
+
+No computador do servidor, na pasta `elisdb-server/`:
+
+```bash
+python -m app.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
+```
+
+Exemplo:
+
+```bash
+python -m app.keys issue maria --server-url http://192.168.1.10:8000
+```
+
+Isto cria o ficheiro **`maria.config.json`** — o único ficheiro de que a app
+precisa. Transfere-o para o telemóvel.
+
+> **Primeira vez:** o servidor começa sem nenhuma chave confiada. Até emitires
+> a primeira, a sincronização da app devolve `401` — é a segurança a funcionar.
+> Este comando `issue` é o **único** caminho para dar acesso: não existem
+> comandos separados para gerar, registar, listar ou remover chaves.
+
+### 1.2 Importar a chave na app
+
+Na app: **Definições** → **Importar configuração do servidor** → escolhe o
+`maria.config.json`. O **URL do servidor** e a **chave de assinatura** ficam
+preenchidos em simultâneo.
+
+(Também podes preencher os campos à mão nas Definições e **Guardar** — isso
+sobrepõe-se a valores do build. Ver [Configuração](configuracao.md).)
+
+### 1.3 Primeira sincronização
+
+Na lista de clientes, carrega no botão de sincronizar (o ícone de setas na barra
+de estado). O resultado aparece nessa barra:
+
+- **Sincronizado** — o servidor aceitou os dados.
+- Outra mensagem? → consulta a [tabela de resolução de problemas](#3-resolucao-de-problemas).
+
+## 2. Uso diário
+
+A app trabalha **offline-first**: podes criar e editar clientes, tirar e remover
+fotos, e marcar a localização no mapa mesmo sem servidor. A sincronização é
+acionada pelo botão na lista de clientes (e em segundo plano); o estado aparece
+na barra no topo dessa lista — ícone + mensagem curta.
+
+Fluxos principais:
+
+- **Lista de clientes** — o ecrã inicial; pesquisa e ordenação; estado de
+  sincronização.
+- **Novo/editar cliente** — formulário com nome, contrato, coordenadas, notas.
+- **Mapa** — escolher/indicar a localização (Picker).
+- **Fotos** — capturar e associar imagens; ver em ecrã inteiro.
+- **Definições** — URL do servidor e chave de assinatura.
+
+Durante uma sincronização, as fotos que já existem no servidor **sem mudanças**
+não são reescritas, e um ficheiro novo só é gravado antes da sua linha na base
+de dados — se a sincronização falhar a meio, as fotos anteriores ficam intactas.
+
+> **Registo duplicado:** se criares um cliente com um nome que já exista no
+> servidor (comparação por nome normalizado), o servidor responde `duplicate` e
+> a app **funde** o registo local com o existente: o teu registo é reatribuído
+> ao id canónico, mantendo o que introduziste, e re-enviado na sincronização
+> seguinte (vence pelo mais recente). Nas **Definições** aparece: *"Registo
+> «Nome» foi fundido com um registo existente."*. O teu registo nunca é apagado
+> em silêncio.
+
+## 3. Resolução de problemas
+
+| O que aparece na barra de estado   | O que está a acontecer                | O que fazer |
+| ---------------------------------- | ------------------------------------- | ----------- |
+| "Servidor não configurado. Abre as Definições para configurar." | Falta o URL ou a chave (nas Definições ou no build) | Preenche as Definições (ou emite e importa o `<nome>.config.json`) |
+| "Servidor rejeitou a sincronização (chave não registada)." | A chave pública não está registada no servidor | No servidor: `python -m app.keys issue <nome> --server-url <url>` e importa o ficheiro (ver passo 1) |
+| "Relógio do dispositivo dessincronizado. Verifique a hora do dispositivo." | O relógio do telemóvel está fora da janela de ±5 min do servidor | Ativa a hora automática no telemóvel (e no servidor) e sincroniza de novo |
+| "Falha na sincronização. Verifique a ligação." | O servidor não está acessível no URL definido | Confirma a rede e o URL (usa o IP do servidor, não `127.0.0.1`) |
+
+## Referência cruzada
+
+- Configuração de build (versão, assinatura, variáveis): [Configuração](configuracao.md).
+- Servidor: instalação, execução, emissão de chaves e API em `../elisdb-server/docs/`.

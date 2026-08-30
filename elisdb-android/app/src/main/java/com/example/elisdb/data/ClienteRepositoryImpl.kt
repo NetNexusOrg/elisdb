@@ -1,0 +1,145 @@
+package com.example.elisdb.data
+
+import android.content.Context
+import android.net.Uri
+import androidx.room.withTransaction
+import com.example.elisdb.data.local.AppDatabase
+import com.example.elisdb.data.local.Cliente
+import com.example.elisdb.data.local.ClienteComFotos
+import com.example.elisdb.data.local.ClienteDao
+import com.example.elisdb.data.local.Foto
+import com.example.elisdb.data.local.FotoDao
+import com.example.elisdb.sync.SyncFault
+import com.example.elisdb.sync.SyncManager
+import com.example.elisdb.sync.SyncStatus
+import java.io.File
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
+
+data class ClienteDraft(
+  val id: String? = null,
+  val nome: String,
+  val contrato: String? = null,
+  val latitude: Double? = null,
+  val longitude: Double? = null,
+  val notas: String? = null,
+  val fotos: List<Foto> = emptyList(),
+)
+
+class ClienteRepositoryImpl(
+  private val context: Context,
+  private val database: AppDatabase,
+  private val clienteDao: ClienteDao,
+  private val fotoDao: FotoDao,
+  private val syncManager: SyncManager? = null,
+  private val clockOffsetStore: com.example.elisdb.sync.ClockOffsetStore? = null,
+) : ClienteRepository {
+
+  /** Device clock (epoch ms) shifted by the last-known server offset, when available. */
+  private fun nowMillis(): Long =
+    System.currentTimeMillis() +
+      (clockOffsetStore?.getOffsetSeconds() ?: 0L) * 1000L
+  private val photosDir: File
+    get() = File(context.filesDir, "photos")
+
+  private val photoEncoder = PhotoEncoder(context)
+
+  override val clientes: Flow<List<Cliente>> = clienteDao.observeAll()
+
+  override val clientesComFotos: Flow<List<ClienteComFotos>> = clienteDao.observeAllComFotos()
+
+  override val syncStatus: Flow<SyncStatus> =
+    syncManager?.status ?: kotlinx.coroutines.flow.flowOf(SyncStatus.IDLE)
+
+  override val syncFault: Flow<SyncFault?> =
+    syncManager?.fault ?: kotlinx.coroutines.flow.flowOf(null)
+
+  override fun observeCliente(id: String): Flow<ClienteComFotos?> = clienteDao.observeClienteComFotos(id)
+
+  override suspend fun getCliente(id: String): ClienteComFotos? = clienteDao.getClienteComFotos(id)
+
+  override suspend fun stagePhoto(source: Uri): Foto = withContext(Dispatchers.IO) {
+    val dest = photoEncoder.encodeToWebp(source, photosDir)
+    Foto(id = "", clienteId = "", uriLocal = dest.absolutePath)
+  }
+
+  override fun createPhotoFile(): File {
+    photosDir.mkdirs()
+    return File(photosDir, "foto_${UUID.randomUUID()}.jpg")
+  }
+
+  override suspend fun deletePhotoFile(foto: Foto) {
+    withContext(Dispatchers.IO) { runCatching { File(foto.uriLocal).delete() } }
+  }
+
+  override suspend fun save(draft: ClienteDraft): String {
+    val now = nowMillis()
+    return database.withTransaction {
+      val clienteId =
+        if (draft.id == null) {
+          val newId = UUID.randomUUID().toString()
+          clienteDao.insert(
+            Cliente(
+              id = newId,
+              nome = draft.nome.trim().uppercase(),
+              contrato = draft.contrato?.takeIf { it.isNotBlank() },
+              latitude = draft.latitude,
+              longitude = draft.longitude,
+              notas = draft.notas?.takeIf { it.isNotBlank() },
+              dataCriacao = now,
+              updatedAt = now,
+              createdAt = now,
+              pending = true,
+            )
+          )
+          newId
+        } else {
+          val existing = clienteDao.getById(draft.id) ?: return@withTransaction draft.id
+          clienteDao.update(
+            existing.copy(
+              nome = draft.nome.trim().uppercase(),
+              contrato = draft.contrato?.takeIf { it.isNotBlank() },
+              latitude = draft.latitude,
+              longitude = draft.longitude,
+              notas = draft.notas?.takeIf { it.isNotBlank() },
+              updatedAt = now,
+              pending = true,
+            )
+          )
+          draft.id
+        }
+
+      val keptIds = draft.fotos.filter { it.id.isNotEmpty() }.map { it.id }.toSet()
+      val existingFotos = fotoDao.getByCliente(clienteId)
+      val removed = existingFotos.filter { it.id !in keptIds }
+      removed.forEach { deleteFile(it) }
+      if (removed.isNotEmpty()) fotoDao.deleteByIds(removed.map { it.id })
+      draft.fotos
+        .forEachIndexed { index, foto ->
+          fotoDao.insert(
+            foto.copy(
+              id = foto.id.ifEmpty { UUID.randomUUID().toString() },
+              clienteId = clienteId,
+              ordem = index,
+            )
+          )
+        }
+      clienteId
+    }
+  }
+
+  override suspend fun deleteCliente(id: String) {
+    clienteDao.getById(id)?.let { existing ->
+      clienteDao.update(existing.copy(deletePending = true))
+    }
+  }
+
+  override suspend fun syncNow(): SyncStatus =
+    syncManager?.syncNow() ?: SyncStatus.IDLE
+
+  private fun deleteFile(foto: Foto) {
+    runCatching { File(foto.uriLocal).delete() }
+  }
+}

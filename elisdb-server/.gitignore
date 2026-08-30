@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+*.db
+*.db-*
+# Generated device config files (e.g. Maria.config.json) carry a live ed25519
+# private seed and MUST NOT be committed. Only the placeholder example below is
+# tracked.
+*.config.json

@@ -1,0 +1,224 @@
+package com.example.elisdb.sync
+
+import com.example.elisdb.data.local.Cliente
+import com.example.elisdb.sync.SyncManager.Companion.mapOutcome
+import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class SyncManagerTest {
+
+  @Test
+  fun `stale clock maps to CLOCK fault and not AUTH`() {
+    val display = mapOutcome(SyncOutcome.ClockFailure)
+    assertEquals(SyncStatus.ERROR, display.status)
+    assertEquals(SyncFault.CLOCK, display.fault)
+  }
+
+  @Test
+  fun `invalid key still maps to AUTH fault`() {
+    val display = mapOutcome(SyncOutcome.AuthFailure)
+    assertEquals(SyncStatus.ERROR, display.status)
+    assertEquals(SyncFault.AUTH, display.fault)
+  }
+
+  @Test
+  fun `success maps to SUCCESS with no fault`() {
+    val display = mapOutcome(SyncOutcome.Success)
+    assertEquals(SyncStatus.SUCCESS, display.status)
+    assertEquals(null, display.fault)
+  }
+
+  @Test
+  fun `success with stale records surfaces a lost-edit message`() {
+    val display = mapOutcome(SyncOutcome.SuccessWithStatuses(accepted = 0, stale = listOf("Maria")))
+    assertEquals(SyncStatus.SUCCESS, display.status)
+    assertEquals(null, display.fault)
+    val message = display.lastResult
+    assertTrue("lost edit surfaced", message != null && message.contains("Maria"))
+  }
+
+  @Test
+  fun `success with empty stale is a plain success`() {
+    val display = mapOutcome(SyncOutcome.SuccessWithStatuses(accepted = 1, stale = emptyList()))
+    assertEquals(SyncStatus.SUCCESS, display.status)
+    assertEquals(null, display.lastResult)
+  }
+
+  @Test
+  fun `transient error maps to NETWORK fault`() {
+    assertEquals(SyncFault.NETWORK, mapOutcome(SyncOutcome.TransientError).fault)
+  }
+
+  @Test
+  fun `config fault maps to CONFIG fault`() {
+    assertEquals(SyncFault.CONFIG, mapOutcome(SyncOutcome.ConfigFault).fault)
+  }
+
+  @Test
+  fun `single flight concurrent syncs share one coordinator run`() = runBlocking {
+    val releasePull = CompletableDeferred<Unit>()
+    val api = FakeSyncApi().apply { pullGate = releasePull }
+    var coordinatorCalls = 0
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider {
+          coordinatorCalls++
+          SyncCoordinator(api, FakeClienteDao(), FakeFotoDao(), FakePhotoStore())
+        },
+      )
+
+    val first = launch { manager.sync() }
+    while (api.pulledSinces.isEmpty()) delay(5)
+    val second = launch { manager.sync() }
+    delay(50)
+    releasePull.complete(Unit)
+    first.join()
+    second.join()
+
+    assertEquals("only one coordinator run starts", 1, coordinatorCalls)
+    assertEquals("only one pull happens", 1, api.pulledSinces.size)
+  }
+
+  @Test
+  fun `worker maps transient failure to retry and updates status and fault`() = runBlocking {
+    val api = FakeSyncApi().apply { failWith = IOException("boom") }
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider {
+          SyncCoordinator(api, FakeClienteDao(), FakeFotoDao(), FakePhotoStore())
+        },
+      )
+
+    val outcome = manager.sync()
+
+    assertEquals(SyncOutcome.TransientError, outcome)
+    assertEquals(SyncWorker.mapToResult(SyncOutcome.TransientError), androidx.work.ListenableWorker.Result.retry())
+    assertEquals(SyncStatus.ERROR, manager.status.value)
+    assertEquals(SyncFault.NETWORK, manager.fault.value)
+  }
+
+  @Test
+  fun `worker maps auth failure to failure without retry`() {
+    assertEquals(androidx.work.ListenableWorker.Result.failure(), SyncWorker.mapToResult(SyncOutcome.AuthFailure))
+    assertEquals(androidx.work.ListenableWorker.Result.failure(), SyncWorker.mapToResult(SyncOutcome.ConfigFault))
+    assertEquals(androidx.work.ListenableWorker.Result.success(), SyncWorker.mapToResult(SyncOutcome.Success))
+  }
+
+  @Test
+  fun `manual sync joins periodic in-flight run producing exactly one push`() = runBlocking {
+    val releasePull = CompletableDeferred<Unit>()
+    val api = FakeSyncApi().apply { pullGate = releasePull }
+    val pending = Cliente(id = "1", nome = "A", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0, pending = true)
+    var coordinatorCalls = 0
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider {
+          coordinatorCalls++
+          SyncCoordinator(api, FakeClienteDao(listOf(pending)), FakeFotoDao(), FakePhotoStore())
+        },
+      )
+
+    val periodic = launch { manager.sync() } // periodic run in flight
+    while (api.pushCalls == 0) delay(5)
+    val manual = launch { manager.syncNow() }
+    delay(50)
+    releasePull.complete(Unit)
+    periodic.join()
+    manual.join()
+
+    assertEquals("exactly one push", 1, api.pushCalls)
+    assertEquals("exactly one pull", 1, api.pulledSinces.size)
+    assertEquals("manual did not start a second run", 1, coordinatorCalls)
+    assertTrue("status reflects the joined run", manager.status.value == SyncStatus.SUCCESS)
+  }
+
+  @Test
+  fun `pending uploads reflected when dao has pending records`() = runBlocking {
+    val pending = Cliente(id = "1", nome = "A", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0, pending = true)
+    val dao = FakeClienteDao(listOf(pending))
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        clienteDao = dao,
+      )
+    // observeAll is a cold flow; give the collector a tick.
+    delay(50)
+    assertTrue(manager.hasPendingUploads.value)
+  }
+
+  @Test
+  fun `no pending uploads when dao has none`() = runBlocking {
+    val dao = FakeClienteDao()
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        clienteDao = dao,
+      )
+    delay(50)
+    assertTrue(!manager.hasPendingUploads.value)
+  }
+
+  @Test
+  fun `pending downloads set when latest exceeds watermark`() = runBlocking {
+    val watermark = FakePullWatermark(value = 100L)
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        pullWatermark = watermark,
+        fetchLatestUpdatedAt = { 200L },
+      )
+    manager.refreshPendingDownloads()
+    assertTrue(manager.hasPendingDownloads.value)
+  }
+
+  @Test
+  fun `no pending downloads when latest at or below watermark`() = runBlocking {
+    val watermark = FakePullWatermark(value = 100L)
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        pullWatermark = watermark,
+        fetchLatestUpdatedAt = { 100L },
+      )
+    manager.refreshPendingDownloads()
+    assertTrue(!manager.hasPendingDownloads.value)
+  }
+
+  @Test
+  fun `successful sync refreshes pending downloads and clears them`() = runBlocking {
+    val watermark = FakePullWatermark(value = 100L)
+    val api = FakeSyncApi().apply { latestUpdatedAt = 100L }
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(api, FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        pullWatermark = watermark,
+        fetchLatestUpdatedAt = { api.latestUpdatedAt },
+      )
+    // First: server has newer data.
+    api.latestUpdatedAt = 500L
+    manager.refreshPendingDownloads()
+    assertTrue(manager.hasPendingDownloads.value)
+    // After a successful sync the pull advances the watermark past the latest.
+    watermark.value = 500L
+    api.latestUpdatedAt = 500L
+    manager.sync()
+    assertTrue(!manager.hasPendingDownloads.value)
+  }
+
+  @Test
+  fun `schedulePeriodic with no work manager does nothing`() {
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+      )
+    // With a null WorkManager, scheduling is a no-op — there is no automatic sync.
+    manager.schedulePeriodic()
+    assertTrue(true)
+  }
+}

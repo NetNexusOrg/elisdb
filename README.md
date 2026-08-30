@@ -30,3 +30,17 @@ Tudo isto está explicado passo a passo na [utilização da app](elisdb-android/
 
 - **App Android:** [`elisdb-android/README.md`](elisdb-android/README.md) e guias em [`elisdb-android/docs/`](elisdb-android/docs/index.md).
 - **Servidor:** [`elisdb-server/README.md`](elisdb-server/README.md) e guias em [`elisdb-server/docs/`](elisdb-server/docs/index.md).
+
+## Desenvolvimento
+
+O desenvolvimento é assistido por IA (OpenCode + OpenSpec) e gerido por Git/GitHub.
+
+- **Regras do projeto:** [`AGENTS.md`](AGENTS.md) (regras gerais) e skills em `.opencode/skills/` (contexto técnico por área).
+- **Especificações:** alterações significativas começam por uma OpenSpec change (`openspec/`); o contexto do projeto está em [`openspec/config.yaml`](openspec/config.yaml).
+- **Build e testes:**
+  ```bash
+  cd elisdb-android && ./gradlew :app:testDebugUnitTest   # testes unitários
+  cd elisdb-server && .venv/bin/python -m pytest           # testes do servidor
+  ```
+- **Release:** o CI (`.github/workflows/android-release.yml`) constrói o APK
+  assinado e cria a GitHub Release ao fazer push de uma tag `vX.Y.Z`.

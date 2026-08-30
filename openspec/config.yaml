@@ -1,32 +1,51 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  ElisDB is an offline-first client management system: an Android app plus a
+  self-hosted sync server. Single-repo monorepo.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  Components:
+  - elisdb-android/ — Android app. Kotlin 2.3.20 + Jetpack Compose (Material 3),
+    Navigation 3, Room 2.8.4 (KSP), Ktor 3 client, WorkManager, CameraX, Coil.
+    MVVM (ViewModel + StateFlow + Repository), manual DI via AppContainer, package
+    com.example.elisdb. minSdk 24, compile/targetSdk 36, Java 17 (jvmToolchain).
+  - elisdb-server/ — Python 3.14 + FastAPI + SQLite (WAL). ed25519 request-signing
+    auth (X-Elisdb-Timestamp/Signature/Key headers), LWW conflict resolution,
+    tombstones, photo binaries on disk.
+  - elisdb-memento/ — one-off Python migration scripts.
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+  Conventions:
+  - Docs in Portuguese under */docs/; Conventional Commits (feat/fix/ci/docs/chore).
+  - App version in elisdb-android/gradle.properties (app.versionCode, app.versionName
+    SemVer); dependencies in gradle/libs.versions.toml.
+
+  Build/test:
+  - Android: cd elisdb-android && ./gradlew :app:testDebugUnitTest (unit tests),
+    :app:lintDebug, :app:assembleRelease (signed, needs KEYSTORE_* env vars).
+  - Server: .venv/bin/python -m pytest (FastAPI + SQLite).
+
+  Security: never commit *.config.json (private ed25519 seed), *.db, ELIS.csv,
+  *.jks/*.keystore, keystore.properties, or .env. Signing secrets live outside the
+  repo (GitHub Secrets).
+
+  Git/GitHub: branch main; private repo NetNexusOrg/elisdb; CI in
+  .github/workflows/android-release.yml builds and releases on v* tags.
+
+  OpenSpec: use a change for significant work (new features, API/db/auth/deployment/
+  architecture changes); trivial fixes may be done directly without a change.
+
+rules:
+  proposal:
+    - Keep proposals concise and focused on why/what, not how.
+    - List new vs modified capabilities explicitly; do not invent requirements.
+  tasks:
+    - Break work into small, verifiable steps.
+
+operations:
+  apply:
+    guidance:
+      - Run the relevant tests before marking a task complete.
+      - Keep diffs minimal and scoped to the change.
+  archive:
+    guidance:
+      - Sync delta specs to main specs before archiving.

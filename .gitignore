@@ -36,5 +36,7 @@ elisdb-memento/memento-import.db
 node_modules/
 
 # ---- Diversos ----
+.env
+.env.*
 *.log
 *.tmp

@@ -1,21 +1,22 @@
 # Instalação do servidor
 
 Aqui está como preparar o servidor no teu computador. Depois de fazer isto uma
-vez, segue para a [Execução](execucao.md) para o correr.
+vez, segue para a [Execução](execucao.md) para o subir.
 
 ## O que precisas de ter
 
-- **Python 3.10 ou superior** instalado no computador (testado com 3.12).
-- Acesso à internet, para instalar as dependências na primeira vez.
+- **Docker** e o plugin **Docker Compose** instalados no computador.
+- Acesso à internet, para descarregar a imagem na primeira vez.
 
-Confirma a versão do Python:
+Confirma que o Docker está instalado:
 
 ```bash
-python3 --version
+docker --version
+docker compose version
 ```
 
-Deve mostrar algo como `Python 3.12.x`. Se o comando não existir, instala o
-Python antes de continuar.
+Se estes comandos não existirem, instala o Docker (e o Docker Compose) antes de
+continuar.
 
 ## Passo 1 — obter o código do servidor
 
@@ -27,38 +28,33 @@ git clone <URL-do-repositorio-do-projeto>
 cd elisdb/elisdb-server
 ```
 
-## Passo 2 — criar o ambiente e instalar as dependências
+## Passo 2 — subir o servidor
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+docker compose up -d
 ```
 
-Isto cria uma pasta `.venv` com tudo o que o servidor precisa, sem mexer no
-resto do computador. A primeira instalação pode demorar um pouco.
-
-> Em Debian/Ubuntu, se o comando `python3 -m venv` falhar, instala o pacote
-> `python3-venv` e repete o comando.
+Isto constrói a imagem (na primeira vez) e sobe o contentor em segundo plano.
+Os dados ficam guardados num volume Docker (`elisdb-data`), que sobrevive a
+reinícios.
 
 ## Passo 3 — verificar que ficou tudo certo
 
-Corre os testes incluídos no projeto:
-
 ```bash
-.venv/bin/python -m pytest
+curl http://localhost:8000/health
+# → {"status":"ok"}
 ```
 
-Se todos os testes passarem (sem mensagens de erro), a instalação está
-concluída.
+Se responderes `{"status":"ok"}`, o servidor está vivo e pronto.
 
 ## O que saber antes da primeira execução
 
 - O servidor **não vem com nenhuma chave pré-registada**: até emitires a chave
   de um telemóvel, os pedidos da app são recusados. Isso é normal — é a medida
   de segurança.
-- Os dados ficam guardados num único ficheiro: `elisdb.db` (na pasta onde o
-  servidor corre), ou no caminho que definires na variável `ELISDB_DB`.
+- Os dados ficam guardados no volume `elisdb-data` (base de dados em
+  `/app/data/elisdb.db` dentro do contentor).
 
 ## Passo seguinte
 
-[Execução](execucao.md) — como correr o servidor.
+[Execução](execucao.md) — como subir e gerir o servidor em Docker.

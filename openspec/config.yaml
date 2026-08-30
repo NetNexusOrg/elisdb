@@ -22,7 +22,7 @@ context: |
   Build/test:
   - Android: cd elisdb-android && ./gradlew :app:testDebugUnitTest (unit tests),
     :app:lintDebug, :app:assembleRelease (signed, needs KEYSTORE_* env vars).
-  - Server: .venv/bin/python -m pytest (FastAPI + SQLite).
+  - Server: Docker-only (docker compose up -d); no unit tests in repo.
 
   Security: never commit *.config.json (private ed25519 seed), *.db, ELIS.csv,
   *.jks/*.keystore, keystore.properties, or .env. Signing secrets live outside the

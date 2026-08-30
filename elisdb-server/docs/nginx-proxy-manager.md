@@ -60,14 +60,12 @@ antes usar domínios separados, que é mais simples.
 
 ## 3. Ligar o servidor ElisDB
 
-Há duas formas, conforme onde o servidor está a correr.
+### Servidor em Docker, na mesma rede do NPM
 
-### Opção A — Recomendada: servidor em Docker, na mesma rede do NPM
-
-Quando o ElisDB também corre em Docker na mesma máquina, a **best practice
-oficial** do NPM é colocarem ambos numa **rede Docker partilhada**. Assim o NPM
-alcança o servidor pelo **nome do serviço**, sem precisar de publicar a porta
-8000 no computador (mais seguro).
+Como o ElisDB corre em Docker na mesma máquina, a **best practice oficial** do
+NPM é colocarem ambos numa **rede Docker partilhada**. Assim o NPM alcança o
+servidor pelo **nome do serviço**, sem precisar de publicar a porta 8000 no
+computador (mais seguro).
 
 1. Cria uma rede Docker para os dois:
    ```bash
@@ -96,28 +94,13 @@ alcança o servidor pelo **nome do serviço**, sem precisar de publicar a porta
 > compose do servidor, se quiseres ficar ainda mais fechado): o NPM alcança-o
 > pela rede interna.
 
-### Opção B — Servidor fora de Docker (ex.: `.venv`)
-
-Se o servidor corre como processo normal (por exemplo, o `.venv/bin/uvicorn`):
-
-1. Lança o servidor a ouvir em todas as interfaces:
-   ```bash
-   .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
-   ```
-2. Confirma que o NPM consegue chegar à porta 8000: se o NPM estiver em Docker,
-   precisa que os dois estejam na mesma rede ou que a porta 8000 esteja aberta
-   na firewall do host.
-3. No NPM, o "Forward Hostname / IP" será o **IP da máquina do servidor**
-   (ex.: `192.168.1.10`) e o porto **`8000`**.
-
 ## 4. Criar o Proxy Host
 
 1. No NPM: **Hosts** → **Proxy Hosts** → **Add Proxy Host**.
 2. **Details**:
    - **Domain Names:** `db.exemplo.com` (o teu domínio real);
    - **Scheme:** `http`;
-   - **Forward Hostname / IP:** `elisdb-server` (Opção A) ou `192.168.1.10`
-     (Opção B);
+   - **Forward Hostname / IP:** `elisdb-server`;
    - **Forward Port:** `8000`;
    - **Block Common Exploits:** ativa.
 3. **SSL** (separador):
@@ -146,15 +129,13 @@ estão todos a funcionar em cadeia.
 Agora usas o domínio HTTPS como URL do servidor. No repositório `elisdb-server/`:
 
 ```bash
-python -m app.keys issue <nome-do-utilizador> --server-url https://db.exemplo.com
+docker compose exec elisdb-server python -m app.keys issue <nome-do-utilizador> --server-url https://db.exemplo.com
 ```
 
-Isto cria o `<nome>.config.json` com o URL `https://db.exemplo.com`. Importa-o
-na app: **Definições** → **Importar configuração do servidor**, e sincroniza.
-
-> Se a tua base de dados está em Docker na mesma rede, por uma questão de
-> simplicidade podes emitir a chave dentro do contentor:
-> `docker compose exec elisdb-server python -m app.keys issue <nome> --server-url https://db.exemplo.com`.
+Isto cria o `<nome>.config.json` com o URL `https://db.exemplo.com`. Copia-o do
+contentor para a tua máquina (`docker cp elisdb-server:/app/<nome>.config.json .`)
+e importa-o na app: **Definições** → **Importar configuração do servidor**, e
+sincroniza.
 
 ## 7. Segurança
 

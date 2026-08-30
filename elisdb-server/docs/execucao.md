@@ -1,34 +1,28 @@
 # Execução do servidor
 
 Com a instalação feita (ver [Instalação](instalacao.md)), este guia mostra como
-correr o servidor, como saber se está a funcionar e onde ficam os dados.
+subir o servidor em Docker, como saber se está a funcionar e onde ficam os dados.
 
-## Correr o servidor
+## Subir o servidor
 
 A partir da pasta `elisdb-server/`:
 
 ```bash
-.venv/bin/uvicorn app.main:app
+docker compose up -d
 ```
 
-O servidor fica a ouvir em `http://127.0.0.1:8000` (só nesta máquina).
+O serviço fica em `http://localhost:8000`. Para a app num telemóvel (na mesma
+rede) o alcançar, usa o **IP da máquina do servidor** (ex.:
+`http://192.168.1.10:8000`), nunca `127.0.0.1` — esse endereço aponta para o
+próprio telemóvel.
 
-**Para a app num telemóvel (na mesma rede) aceder ao servidor**, tens de o pôr a
-ouvir em todas as interfaces:
-
-```bash
-.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-> Na app, usa o **IP da máquina do servidor** (ex.: `http://192.168.1.10:8000`),
-> nunca `127.0.0.1` — esse endereço aponta para o próprio telemóvel.
+> Se a porta 8000 já estiver ocupada no teu computador, muda o mapeamento
+> `8000:8000` para outra porta no `compose.yaml`.
 
 ## Como saber se está a funcionar
 
-Com o servidor a correr, abre no navegador (ou com o comando):
-
 ```bash
-curl http://127.0.0.1:8000/health
+curl http://localhost:8000/health
 # → {"status":"ok"}
 ```
 
@@ -39,31 +33,11 @@ Se responderes `{"status":"ok"}`, o servidor está vivo e pronto.
 
 ## Onde ficam os dados
 
-- **Base de dados:** `elisdb.db` na pasta onde iniciaste o servidor (ou o
-  caminho definido em `ELISDB_DB`).
-- **Fotos:** numa pasta `photos/` ao lado da base de dados (ou a pasta definida
-  em `ELISDB_PHOTOS`).
+- Os dados ficam num volume Docker (`elisdb-data`), montado em `/app/data`
+  dentro do contentor: a base de dados em `elisdb.db` e as fotos numa pasta
+  `photos/`. Sobrevivem a reinícios e recriações do contentor.
 
 Para mudar estes caminhos, vê a referência em [Configuração](configuracao.md).
-
-## Parar o servidor
-
-Prima `Ctrl+C` na janela do terminal onde o servidor está a correr.
-
-## Correr em Docker (alternativa)
-
-Se preferires (ou quiseres o servidor sempre acessível), o projeto inclui um
-`Dockerfile` e um `compose.yaml`:
-
-```bash
-docker build -t elisdb-server .      # construir a imagem (uma vez)
-docker compose up -d                 # subir o serviço
-```
-
-- O serviço fica em `http://localhost:8000`.
-- **Os dados sobrevivem a reinícios:** ficam num volume (`elisdb-data`), em
-  `/app/data` dentro do contentor.
-- Verificação: `curl http://localhost:8000/health`.
 
 > **Permissões dos dados:** no arranque, o contentor ajusta o dono de
 > `/app/data` para `PUID`/`PGID` (por omissão `1000`/`1000`) antes de iniciar
@@ -72,7 +46,7 @@ docker compose up -d                 # subir o serviço
 > mount* do host, define `PUID`/`PGID` no `compose.yaml` com o id do teu
 > utilizador (`id -u` / `id -g`) para que o servidor consiga escrever.
 
-### Provisionar utilizadores automaticamente
+## Provisionar utilizadores automaticamente
 
 Podes declarar os utilizadores no `compose.yaml` e o contentor cria as chaves
 no arranque, sem entrar no contentor:
@@ -96,14 +70,7 @@ environment:
   (ou monta `/app/data/configs` como *bind mount* para aparecerem no host) e
   importa cada ficheiro na app — ver [Configuração](configuracao.md).
 
-Logs e paragem:
-
-```bash
-docker compose logs -f    # acompanhar os logs
-docker compose down       # parar (não apaga o volume de dados)
-```
-
-Para emitir a chave de um telemóvel dentro do contentor:
+## Emitir a chave de um telemóvel
 
 ```bash
 docker compose exec elisdb-server python -m app.keys issue <nome> --server-url http://<ip-do-host>:8000
@@ -112,8 +79,12 @@ docker compose exec elisdb-server python -m app.keys issue <nome> --server-url h
 O ficheiro `<nome>.config.json` é escrito dentro do contentor; copia-o para a
 máquina e importa-o na app (ver [Configuração](configuracao.md)).
 
-> Se a porta 8000 já estiver ocupada no teu computador (ex.: um servidor já a
-> correr), muda o mapeamento `8000:8000` para outra porta no `compose.yaml`.
+## Logs e paragem
+
+```bash
+docker compose logs -f    # acompanhar os logs
+docker compose down       # parar (não apaga o volume de dados)
+```
 
 ## Passo seguinte
 

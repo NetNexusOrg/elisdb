@@ -48,7 +48,7 @@ the code rather than trusting memory.
 - Endpoints in `app/main.py`: `/health`, `/api/time`, `/api/latest`, `/api/push`,
   `/api/pull`, `/api/clients`, `/api/photos/{id}`, `/api/clients/{id}`,
   `/api/clients/{id}/history`, `/api/keys/me`.
-- Key provisioning: `python -m app.keys issue <user> --server-url <url>` (writes
+- Key provisioning: `docker compose exec elisdb-server python -m app.keys issue <user> --server-url <url>` (writes
   `<user>.config.json`); startup auto-provision via `ELISDB_USERS` (`app/provision.py`).
 
 ## Database (SQLite)
@@ -66,7 +66,7 @@ the code rather than trusting memory.
 ## Conventions
 
 - Docs in Portuguese under `*/docs/`; root `README.md` is the project overview.
-- Tests: Android unit tests `app/src/test/`, instrumented `app/src/androidTest/`; server `pytest`.
+- Tests: Android unit tests `app/src/test/`, instrumented `app/src/androidTest/`.
 - Commits: Conventional Commits (`feat:`, `fix:`, `ci:`, `docs:`, `chore:`).
 - No app code lives outside `com.example.elisdb`.
 

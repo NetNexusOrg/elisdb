@@ -17,7 +17,7 @@ Follow this order; do not jump to a fix.
    before changing anything.
 5. **Implement a minimal fix** — the smallest change that addresses the root cause.
    Do not mask the symptom (e.g. swallowing an exception, adding a sleep, disabling a check).
-6. **Test** — run the relevant tests (`./gradlew :app:testDebugUnitTest`, `pytest`, lint).
+6. **Test** — run the relevant tests (`./gradlew :app:testDebugUnitTest`, lint).
 7. **Verify no regressions** — run the broader test suite and re-check the original repro.
 
 ## Project-specific gotchas

@@ -54,6 +54,6 @@ Base facts in `project-context`. This skill covers server development rules.
 
 ## Conventions
 
-- New/changed endpoints get matching `pytest` tests in `test_main.py` / `test_provision.py`.
+- The server has no in-repo unit tests; verify behavior by running the server in
+  Docker (`docker compose up -d`) and exercising endpoints manually (see `references/commands.md`).
 - Model changes must stay consistent with the Android `remote/` + `sync/` clients.
-- Run tests with `.venv/bin/python -m pytest` (see `requirements.txt`).

@@ -12,10 +12,11 @@ e a chave privada.
 
 ### Modo interativo (recomendado)
 
-Corre `python -m app.keys` **sem argumentos** e escolhe o número da opção:
+Corre `python -m app.keys` **sem argumentos** (dentro do contentor) e escolhe o
+número da opção:
 
 ```
-python -m app.keys
+docker compose exec elisdb-server python -m app.keys
 ```
 
 O menu pede, em sequência, o **URL do servidor** e o **nome do utilizador**
@@ -31,13 +32,13 @@ O mesmo menu permite **listar** e **remover** autenticações:
 ### Modo com argumentos (para scripting)
 
 ```bash
-python -m app.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
+docker compose exec elisdb-server python -m app.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
 ```
 
 Exemplo real:
 
 ```bash
-python -m app.keys issue maria --server-url http://192.168.1.10:8000
+docker compose exec elisdb-server python -m app.keys issue maria --server-url http://192.168.1.10:8000
 ```
 
 O que acontece:
@@ -51,6 +52,12 @@ registered public key:          <public_key_b64>
 
 Há **um** sinal de sucesso: a criação do ficheiro **`maria.config.json`**.
 O resto da saída é informativo.
+
+O ficheiro é escrito dentro do contentor; copia-o para a tua máquina:
+
+```bash
+docker cp elisdb-server:/app/maria.config.json .
+```
 
 Então:
 
@@ -73,21 +80,23 @@ Então:
 
 | Variável           | O que faz                                        | Omissão        |
 | ------------------ | ------------------------------------------------ | -------------- |
-| `ELISDB_DB`        | Caminho do ficheiro de dados (base de dados)      | `elisdb.db`    |
-| `ELISDB_PHOTOS`    | Pasta para os ficheiros de fotos                   | `photos/` ao lado da base de dados |
+| `ELISDB_DB`        | Caminho do ficheiro de dados (base de dados)      | `data/elisdb.db` |
+| `ELISDB_PHOTOS`    | Pasta para os ficheiros de fotos                   | `data/photos` ao lado da base de dados |
 | `ELISDB_SERVER_URL` | URL pelo qual a app alcança este servidor (usado por `app.keys issue` quando não passas `--server-url`) | — (obrigatória para emitir) |
+| `ELISDB_USERS`     | Utilizadores a provisionar no arranque (lista separada por vírgulas) | — |
 
-Exemplo:
+Dentro do `compose.yaml`, as variáveis vão na secção `environment`. Exemplo:
 
-```bash
-export ELISDB_DB=/dados/elisdb/elisdb.db
-export ELISDB_PHOTOS=/dados/elisdb/photos
-.venv/bin/uvicorn app.main:app
+```yaml
+environment:
+  ELISDB_DB: /app/data/elisdb.db
+  ELISDB_PHOTOS: /app/data/photos
+  ELISDB_USERS: "maria,joao"
+  ELISDB_SERVER_URL: "http://192.168.1.10:8000"
 ```
 
-> Define `ELISDB_DB` **antes** de iniciar o servidor e usa sempre o mesmo valor
-> também nos comandos `app.keys` — as chaves registadas vivem nesse mesmo
-> ficheiro de dados.
+> Usa sempre o mesmo valor de `ELISDB_DB` também nos comandos `app.keys` — as
+> chaves registadas vivem nesse mesmo ficheiro de dados.
 
 ## Primeira execução
 

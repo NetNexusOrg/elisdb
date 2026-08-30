@@ -18,11 +18,11 @@ Release APK: `app/build/outputs/apk/release/app-release.apk`.
 ## Server (run from `elisdb-server/`)
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --host 0.0.0.0   # run the server
-.venv/bin/python -m pytest                      # run tests
-python -m app.keys issue <user> --server-url <url>  # issue a device key (writes <user>.config.json)
+docker compose up -d --build                         # build + start the server
+docker compose logs -f                               # follow logs
+docker compose down                                  # stop (keeps the data volume)
+curl http://localhost:8000/health                    # liveness check
+docker compose exec elisdb-server python -m app.keys issue <user> --server-url <url>  # issue a device key (writes <user>.config.json)
 ```
 
 Server env vars: `ELISDB_DB`, `ELISDB_PHOTOS`, `ELISDB_LOG_LEVEL`,

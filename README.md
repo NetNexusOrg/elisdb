@@ -20,7 +20,7 @@ sincronizam automaticamente.
 1. **Instala e corre o servidor** — guia em [`elisdb-server/docs/`](elisdb-server/docs/index.md).
 2. **Emite a chave de um telemóvel** no servidor:
    ```bash
-   python -m app.keys issue <nome> --server-url <URL-do-servidor>
+   docker compose exec elisdb-server python -m app.keys issue <nome> --server-url <URL-do-servidor>
    ```
 3. **Importa** o `<nome>.config.json` nas **Definições** da app e sincroniza.
 
@@ -40,7 +40,6 @@ O desenvolvimento é assistido por IA (OpenCode + OpenSpec) e gerido por Git/Git
 - **Build e testes:**
   ```bash
   cd elisdb-android && ./gradlew :app:testDebugUnitTest   # testes unitários
-  cd elisdb-server && .venv/bin/python -m pytest           # testes do servidor
   ```
 - **Release:** o CI (`.github/workflows/android-release.yml`) constrói o APK
   assinado e cria a GitHub Release ao fazer push de uma tag `vX.Y.Z`.

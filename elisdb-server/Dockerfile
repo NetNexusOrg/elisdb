@@ -2,8 +2,10 @@ FROM python:3.14-slim AS build
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN python -m pip install --no-cache-dir --prefix=/install \
+    "fastapi>=0.111" \
+    "uvicorn[standard]>=0.30" \
+    "cryptography>=43.0"
 
 FROM python:3.14-slim AS runtime
 

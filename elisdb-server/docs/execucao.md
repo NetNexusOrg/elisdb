@@ -1,7 +1,8 @@
 # Execução do servidor
 
 Com a instalação feita (ver [Instalação](instalacao.md)), este guia mostra como
-subir o servidor em Docker, como saber se está a funcionar e onde ficam os dados.
+subir o servidor em Docker — o único modo suportado (Docker-only) — como saber
+se está a funcionar e onde ficam os dados.
 
 ## Subir o servidor
 

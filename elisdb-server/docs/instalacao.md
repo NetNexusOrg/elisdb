@@ -8,6 +8,8 @@ vez, segue para a [Execução](execucao.md) para o subir.
 - **Docker** e o plugin **Docker Compose** instalados no computador.
 - Acesso à internet, para descarregar a imagem na primeira vez.
 
+O servidor corre **apenas** em Docker — não existe execução fora de contentor.
+
 Confirma que o Docker está instalado:
 
 ```bash

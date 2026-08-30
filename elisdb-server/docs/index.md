@@ -1,8 +1,9 @@
 # Documentação do servidor ElisDB
 
 O servidor ElisDB é o programa que **guarda os teus dados** (clientes e fotos)
-e os mantém em sincronia com a app Android. Corre em **Docker** — quando a app
-está ligada ao servidor, os dados são partilhados entre todos os dispositivos.
+e os mantém em sincronia com a app Android. Corre **apenas** em Docker
+(Docker-only) — quando a app está ligada ao servidor, os dados são partilhados
+entre todos os dispositivos.
 
 ## O que vais fazer com este servidor
 

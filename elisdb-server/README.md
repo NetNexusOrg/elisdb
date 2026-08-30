@@ -1,7 +1,7 @@
 # ElisDB Server
 
 O **servidor ElisDB** guarda os teus dados (clientes e fotos) e mantém a app
-Android sincronizada. Corre em **Docker**.
+Android sincronizada. Corre **apenas** em Docker (Docker-only).
 
 ## Início rápido
 

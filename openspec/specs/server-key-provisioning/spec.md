@@ -70,7 +70,7 @@ The system SHALL let an operator determine whether any trusted public keys are r
 
 ### Requirement: Startup provisioning from environment variables
 
-The system SHALL provision trusted keys automatically when the container starts, for every user listed in the `ELISDB_USERS` environment variable (a comma-separated list of user names), so operators can declare first-run users declaratively in `compose.yaml` instead of running the CLI manually. Provisioning SHALL be idempotent: a listed user that already holds a trusted key SHALL NOT be issued a new key, so existing phones keep working across restarts. Keys issued automatically by provisioning SHALL be distinguishable from keys issued manually through the CLI. On start, a user removed from `ELISDB_USERS` SHALL have their auto-provisioned key revoked (removed from the allowlist), while manually issued keys SHALL be left untouched. Provisioning SHALL run before the server accepts requests and SHALL write one configuration file per newly provisioned user, carrying the server URL and the private seed, into a configs directory inside the data volume, ready for import into the app.
+The system SHALL provision trusted keys automatically when the container starts, for every user listed in the `ELISDB_USERS` environment variable (a comma-separated list of user names), so operators can declare first-run users declaratively in `compose.yaml` instead of running the CLI manually. Provisioning SHALL be idempotent: a listed user that already holds a trusted key SHALL NOT be issued a new key, so existing phones keep working across restarts. Keys issued automatically by provisioning SHALL be distinguishable from keys issued manually through the CLI. On start, a user removed from `ELISDB_USERS` SHALL have their auto-provisioned key revoked (removed from the allowlist), while manually issued keys SHALL be left untouched. When `ELISDB_USERS` is empty or unset, all auto-provisioned keys SHALL be revoked and their configuration files removed. Provisioning SHALL run before the server accepts requests and SHALL write one configuration file per newly provisioned user, carrying the server URL and the private seed, into a configs directory inside the data volume, ready for import into the app.
 
 #### Scenario: Provision users listed in ELISDB_USERS
 - **WHEN** the container starts and `ELISDB_USERS` lists one or more user names
@@ -83,9 +83,11 @@ The system SHALL provision trusted keys automatically when the container starts,
 - **THEN** the system SHALL NOT issue a new key for that user
 - **AND** the existing key SHALL remain valid for authentication
 
-#### Scenario: Provisioning with no users listed does nothing
+#### Scenario: Empty ELISDB_USERS revokes all provisioned keys
 - **WHEN** the container starts and `ELISDB_USERS` is empty or unset
-- **THEN** no keys SHALL be provisioned automatically
+- **THEN** all auto-provisioned keys SHALL be revoked from the allowlist
+- **AND** their configuration files SHALL be removed
+- **AND** requests signed with revoked keys SHALL no longer be accepted
 - **AND** the server SHALL start normally
 
 #### Scenario: Provisioning requires a server URL

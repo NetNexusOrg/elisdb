@@ -19,9 +19,9 @@ for dir in "$db_dir" "$photos_dir" "$configs_dir"; do
   chown -R "${PUID}:${PGID}" "$dir"
 done
 
-# Provisiona as chaves dos utilizadores declarados em ELISDB_USERS (idempotente).
-if [ -n "${ELISDB_USERS:-}" ]; then
-  setpriv --reuid="${PUID}" --regid="${PGID}" --clear-groups python -m app.provision
-fi
+# Provisiona/revoga chaves dos utilizadores declarados em ELISDB_USERS (idempotente).
+# Corre sempre no arranque — se ELISDB_USERS estiver vazio ou ausente, todas as
+# chaves auto-provisionadas são revogadas.
+setpriv --reuid="${PUID}" --regid="${PGID}" --clear-groups python -m app.provision
 
 exec setpriv --reuid="${PUID}" --regid="${PGID}" --clear-groups "$@"

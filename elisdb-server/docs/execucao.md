@@ -71,6 +71,10 @@ environment:
   (ou monta `/app/data/configs` como *bind mount* para aparecerem no host) e
   importa cada ficheiro na app — ver [Configuração](configuracao.md).
 
+- Se limpar `ELISDB_USERS` (ou definir vazio), todas as chaves
+  auto-provisionadas são revogadas no arranque seguinte — apenas quem estiver
+  na lista tem acesso. Chaves emitidas manualmente via CLI não são afetadas.
+
 ## Emitir a chave de um telemóvel
 
 ```bash

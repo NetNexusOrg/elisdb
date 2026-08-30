@@ -65,10 +65,8 @@ def provision_users(
 
 def main() -> int:
     users = [u for u in os.environ.get("ELISDB_USERS", "").split(",") if u.strip()]
-    if not users:
-        return 0
     server_url = os.environ.get("ELISDB_SERVER_URL", "").strip()
-    if not server_url:
+    if users and not server_url:
         print("error: ELISDB_SERVER_URL is required to provision users", file=sys.stderr)
         return 2
 

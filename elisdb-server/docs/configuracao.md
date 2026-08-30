@@ -83,7 +83,7 @@ Então:
 | `ELISDB_DB`        | Caminho do ficheiro de dados (base de dados)      | `data/elisdb.db` |
 | `ELISDB_PHOTOS`    | Pasta para os ficheiros de fotos                   | `data/photos` ao lado da base de dados |
 | `ELISDB_SERVER_URL` | URL pelo qual a app alcança este servidor (usado por `app.keys issue` quando não passas `--server-url`) | — (obrigatória para emitir) |
-| `ELISDB_USERS`     | Utilizadores a provisionar no arranque (lista separada por vírgulas) | — |
+| `ELISDB_USERS`     | Utilizadores a provisionar no arranque (lista separada por vírgulas). Se vazio ou ausente, todas as chaves auto-provisionadas são revogadas. | — |
 
 Dentro do `compose.yaml`, as variáveis vão na secção `environment`. Exemplo:
 

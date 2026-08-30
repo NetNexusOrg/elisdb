@@ -14,6 +14,7 @@ description: Git conventions and safety rules for the ElisDB repo (branches, com
 
 - Conventional Commits: `feat:`, `fix:`, `docs:`, `ci:`, `chore:`, `refactor:`, `test:`.
 - Prefer small, semantically clear commits; one logical change per commit.
+- **Never run `git commit` or `git push` without explicit user confirmation — always ask first.**
 - Before committing: inspect `git status`, `git diff`, and `git diff --cached`; stage only intended files.
 
 ## Secrets before commit

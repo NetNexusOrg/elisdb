@@ -24,6 +24,7 @@ Jetpack Compose) + servidor de sync (Python + FastAPI + SQLite). Monorepo:
 ## Git
 
 - Commits pequenos e focados com Conventional Commits (`feat:`, `fix:`, `ci:`, `docs:`, `chore:`).
+- **Nunca fazer `git commit` nem `git push` sem confirmação explícita do utilizador** — pergunta sempre antes.
 - Não fazer force push, apagar branches/tags, nem `git reset --hard` sem confirmação explícita.
 - Verificar que não há secrets/dados em `git status` antes de commit (ver Security).
 

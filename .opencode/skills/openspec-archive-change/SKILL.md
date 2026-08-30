@@ -1,7 +1,7 @@
 ---
 name: openspec-archive-change
 description: Archive a completed change in the experimental workflow. Use when the user wants to finalize and archive a change after implementation is complete.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Bash(openspec:*), Bash(git:*)
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:
@@ -151,6 +151,16 @@ Archive a completed change in the experimental workflow.
    - Whether specs were synced (if applicable)
    - Note about any warnings (incomplete artifacts/tasks)
 
+7. **Commit and push (automatic)**
+
+   After archiving, commit and push automatically — do NOT ask for confirmation (this is the project default for `/opsx-archive`, per AGENTS.md).
+
+   - Run `git status --short` and review `git diff` / `git diff --cached` to see what is uncommitted.
+   - Verify no secrets/data are staged (no `*.config.json`, `*.db`, `*.jks`, `*.keystore`, `keystore.properties`, `.env`, `ELIS.csv`). See the security rules.
+   - Stage the change: the implementation diff plus the archived change directory (`<planningHome.changesDir>/archive/<target-name>/`).
+   - Commit with a Conventional Commit message that reflects the change (`feat:`, `fix:`, `docs:`, `chore:`, etc.). One logical change per commit when there are multiple unrelated changes.
+   - `git push` to the current branch's remote (`origin`).
+
 **Output On Success**
 
 ```markdown
@@ -178,3 +188,4 @@ Archive a completed change in the experimental workflow.
 - Existing CLI checks, resolved paths, prompts, and command contracts are unchanged
 - Artifact rules constrain only the specs being written and are never operation guidance
 - Never copy runtime context, operation guidance, or artifact-rule text verbatim into output files
+- After archiving, commit and push automatically (project default for `/opsx-archive`) — do not ask for confirmation

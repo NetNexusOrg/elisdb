@@ -25,6 +25,7 @@ Jetpack Compose) + servidor de sync (Python + FastAPI + SQLite). Monorepo:
 
 - Commits pequenos e focados com Conventional Commits (`feat:`, `fix:`, `ci:`, `docs:`, `chore:`).
 - **Nunca fazer `git commit` nem `git push` sem confirmação explícita do utilizador** — pergunta sempre antes.
+- **Exceção:** ao arquivar uma change via `/opsx-archive`, faz `git commit` + `git push` automaticamente no final (sem pedir confirmação), com Conventional Commits e após verificar que não há secrets/dados.
 - Não fazer force push, apagar branches/tags, nem `git reset --hard` sem confirmação explícita.
 - Verificar que não há secrets/dados em `git status` antes de commit (ver Security).
 

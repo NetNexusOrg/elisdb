@@ -6,6 +6,7 @@ last-write-wins on updated_at, and clients/photos live in a single SQLite file.
 
 import logging
 import os
+from pathlib import Path
 
 import time
 
@@ -23,6 +24,18 @@ from .models import (
 )
 
 logger = logging.getLogger("elisdb.server")
+
+
+def _read_version() -> str:
+    """Read version from VERSION file or ELISDB_VERSION env var, with fallback."""
+    env_version = os.environ.get("ELISDB_VERSION")
+    if env_version:
+        return env_version
+    version_file = Path(__file__).resolve().parent.parent / "VERSION"
+    try:
+        return version_file.read_text().strip()
+    except FileNotFoundError:
+        return "0.0.0-dev"
 
 # Max accepted photo upload size in bytes (20 MB). Overridden by
 # ELISDB_MAX_PHOTO_BYTES. Rejects oversized uploads with 413 instead of
@@ -89,7 +102,8 @@ async def require_auth(request: Request) -> None:
 
 
 def create_app(database: Database | None = None) -> FastAPI:
-    app = FastAPI(title="ElisDB Server", version="1.0.0")
+    version = _read_version()
+    app = FastAPI(title="ElisDB Server", version=version)
     store = database if database is not None else db
     store.init()
     app.state.store = store
@@ -99,7 +113,7 @@ def create_app(database: Database | None = None) -> FastAPI:
         level=getattr(logging, os.environ.get("ELISDB_LOG_LEVEL", "INFO").upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    logger.info("ElisDB server starting")
+    logger.info("ElisDB server starting (version=%s)", version)
 
     @app.middleware("http")
     async def _log_requests(request: Request, call_next):
@@ -123,7 +137,7 @@ def create_app(database: Database | None = None) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict:
-        return {"status": "ok"}
+        return {"status": "ok", "version": version}
 
     @app.get("/api/time")
     def time_now() -> dict:

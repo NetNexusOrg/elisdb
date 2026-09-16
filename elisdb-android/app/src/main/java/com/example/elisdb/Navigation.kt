@@ -61,7 +61,7 @@ fun MainNavigation() {
                   syncManager = container.syncManager,
                   fetchKeyIdentity = {
                     try {
-                      container.createApiClient().fetchKeyIdentity()
+                      container.createApiClient().fetchKeyIdentity(timestamp = container.normalizedEpochSeconds())
                     } catch (e: Exception) {
                       null
                     }
@@ -96,7 +96,7 @@ fun MainNavigation() {
                   container.repository,
                   key.clienteId,
                   fetchHistory = { id ->
-                    container.createApiClient().fetchClientHistory(id)
+                    container.createApiClient().fetchClientHistory(id, timestamp = container.normalizedEpochSeconds())
                   },
                 )
               },

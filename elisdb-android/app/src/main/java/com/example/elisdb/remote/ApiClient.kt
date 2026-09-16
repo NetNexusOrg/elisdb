@@ -97,7 +97,9 @@ class ApiClient(
       setBody(bodyBytes)
     }
     checkAuthError(response)
-    require(response.status == io.ktor.http.HttpStatusCode.OK) { "push failed: HTTP ${response.status}" }
+    if (response.status != io.ktor.http.HttpStatusCode.OK) {
+      throw ServerException("push failed HTTP ${response.status}", response.status.value)
+    }
     return response.body()
   }
 
@@ -206,10 +208,11 @@ class ApiClient(
   /**
    * Looks up the allowlist identity of the signing key (`GET /api/keys/me`).
    * Informational only: the caller must treat any failure as "no identity".
+   * The caller passes a clock-offset-normalized [timestamp] so the signed
+   * request is accepted even when the device clock is skewed.
    */
-  suspend fun fetchKeyIdentity(): KeyIdentityDto {
+  suspend fun fetchKeyIdentity(timestamp: Long): KeyIdentityDto {
     val path = "/api/keys/me"
-    val timestamp = System.currentTimeMillis() / 1000
     val signature = signer.signRequest("GET", path, ByteArray(0), timestamp)
     val response = client.get("$baseUrl$path") {
       header(AuthHeaders.TIMESTAMP, timestamp.toString())

@@ -12,6 +12,7 @@ import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_3_4
 import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_4_5
 import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_5_6
 import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_6_7
+import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_7_8
 import com.example.elisdb.data.local.RoomPullWatermark
 import com.example.elisdb.location.LocationService
 import com.example.elisdb.remote.ApiClient
@@ -36,7 +37,7 @@ class AppContainer(context: Context) {
   val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
   val database: AppDatabase =
     Room.databaseBuilder(context, AppDatabase::class.java, "elisdb.db")
-      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
       .build()
 
   val locationService: LocationService = LocationService(context)
@@ -53,6 +54,14 @@ class AppContainer(context: Context) {
 
   /** Device↔server clock offset, refreshed on each successful sync. */
   val clockOffsetStore: ClockOffsetStore = PrefsClockOffsetStore(context)
+
+  /**
+   * Device clock (epoch seconds) shifted by the last-known server offset, so
+   * signed requests carry a timestamp the server accepts even when the device
+   * clock is skewed. Mirrors `SyncCoordinator.normalizedEpochSeconds()`.
+   */
+  fun normalizedEpochSeconds(): Long =
+    System.currentTimeMillis() / 1000 + (clockOffsetStore.getOffsetSeconds() ?: 0L)
 
   /** Photo content hashes at last successful push, for incremental photo push. */
   val photoPushState: PhotoPushState = PrefsPhotoPushState(context)
@@ -103,7 +112,7 @@ class AppContainer(context: Context) {
       pullWatermark = RoomPullWatermark(database.syncMetaDao()),
       fetchLatestUpdatedAt = {
         try {
-          createApiClient().fetchLatestUpdatedAt()
+          createApiClient().fetchLatestUpdatedAt(timestamp = normalizedEpochSeconds())
         } catch (e: Exception) {
           null
         }

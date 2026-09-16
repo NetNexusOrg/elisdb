@@ -278,8 +278,16 @@ class SyncCoordinator(
         val response = api.pull(since = since, sinceId = sinceId, timestamp = normalizedEpochSeconds())
         allServerClients += response.records
         allTombstones += response.tombstones
-        since = response.nextSince
-        sinceId = response.nextSinceId
+        val nextSince = response.nextSince
+        val nextSinceId = response.nextSinceId
+        // A well-behaved server advances the cursor past the last record on every
+        // page; guard against one that keeps returning the same cursor forever.
+        if (nextSince != null && nextSince == since && nextSinceId == sinceId) {
+          onWarning("Cursor de paginação não avançou; a interromper o pull")
+          break
+        }
+        since = nextSince
+        sinceId = nextSinceId
       } while (since != null)
 
       // Apply server state for records with no pending local edits. Each item

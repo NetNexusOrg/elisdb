@@ -44,6 +44,7 @@ class AppDatabaseMigrationTest {
           AppDatabase.MIGRATION_4_5,
           AppDatabase.MIGRATION_5_6,
           AppDatabase.MIGRATION_6_7,
+          AppDatabase.MIGRATION_7_8,
         )
         .build()
 
@@ -62,7 +63,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7)
+        .addMigrations(AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -88,7 +89,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7)
+        .addMigrations(AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -121,7 +122,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7)
+        .addMigrations(AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -150,7 +151,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7)
+        .addMigrations(AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -177,7 +178,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_6_7)
+        .addMigrations(AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -201,6 +202,82 @@ class AppDatabaseMigrationTest {
     assertEquals(false, notNulls["longitude"])
 
     database.close()
+  }
+
+  @Test
+  fun migracao_7_8_converteTimestampsMsParaSegundos() {
+    createDatabaseV7WithClient()
+
+    val database =
+      Room.databaseBuilder(context, AppDatabase::class.java, dbName)
+        .addMigrations(AppDatabase.MIGRATION_7_8)
+        .build()
+
+    val cliente = runBlocking { database.clienteDao().getById("1") }
+    assertNotNull(cliente)
+    assertEquals("Maria", cliente?.nome)
+    assertEquals(1758000000L, cliente?.updatedAt)
+    assertEquals(1758000000L, cliente?.createdAt)
+    assertEquals(1758000000L, cliente?.dataCriacao)
+
+    val meta = runBlocking { database.syncMetaDao().get("last_pull_watermark") }
+    assertEquals(1758000000L, meta)
+
+    database.close()
+  }
+
+  private fun createDatabaseV7WithClient() {
+    val configuration =
+      SupportSQLiteOpenHelper.Configuration.builder(context)
+        .name(dbName)
+        .callback(
+          object : SupportSQLiteOpenHelper.Callback(7) {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+              db.execSQL(
+                "CREATE TABLE IF NOT EXISTS clientes (" +
+                  "id TEXT NOT NULL PRIMARY KEY, " +
+                  "nome TEXT NOT NULL, contrato TEXT, " +
+                  "latitude REAL, longitude REAL, " +
+                  "notas TEXT, dataCriacao INTEGER NOT NULL, " +
+                  "createdAt INTEGER NOT NULL DEFAULT 0, " +
+                  "updatedAt INTEGER NOT NULL, " +
+                  "pending INTEGER NOT NULL DEFAULT 0, " +
+                  "deletePending INTEGER NOT NULL DEFAULT 0)"
+              )
+              db.execSQL(
+                "CREATE TABLE IF NOT EXISTS fotos (" +
+                  "id TEXT NOT NULL PRIMARY KEY, " +
+                  "clienteId TEXT NOT NULL, uriLocal TEXT NOT NULL, " +
+                  "mime TEXT NOT NULL DEFAULT 'image/jpeg', " +
+                  "ordem INTEGER NOT NULL DEFAULT 0, " +
+                  "deletePending INTEGER NOT NULL DEFAULT 0, " +
+                  "FOREIGN KEY(clienteId) REFERENCES clientes(id) " +
+                  "ON UPDATE NO ACTION ON DELETE CASCADE)"
+              )
+              db.execSQL("CREATE INDEX IF NOT EXISTS index_fotos_clienteId ON fotos (clienteId)")
+              db.execSQL(
+                "CREATE TABLE IF NOT EXISTS sync_meta (" +
+                  "`key` TEXT NOT NULL PRIMARY KEY, " +
+                  "value INTEGER NOT NULL)"
+              )
+            }
+
+            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+          }
+        )
+        .build()
+
+    val helper = FrameworkSQLiteOpenHelperFactory().create(configuration)
+    helper.writableDatabase.use { db ->
+      db.execSQL(
+        "INSERT INTO clientes (id, nome, contrato, latitude, longitude, notas, dataCriacao, createdAt, updatedAt, pending, deletePending) " +
+          "VALUES ('1', 'Maria', 'CT-1', 1.0, 2.0, NULL, 1758000000000, 1758000000000, 1758000000000, 0, 0)"
+      )
+      db.execSQL(
+        "INSERT INTO sync_meta (`key`, value) VALUES ('last_pull_watermark', 1758000000000)"
+      )
+    }
+    helper.close()
   }
 
   private fun createDatabaseV6WithClient() {

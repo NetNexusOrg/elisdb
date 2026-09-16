@@ -37,10 +37,9 @@ class ClienteRepositoryImpl(
   private val clockOffsetStore: com.example.elisdb.sync.ClockOffsetStore? = null,
 ) : ClienteRepository {
 
-  /** Device clock (epoch ms) shifted by the last-known server offset, when available. */
-  private fun nowMillis(): Long =
-    System.currentTimeMillis() +
-      (clockOffsetStore?.getOffsetSeconds() ?: 0L) * 1000L
+  /** Device clock (epoch seconds) shifted by the last-known server offset, when available. */
+  private fun nowEpochSeconds(): Long =
+    System.currentTimeMillis() / 1000 + (clockOffsetStore?.getOffsetSeconds() ?: 0L)
   private val photosDir: File
     get() = File(context.filesDir, "photos")
 
@@ -75,7 +74,7 @@ class ClienteRepositoryImpl(
   }
 
   override suspend fun save(draft: ClienteDraft): String {
-    val now = nowMillis()
+    val now = nowEpochSeconds()
     val removedFiles = mutableListOf<Foto>()
     val clienteId =
       database.withTransaction {

@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
   entities = [Cliente::class, Foto::class, SyncMeta::class],
-  version = 7,
+  version = 8,
   exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -136,6 +136,27 @@ abstract class AppDatabase : RoomDatabase() {
           )
           db.execSQL("DROP TABLE clientes")
           db.execSQL("ALTER TABLE clientes_new RENAME TO clientes")
+        }
+      }
+
+    val MIGRATION_7_8: Migration =
+      object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+          // Normalize legacy millisecond timestamps to epoch seconds. Values
+          // above 1e11 are milliseconds (epoch ~1.7e12 in 2026); second-scale
+          // values (~1.7e9) are left untouched.
+          db.execSQL(
+            "UPDATE clientes SET updatedAt = updatedAt / 1000 WHERE updatedAt > 100000000000"
+          )
+          db.execSQL(
+            "UPDATE clientes SET createdAt = createdAt / 1000 WHERE createdAt > 100000000000"
+          )
+          db.execSQL(
+            "UPDATE clientes SET dataCriacao = dataCriacao / 1000 WHERE dataCriacao > 100000000000"
+          )
+          db.execSQL(
+            "UPDATE sync_meta SET value = value / 1000 WHERE `key` = 'last_pull_watermark' AND value > 100000000000"
+          )
         }
       }
   }

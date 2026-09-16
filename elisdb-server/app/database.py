@@ -15,7 +15,7 @@ from .models import ClienteIn, FotoIn, normalize_nome
 
 # Reject data timestamps further in the future than this many seconds, so a
 # malicious or broken client timestamp cannot permanently win last-write-wins.
-# Data `updated_at` is epoch milliseconds; `deleted_at` is epoch seconds.
+# Data timestamps (`updated_at`, `deleted_at`) are epoch seconds.
 MAX_FUTURE_SKEW_SECONDS = 3600
 
 SCHEMA = """
@@ -135,6 +135,26 @@ def _migrate_clients_nullable_coords(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys = ON")
 
 
+def _migrate_timestamps_to_seconds(conn: sqlite3.Connection) -> None:
+    """Idempotently convert legacy millisecond timestamps to epoch seconds.
+
+    Before the seconds normalization, client `updated_at`/`created_at` and audit
+    `ts` were stored in milliseconds while `deleted_at` and `keys.created_at`
+    were already seconds. Values above the threshold are milliseconds (epoch
+    ~1.7e12 in 2026) and are divided by 1000; second-scale values are left
+    untouched, so the migration is naturally idempotent across restarts.
+    """
+    conn.execute(
+        "UPDATE clientes SET updated_at = updated_at / 1000 WHERE updated_at > 100000000000"
+    )
+    conn.execute(
+        "UPDATE clientes SET created_at = created_at / 1000 WHERE created_at > 100000000000"
+    )
+    conn.execute(
+        "UPDATE client_audit SET ts = ts / 1000 WHERE ts > 100000000000"
+    )
+
+
 # Databases whose schema + migrations have already been applied in this process.
 # Schema/migrations run once per database file (at first connection / startup)
 # instead of on every request connection, while the per-connection PRAGMAs below
@@ -165,6 +185,7 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     _migrate_keys_provisioned(conn)
     _migrate_clients_created_at(conn)
     _migrate_clients_nullable_coords(conn)
+    _migrate_timestamps_to_seconds(conn)
     conn.commit()
 
 
@@ -239,9 +260,9 @@ class Database:
         if not nome:
             raise ValueError("nome cannot be blank")
 
-        # updated_at is epoch milliseconds (client-side `nowMillis()`), so the
-        # future bound is compared against the server clock in milliseconds.
-        if cliente.updated_at > int(time.time()) * 1000 + MAX_FUTURE_SKEW_SECONDS * 1000:
+        # updated_at is epoch seconds; reject a far-future value so a malicious
+        # or broken timestamp cannot permanently win last-write-wins.
+        if cliente.updated_at > int(time.time()) + MAX_FUTURE_SKEW_SECONDS:
             raise ValueError("updated_at is too far in the future")
 
         conn = self._conn()

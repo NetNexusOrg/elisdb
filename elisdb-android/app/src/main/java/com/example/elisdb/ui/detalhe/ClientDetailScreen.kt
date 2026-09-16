@@ -223,7 +223,7 @@ private fun LogEntries(entries: List<AuditEntryDto>) {
           "edit" -> "Editado por $actor"
           else -> entry.action
         }
-      val whenText = formatter.format(Date(entry.ts))
+      val whenText = formatter.format(Date(entry.ts * 1000))
       Text("$action — $whenText", style = MaterialTheme.typography.bodyMedium)
     }
   }

@@ -197,7 +197,7 @@ class SyncCoordinator(
     canonicalRemoved.forEach { filesToDeleteAfterCommit += it.uriLocal }
 
     val localFotos = fotoDao.getByCliente(cliente.id).filter { !it.deletePending }
-    val now = System.currentTimeMillis() + (clockOffsetStore?.getOffsetSeconds() ?: 0L) * 1000L
+    val now = normalizedEpochSeconds()
     runInTransaction {
       // upsert (not insert/REPLACE): preserves any canonical row already stored,
       // so its existing photo rows survive until the union is committed below.

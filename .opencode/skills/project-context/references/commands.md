@@ -26,7 +26,8 @@ docker compose exec elisdb-server python -m app.keys issue <user> --server-url <
 ```
 
 Server env vars: `ELISDB_DB`, `ELISDB_PHOTOS`, `ELISDB_LOG_LEVEL`,
-`ELISDB_MAX_PHOTO_BYTES`, `ELISDB_SERVER_URL`, `ELISDB_USERS`, `ELISDB_CONFIGS_DIR`.
+`ELISDB_MAX_PHOTO_BYTES`, `ELISDB_SERVER_URL`, `ELISDB_USERS`, `ELISDB_CONFIGS_DIR`,
+`ELISDB_RATE_LIMIT_REQUESTS`, `ELISDB_RATE_LIMIT_WINDOW_SECONDS`.
 
 ## Docker (server)
 

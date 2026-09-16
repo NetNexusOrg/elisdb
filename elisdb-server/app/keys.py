@@ -77,9 +77,13 @@ def issue_and_register(
     seed_b64, public_b64, key_id = issue(user)
     output_path = output or f"{user}.config.json"
     config = {"server_url": server_url, "private_seed": seed_b64}
-    with open(output_path, "w", encoding="utf-8") as f:
+    # The config carries the private seed, so write it owner-only (0600) and
+    # re-chmod in case the file already existed with looser permissions.
+    fd = os.open(output_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
         f.write("\n")
+    os.chmod(output_path, 0o600)
     db.add_key(key_id, public_b64, comment=user, provisioned=provisioned)
     print(f"issued key for '{user}' (id {key_id})")
     print(f"configuration written to: {output_path}")

@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 
 from . import auth
 from .database import Database
+from .ratelimit import RateLimiter
 from .models import (
     AuditEntryOut,
     ClienteComFotosOut,
@@ -42,6 +43,24 @@ def _read_version() -> str:
 # buffering the whole body in memory.
 MAX_PHOTO_BYTES = int(os.environ.get("ELISDB_MAX_PHOTO_BYTES", "20971520"))
 
+
+def _env_int(name: str, default: int) -> int:
+    """Read a positive integer env var, falling back to ``default`` when unset
+    or invalid (with a warning) so a misconfiguration never crashes startup."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning("invalid %s=%r; using default %d", name, raw, default)
+        return default
+    if value <= 0:
+        logger.warning("invalid %s=%r; using default %d", name, raw, default)
+        return default
+    return value
+
+
 db = Database(
     os.environ.get("ELISDB_DB", "elisdb.db"),
     fotos_dir=os.environ.get("ELISDB_PHOTOS"),
@@ -61,6 +80,14 @@ async def require_auth(request: Request) -> None:
     if replayed within its validity window.
     """
     store = request.app.state.store
+    # Reject oversized bodies before buffering them for signature verification.
+    # The photo limit is the largest legitimate body (JSON push bodies are tiny);
+    # a client that declares a larger Content-Length is refused here instead of
+    # exhausting memory during `request.body()`.
+    content_length = request.headers.get("content-length")
+    if content_length is not None and content_length.isdigit():
+        if int(content_length) > MAX_PHOTO_BYTES:
+            raise HTTPException(status_code=413, detail="request body too large")
     body = await request.body()
 
     timestamp_str = request.headers.get(auth.TIMESTAMP_HEADER)
@@ -109,6 +136,11 @@ def create_app(database: Database | None = None) -> FastAPI:
     app.state.store = store
     auth_dep = Depends(require_auth)
 
+    rate_limiter = RateLimiter(
+        max_requests=_env_int("ELISDB_RATE_LIMIT_REQUESTS", 300),
+        window_seconds=_env_int("ELISDB_RATE_LIMIT_WINDOW_SECONDS", 60),
+    )
+
     logging.basicConfig(
         level=getattr(logging, os.environ.get("ELISDB_LOG_LEVEL", "INFO").upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -134,6 +166,21 @@ def create_app(database: Database | None = None) -> FastAPI:
                 response.status_code,
             )
         return response
+
+    @app.middleware("http")
+    async def _rate_limit(request: Request, call_next):
+        # Limit by authenticated key when the client identifies itself, and by
+        # client IP in all cases, so omitting the key header cannot bypass the
+        # limit and open endpoints are still throttled by source address.
+        identifiers = [f"ip:{request.client.host if request.client else 'unknown'}"]
+        key_header = request.headers.get(auth.KEY_HEADER)
+        if key_header:
+            identifiers.append(f"key:{key_header}")
+        for identifier in identifiers:
+            if not rate_limiter.allow(identifier):
+                logger.warning("rate limit exceeded for %s", identifier.split(":", 1)[0])
+                return Response(status_code=429, content=b"too many requests")
+        return await call_next(request)
 
     @app.get("/health")
     def health() -> dict:

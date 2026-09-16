@@ -46,6 +46,8 @@ Base facts in `project-context`. This skill covers server development rules.
 - `ELISDB_DB`, `ELISDB_PHOTOS`, `ELISDB_LOG_LEVEL` (default INFO),
   `ELISDB_MAX_PHOTO_BYTES` (default 20 MiB), `ELISDB_SERVER_URL`,
   `ELISDB_USERS` (comma-separated auto-provision), `ELISDB_CONFIGS_DIR`.
+- Rate limiting: `ELISDB_RATE_LIMIT_REQUESTS` (default 300) and
+  `ELISDB_RATE_LIMIT_WINDOW_SECONDS` (default 60); excess requests get `429`.
 
 ## Logging rules
 

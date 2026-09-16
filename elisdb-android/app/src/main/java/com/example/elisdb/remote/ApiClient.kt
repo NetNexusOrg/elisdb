@@ -18,7 +18,6 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -76,10 +75,6 @@ class ApiClient(
           // Short-circuit the server's allowlist scan by sending our public key,
           // so the server verifies only against this key instead of every one.
           header(AuthHeaders.KEY, signer.publicKeyB64)
-          header(
-            HttpHeaders.UserAgent,
-            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36",
-          )
         }
       }
       return ApiClient(baseUrl.trimEnd('/'), signer, http)

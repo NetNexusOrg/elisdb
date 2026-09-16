@@ -13,6 +13,7 @@ import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncManager
 import com.example.elisdb.sync.SyncStatus
 import java.io.File
+import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -84,7 +85,7 @@ class ClienteRepositoryImpl(
             clienteDao.insert(
               Cliente(
                 id = newId,
-                nome = draft.nome.trim().uppercase(),
+                nome = draft.nome.trim().uppercase(Locale.ROOT),
                 contrato = draft.contrato?.takeIf { it.isNotBlank() },
                 latitude = draft.latitude,
                 longitude = draft.longitude,
@@ -100,7 +101,7 @@ class ClienteRepositoryImpl(
             val existing = clienteDao.getById(draft.id) ?: return@withTransaction draft.id
             clienteDao.update(
               existing.copy(
-                nome = draft.nome.trim().uppercase(),
+                nome = draft.nome.trim().uppercase(Locale.ROOT),
                 contrato = draft.contrato?.takeIf { it.isNotBlank() },
                 latitude = draft.latitude,
                 longitude = draft.longitude,

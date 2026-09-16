@@ -9,6 +9,7 @@ import com.example.elisdb.remote.AuthException
 import com.example.elisdb.remote.ClienteComFotosDto
 import com.example.elisdb.remote.ConfigException
 import com.example.elisdb.remote.TombstoneDto
+import java.util.Locale
 import kotlinx.coroutines.sync.withLock
 
 /**
@@ -354,7 +355,7 @@ class SyncCoordinator(
     val cliente =
       Cliente(
         id = server.id,
-        nome = server.nome.uppercase(),
+        nome = server.nome.uppercase(Locale.ROOT),
         contrato = server.contrato,
         latitude = server.latitude,
         longitude = server.longitude,

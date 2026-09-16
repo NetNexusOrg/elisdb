@@ -8,6 +8,7 @@ import com.example.elisdb.data.ClienteDraft
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.location.Localizacao
 import java.io.File
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -74,7 +75,7 @@ class ClientFormViewModel(
   }
 
   fun onNomeChange(value: String) =
-    _uiState.update { it.copy(nome = value.uppercase(), nomeError = false) }
+    _uiState.update { it.copy(nome = value.uppercase(Locale.ROOT), nomeError = false) }
 
   fun onContratoChange(value: String) = _uiState.update { it.copy(contrato = value) }
 

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.local.ClienteComFotos
 import java.text.Normalizer
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +28,7 @@ private fun normalizeForSearch(value: String?): String {
   if (value == null) return ""
   return Normalizer.normalize(value, Normalizer.Form.NFD)
     .replace("\\p{M}".toRegex(), "")
-    .lowercase()
+    .lowercase(Locale.ROOT)
 }
 
 data class ClientListItem(

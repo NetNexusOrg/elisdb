@@ -225,13 +225,18 @@ class Database:
             dirname = os.path.dirname(os.path.abspath(db_path))
             fotos_dir = os.path.join(dirname, "photos")
         self.fotos_dir = fotos_dir
-        os.makedirs(self.fotos_dir, exist_ok=True)
 
     def _conn(self) -> sqlite3.Connection:
         return connect(self.db_path)
 
     def init(self) -> None:
-        """Apply schema and migrations once at startup (idempotent)."""
+        """Apply schema and migrations once at startup (idempotent).
+
+        Also creates the photos directory here (not in ``__init__``) so merely
+        constructing or importing the database object has no filesystem side
+        effects.
+        """
+        os.makedirs(self.fotos_dir, exist_ok=True)
         conn = self._conn()
         try:
             _ensure_schema(conn, self.db_path)

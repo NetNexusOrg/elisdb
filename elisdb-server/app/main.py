@@ -133,6 +133,11 @@ def create_app(database: Database | None = None) -> FastAPI:
     app = FastAPI(title="ElisDB Server", version=version)
     store = database if database is not None else db
     store.init()
+    # Reclaim photo files left without a database row (from edits or abandoned
+    # uploads) so storage does not grow across restarts.
+    removed = store.gc_orphan_photos()
+    if removed:
+        logger.info("startup cleanup removed %d orphaned photo file(s)", removed)
     app.state.store = store
     auth_dep = Depends(require_auth)
 

@@ -43,8 +43,10 @@ class ClientDetailViewModel(
     viewModelScope.launch {
       repository.observeCliente(clienteId).collect { data ->
         val pending = data?.cliente?.pending == true || data?.cliente?.deletePending == true
+        // The first emission ends loading; a null afterwards means the client
+        // is gone (e.g. deleted by sync), not that it is still loading.
         _uiState.update {
-          it.copy(isLoading = data == null, cliente = data, hasPending = pending)
+          it.copy(isLoading = false, cliente = data, hasPending = pending)
         }
       }
     }

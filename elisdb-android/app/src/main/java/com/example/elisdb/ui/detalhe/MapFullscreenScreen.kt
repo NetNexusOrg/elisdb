@@ -33,10 +33,18 @@ fun MapFullscreenScreen(
 ) {
   var cliente by remember { mutableStateOf<ClienteComFotos?>(null) }
   var loading by remember { mutableStateOf(true) }
+  var loadError by remember { mutableStateOf(false) }
 
   LaunchedEffect(clienteId) {
     loading = true
-    cliente = repository.getCliente(clienteId)
+    loadError = false
+    cliente =
+      try {
+        repository.getCliente(clienteId)
+      } catch (e: Exception) {
+        loadError = true
+        null
+      }
     loading = false
   }
 
@@ -46,7 +54,21 @@ fun MapFullscreenScreen(
       loading ->
         CircularProgressIndicator(Modifier.align(Alignment.Center))
 
-      coords == null || coords.latitude == null || coords.longitude == null ->
+      loadError ->
+        Text(
+          "Não foi possível carregar a localização.",
+          style = MaterialTheme.typography.titleMedium,
+          modifier = Modifier.align(Alignment.Center),
+        )
+
+      coords == null ->
+        Text(
+          "Cliente não encontrado.",
+          style = MaterialTheme.typography.titleMedium,
+          modifier = Modifier.align(Alignment.Center),
+        )
+
+      coords.latitude == null || coords.longitude == null ->
         Text(
           "Sem localização definida.",
           style = MaterialTheme.typography.titleMedium,

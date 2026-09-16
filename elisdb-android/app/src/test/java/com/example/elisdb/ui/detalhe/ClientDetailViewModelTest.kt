@@ -153,6 +153,15 @@ class ClientDetailViewModelTest {
     dispatcher.scheduler.advanceUntilIdle()
     assertFalse(viewModel.uiState.value.hasPending)
   }
+
+  @Test
+  fun clienteInexistente_terminaLoadingENaoEncontrado() = runTest(dispatcher) {
+    val repo = FakeClientRepository(data = null)
+    val viewModel = ClientDetailViewModel(repo, "missing")
+    dispatcher.scheduler.advanceUntilIdle()
+    assertFalse(viewModel.uiState.value.isLoading)
+    assertNull(viewModel.uiState.value.cliente)
+  }
 }
 
 private class FakeClientRepository(

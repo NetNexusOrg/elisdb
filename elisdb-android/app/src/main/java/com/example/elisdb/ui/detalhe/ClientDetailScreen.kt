@@ -154,9 +154,14 @@ fun ClientDetailScreen(
       val context = LocalContext.current
       val data = state.cliente
       when {
-        state.isLoading || data == null ->
+        state.isLoading ->
           Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
+          }
+
+        data == null ->
+          Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Cliente não encontrado.", style = MaterialTheme.typography.titleMedium)
           }
 
         else ->

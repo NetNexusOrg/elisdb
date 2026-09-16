@@ -5,10 +5,10 @@ context: |
   self-hosted sync server. Single-repo monorepo.
 
   Components:
-  - elisdb-android/ — Android app. Kotlin 2.3.20 + Jetpack Compose (Material 3),
-    Navigation 3, Room 2.8.4 (KSP), Ktor 3 client, WorkManager, CameraX, Coil.
+  - elisdb-android/ — Android app. Kotlin 2.4.20 + Jetpack Compose (Material 3),
+    Navigation 3, Room 2.8.5 (KSP), Ktor 3 client, WorkManager, CameraX, Coil.
     MVVM (ViewModel + StateFlow + Repository), manual DI via AppContainer, package
-    com.example.elisdb. minSdk 24, compile/targetSdk 36, Java 17 (jvmToolchain).
+    com.example.elisdb. minSdk 24, compile/targetSdk 37, Java 17 (jvmToolchain).
   - elisdb-server/ — Python 3.14 + FastAPI + SQLite (WAL). ed25519 request-signing
     auth (X-Elisdb-Timestamp/Signature/Key headers), LWW conflict resolution,
     tombstones, photo binaries on disk.

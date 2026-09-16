@@ -8,7 +8,7 @@ description: Gradle/AGP build configuration for the ElisDB Android project. Use 
 ## Versions (verified — do not bump without being asked)
 
 - Gradle Wrapper 9.1.0 (`gradle/wrapper/gradle-wrapper.properties`, SHA-256 pinned).
-- Android Gradle Plugin 9.0.1, Kotlin 2.3.20, KSP 2.3.10 (see `gradle/libs.versions.toml`).
+- Android Gradle Plugin 9.4.0, Kotlin 2.4.20, KSP 2.3.12 (see `gradle/libs.versions.toml`).
 - Java 17 toolchain (`jvmToolchain(17)`); the foojay resolver auto-provisions JDK 17.
 - App version is in `gradle.properties` (`app.versionCode`, `app.versionName`), NOT in `build.gradle.kts`.
 

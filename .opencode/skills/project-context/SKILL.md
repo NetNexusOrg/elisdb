@@ -21,8 +21,8 @@ the code rather than trusting memory.
 ## Android app
 
 - Package / namespace / applicationId: `com.example.elisdb`. Single module `:app`.
-- Kotlin 2.3.20, Jetpack Compose (BOM 2026.03.01) + Material 3, Navigation 3 (`androidx.navigation3`).
-- minSdk 24, compileSdk/targetSdk 36, Java 17 (`jvmToolchain(17)`).
+- Kotlin 2.4.20, Jetpack Compose (BOM 2026.09.00) + Material 3, Navigation 3 (`androidx.navigation3`).
+- minSdk 24, compileSdk/targetSdk 37, Java 17 (`jvmToolchain(17)`).
 - Dependency versions in `elisdb-android/gradle/libs.versions.toml` (version catalog).
 - App version in `elisdb-android/gradle.properties`: `app.versionCode`, `app.versionName`.
 

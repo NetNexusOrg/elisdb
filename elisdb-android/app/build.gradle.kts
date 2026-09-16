@@ -11,11 +11,11 @@ plugins {
 
 android {
     namespace = "com.example.elisdb"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         applicationId = "com.example.elisdb"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 37
         versionCode = (providers.gradleProperty("app.versionCode").getOrElse("1")).toInt()
         versionName = providers.gradleProperty("app.versionName").getOrElse("1.0")
 
@@ -62,6 +62,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release")
         }

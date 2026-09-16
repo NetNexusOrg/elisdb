@@ -25,6 +25,12 @@ curl http://localhost:8000/health                    # liveness check
 docker compose exec elisdb-server python -m app.keys issue <user> --server-url <url>  # issue a device key (writes <user>.config.json)
 ```
 
+Tests (needs a venv with `pip install -r requirements-dev.txt`; the server itself is Docker-only):
+
+```bash
+python -m pytest                                     # server suite (from elisdb-server/)
+```
+
 Server env vars: `ELISDB_DB`, `ELISDB_PHOTOS`, `ELISDB_LOG_LEVEL`,
 `ELISDB_MAX_PHOTO_BYTES`, `ELISDB_SERVER_URL`, `ELISDB_USERS`, `ELISDB_CONFIGS_DIR`,
 `ELISDB_RATE_LIMIT_REQUESTS`, `ELISDB_RATE_LIMIT_WINDOW_SECONDS`.

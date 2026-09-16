@@ -56,6 +56,8 @@ Base facts in `project-context`. This skill covers server development rules.
 
 ## Conventions
 
-- The server has no in-repo unit tests; verify behavior by running the server in
-  Docker (`docker compose up -d`) and exercising endpoints manually (see `references/commands.md`).
+- The server has an in-repo `pytest` suite under `elisdb-server/tests/`. Run it with
+  `python -m pytest` from `elisdb-server/` (after installing `requirements-dev.txt`).
+  CI job: `.github/workflows/server-ci.yml`. For manual end-to-end checks, run the
+  server in Docker (`docker compose up -d`) and exercise endpoints (see `references/commands.md`).
 - Model changes must stay consistent with the Android `remote/` + `sync/` clients.

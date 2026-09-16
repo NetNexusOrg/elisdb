@@ -66,7 +66,8 @@ the code rather than trusting memory.
 ## Conventions
 
 - Docs in Portuguese under `*/docs/`; root `README.md` is the project overview.
-- Tests: Android unit tests `app/src/test/`, instrumented `app/src/androidTest/`.
+- Tests: Android unit tests `app/src/test/`, instrumented `app/src/androidTest/`;
+  server `pytest` suite in `elisdb-server/tests/` (CI: `.github/workflows/server-ci.yml`).
 - Commits: Conventional Commits (`feat:`, `fix:`, `ci:`, `docs:`, `chore:`).
 - No app code lives outside `com.example.elisdb`.
 

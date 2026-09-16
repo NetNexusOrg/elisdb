@@ -2,6 +2,8 @@ services:
   elisdb-server:
     build: .
     container_name: elisdb-server
+    # Reinicia automaticamente após crash/reboot (mas não após `docker compose stop`).
+    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
@@ -9,7 +11,6 @@ services:
     environment:
       ELISDB_DB: /app/data/elisdb.db
       ELISDB_PHOTOS: /app/data/photos
-      ELISDB_VERSION: "1.0.0"
       # Utilizadores a provisionar no arranque (lista separada por vírgulas).
       # O container emite uma chave por utilizador e escreve as configs em
       # /app/data/configs/ (recuperar com `docker cp` ou bind mount).
@@ -20,6 +21,12 @@ services:
       # Ajusta ao teu utilizador do host se usares um bind mount.
       PUID: "1000"
       PGID: "1000"
+    # O servidor corre um único worker uvicorn (ver Dockerfile): o cache
+    # anti-replay e o rate limiter são em memória. Não escales com múltiplos
+    # workers/réplicas sem um backend partilhado.
+    #
+    # O servidor fala HTTP simples. Para o expor com HTTPS, põe um proxy
+    # inverso à frente (ex.: Nginx Proxy Manager) — ver docs/nginx-proxy-manager.md.
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health')"]
       interval: 30s

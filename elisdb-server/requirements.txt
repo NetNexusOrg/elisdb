@@ -1,0 +1,5 @@
+# Pinned runtime dependencies for the ElisDB server (Python 3.14).
+# Pin exact versions so container images are reproducible; bump deliberately.
+cryptography==50.0.1
+fastapi==0.141.1
+uvicorn[standard]==0.53.0

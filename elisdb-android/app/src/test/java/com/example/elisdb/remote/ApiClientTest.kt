@@ -137,14 +137,14 @@ class ApiClientTest {
 
   @Test
   fun pull_withoutSinceOmitsQueryParam() = runBlocking {
-    var requestedUrl: String? = null
+    var requestedUrl = ""
     val api = client(MockEngine { request ->
       requestedUrl = request.url.toString()
       okJson("""{"records":[],"tombstones":[]}""")
     })
     api.pull(timestamp = 1_700_000_000L)
-    assertTrue(requestedUrl!!.contains("/api/pull"))
-    assertTrue(!requestedUrl!!.contains("since"))
+    assertTrue(requestedUrl.contains("/api/pull"))
+    assertTrue(!requestedUrl.contains("since"))
   }
 
   @Test

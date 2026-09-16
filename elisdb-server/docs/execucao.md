@@ -91,6 +91,20 @@ docker compose logs -f    # acompanhar os logs
 docker compose down       # parar (não apaga o volume de dados)
 ```
 
+## Produção (considerações)
+
+- **HTTPS é responsabilidade do operador.** O servidor fala HTTP simples (porta
+  8000). Para o expor fora da tua rede, põe um proxy inverso à frente (ex.: Nginx
+  Proxy Manager) e aponta a app para o URL **HTTPS** — ver
+  [Expor com Nginx Proxy Manager](nginx-proxy-manager.md). A app permite HTTP em
+  claro para servidores self-hosted em LAN; usar HTTPS é uma decisão de operação.
+- **Um único worker.** O servidor corre um único worker uvicorn: o cache
+  anti-replay e o rate limiter são mantidos em memória. Não corras múltiplos
+  workers nem réplicas sem um backend partilhado (enfraquece a proteção
+  anti-replay e torna os limites de ritmo por-worker).
+- **Versão de dependências.** As versões do servidor estão fixadas em
+  `requirements.txt`, para que as imagens sejam reprodutíveis.
+
 ## Passo seguinte
 
 [Configuração](configuracao.md) — como ligar cada telemóvel ao servidor.

@@ -30,11 +30,11 @@ import com.example.elisdb.sync.SyncStatus
 internal fun SyncStatusBar(
   syncStatus: SyncStatus,
   syncFault: SyncFault?,
+  onSyncClick: () -> Unit,
+  modifier: Modifier = Modifier,
   hasPendingUploads: Boolean = false,
   hasPendingDownloads: Boolean = false,
   hasConfig: Boolean = true,
-  onSyncClick: () -> Unit,
-  modifier: Modifier = Modifier,
 ) {
   val syncing = syncStatus == SyncStatus.IN_PROGRESS
   Row(

@@ -51,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.example.elisdb.data.local.Cliente
@@ -239,7 +240,7 @@ private fun openInMap(context: android.content.Context, cliente: Cliente): Boole
   val longitude = cliente.longitude ?: return false
   val query = Uri.encode(cliente.nome)
   val uri = "geo:$latitude,$longitude?q=$latitude,$longitude($query)"
-  val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri))
+  val intent = Intent(Intent.ACTION_VIEW, uri.toUri())
   return if (intent.resolveActivity(context.packageManager) != null) {
     try {
       context.startActivity(intent)

@@ -2,6 +2,7 @@ package com.example.elisdb.sync
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
 /**
  * Persists the device↔server clock offset (server_epoch_sec − device_epoch_sec)
@@ -25,7 +26,7 @@ class PrefsClockOffsetStore(context: Context) : ClockOffsetStore {
     if (prefs.contains(KEY_OFFSET)) prefs.getLong(KEY_OFFSET, 0) else null
 
   override fun setOffsetSeconds(offsetSeconds: Long) {
-    prefs.edit().putLong(KEY_OFFSET, offsetSeconds).apply()
+    prefs.edit { putLong(KEY_OFFSET, offsetSeconds) }
   }
 
   private companion object {

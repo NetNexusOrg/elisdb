@@ -1,5 +1,6 @@
 package com.example.elisdb.ui.map
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.view.MotionEvent
 import android.view.ViewTreeObserver
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import com.example.elisdb.R
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -32,12 +34,12 @@ internal val DEFAULT_CENTER = GeoPoint(38.7223, -9.1393)
 @Composable
 fun OsmMap(
   markerPosition: GeoPoint?,
+  modifier: Modifier = Modifier,
   draggable: Boolean = false,
   interactive: Boolean = true,
   showZoomControls: Boolean = false,
   onMarkerMoved: (GeoPoint) -> Unit = {},
   onMapTapped: (GeoPoint) -> Unit = {},
-  modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
   val mapView = rememberMapViewWithLifecycle(context, interactive)
@@ -90,7 +92,7 @@ fun OsmMap(
           )
           val marker =
             Marker(this).apply {
-              icon = ctx.getDrawable(R.drawable.ic_map_pin)
+              icon = ContextCompat.getDrawable(ctx, R.drawable.ic_map_pin)
               setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
               isDraggable = draggable
               setOnMarkerDragListener(
@@ -161,6 +163,9 @@ private fun rememberMapViewWithLifecycle(context: Context, interactive: Boolean)
   return mapView
 }
 
+// Deliberately swallows all touch input (non-interactive map preview), so it
+// never needs to handle a click.
+@SuppressLint("ClickableViewAccessibility")
 private class NonInteractiveMapView(context: Context) : MapView(context) {
   override fun onTouchEvent(event: MotionEvent): Boolean = false
 

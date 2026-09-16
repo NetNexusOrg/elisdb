@@ -2,6 +2,7 @@ package com.example.elisdb.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.example.elisdb.BuildConfig
@@ -45,7 +46,10 @@ class PrefsSettingsStore(context: Context) : SettingsStore {
     )
 
   override fun save(baseUrl: String, signingKey: String) {
-    prefs.edit().putString(KEY_BASE_URL, baseUrl).putString(KEY_SIGNING_KEY, signingKey).apply()
+    prefs.edit {
+      putString(KEY_BASE_URL, baseUrl)
+      putString(KEY_SIGNING_KEY, signingKey)
+    }
   }
 
   private companion object {
@@ -64,7 +68,8 @@ class PrefsSettingsStore(context: Context) : SettingsStore {
       val legacyBaseUrl = plainPrefs.getString(KEY_BASE_URL, null)
       val legacySigningKey = plainPrefs.getString(KEY_SIGNING_KEY, null)
       if (legacyBaseUrl != null || legacySigningKey != null) {
-        plainPrefs.edit().clear().commit()
+        // Commit synchronously so the plaintext file is cleared before returning.
+        plainPrefs.edit(commit = true) { clear() }
       }
 
       val masterKey =
@@ -80,11 +85,11 @@ class PrefsSettingsStore(context: Context) : SettingsStore {
           EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
         )
       if (legacyBaseUrl != null || legacySigningKey != null) {
-        encrypted
-          .edit()
-          .putString(KEY_BASE_URL, legacyBaseUrl ?: "")
-          .putString(KEY_SIGNING_KEY, legacySigningKey ?: "")
-          .commit()
+        // Commit synchronously so the migrated secrets are persisted before returning.
+        encrypted.edit(commit = true) {
+          putString(KEY_BASE_URL, legacyBaseUrl ?: "")
+          putString(KEY_SIGNING_KEY, legacySigningKey ?: "")
+        }
       }
       return encrypted
     }

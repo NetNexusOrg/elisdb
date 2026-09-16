@@ -2,6 +2,7 @@ package com.example.elisdb.sync
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
 /**
  * Persists the content hash of each photo at the last successful push, so the
@@ -36,14 +37,11 @@ class PrefsPhotoPushState(context: Context) : PhotoPushState {
   }
 
   override fun setHashes(clienteId: String, hashes: Map<String, String>) {
-    prefs
-      .edit()
-      .putString(key(clienteId), hashes.entries.joinToString("|") { (id, hash) -> "$id=$hash" })
-      .apply()
+    prefs.edit { putString(key(clienteId), hashes.entries.joinToString("|") { (id, hash) -> "$id=$hash" }) }
   }
 
   override fun clear(clienteId: String) {
-    prefs.edit().remove(key(clienteId)).apply()
+    prefs.edit { remove(key(clienteId)) }
   }
 
   private fun key(clienteId: String) = "push_hashes_$clienteId"

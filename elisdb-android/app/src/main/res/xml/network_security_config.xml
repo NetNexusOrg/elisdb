@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
-    <!-- Allow cleartext HTTP to any host so the server can be reached by domain or IP without TLS. -->
-    <base-config cleartextTrafficPermitted="true" />
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      The ElisDB server is self-hosted and may be reached by LAN IP/domain over
+      plain HTTP, so cleartext is permitted. This is a deliberate trade-off: in
+      production, terminate TLS in front of the server (e.g. Nginx Proxy Manager)
+      and point the app at the HTTPS URL. TLS termination is the operator's
+      responsibility — see elisdb-server/docs/nginx-proxy-manager.md.
+    -->
+    <base-config
+        cleartextTrafficPermitted="true"
+        tools:ignore="InsecureBaseConfiguration" />
 </network-security-config>

@@ -54,8 +54,8 @@ fun ClientListScreen(
   viewModel: ClientListViewModel,
   onClienteClick: (String) -> Unit,
   onAddClick: () -> Unit,
-  onSettingsClick: () -> Unit = {},
   modifier: Modifier = Modifier,
+  onSettingsClick: () -> Unit = {},
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   ClientListScreen(

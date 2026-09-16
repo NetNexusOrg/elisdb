@@ -178,6 +178,32 @@ class SyncManagerTest {
   }
 
   @Test
+  fun `pending downloads set on fresh install when server has data`() = runBlocking {
+    val watermark = FakePullWatermark(value = null)
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        pullWatermark = watermark,
+        fetchLatestUpdatedAt = { 500L },
+      )
+    manager.refreshPendingDownloads()
+    assertTrue(manager.hasPendingDownloads.value)
+  }
+
+  @Test
+  fun `no pending downloads on fresh install when server is empty`() = runBlocking {
+    val watermark = FakePullWatermark(value = null)
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        pullWatermark = watermark,
+        fetchLatestUpdatedAt = { 0L },
+      )
+    manager.refreshPendingDownloads()
+    assertTrue(!manager.hasPendingDownloads.value)
+  }
+
+  @Test
   fun `no pending downloads when latest at or below watermark`() = runBlocking {
     val watermark = FakePullWatermark(value = 100L)
     val manager =

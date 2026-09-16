@@ -88,7 +88,10 @@ class SyncManager(
       null
     } ?: return
     val current = watermark.get()
-    _hasPendingDownloads.value = current != null && latest > current
+    // With no local watermark (fresh install / never pulled), any server data
+    // (latest > 0) is still to be received. Once a watermark exists, only a
+    // newer server timestamp counts.
+    _hasPendingDownloads.value = if (current == null) latest > 0 else latest > current
   }
 
   fun schedulePeriodic() {

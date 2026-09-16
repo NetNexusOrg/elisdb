@@ -7,6 +7,7 @@ import com.example.elisdb.remote.AuthException
 import com.example.elisdb.remote.ClienteOutDto
 import com.example.elisdb.remote.ConfigException
 import com.example.elisdb.remote.FotoOutDto
+import com.example.elisdb.remote.PullResponseDto
 import com.example.elisdb.remote.PushResultDto
 import com.example.elisdb.remote.TombstoneDto
 import kotlinx.coroutines.runBlocking
@@ -732,6 +733,55 @@ class SyncCoordinatorTest {
     c.sync()
 
     assertTrue("pending record kept for next push", dao.data.any { it.id == "1" && it.pending })
+  }
+
+  @Test
+  fun `pull follows the pagination cursor across pages`() = runBlocking {
+    val dao = FakeClienteDao()
+    val watermark = FakePullWatermark()
+    val api = FakeSyncApi()
+    api.pullQueue.addAll(
+      listOf(
+        PullResponseDto(
+          records = listOf(serverItem(id = "a", updatedAt = 100)),
+          nextSince = 100,
+          nextSinceId = "a",
+        ),
+        PullResponseDto(
+          records = listOf(serverItem(id = "b", updatedAt = 200)),
+          nextSince = null,
+          nextSinceId = null,
+        ),
+      )
+    )
+    val c = coord(clienteDao = dao, api = api, pullWatermark = watermark, incrementalPullEnabled = true)
+
+    c.sync()
+
+    assertTrue("first page applied", dao.data.any { it.id == "a" })
+    assertTrue("second page applied", dao.data.any { it.id == "b" })
+    assertEquals("watermark advanced to the last page", 200L, watermark.value)
+    assertEquals("two pages fetched", 2, api.pulledSinces.size)
+  }
+
+  @Test
+  fun `pull stops when the cursor does not advance`() = runBlocking {
+    val api =
+      FakeSyncApi().apply {
+        // The server keeps claiming the same cursor; without a guard this loops forever.
+        pullResponse = PullResponseDto(nextSince = 100, nextSinceId = null)
+      }
+    val c =
+      coord(
+        clienteDao = FakeClienteDao(),
+        api = api,
+        pullWatermark = FakePullWatermark(value = 100L),
+        incrementalPullEnabled = true,
+      )
+
+    c.sync()
+
+    assertEquals("stopped after the non-advancing page", 1, api.pulledSinces.size)
   }
 
   @Test

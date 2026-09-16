@@ -234,4 +234,75 @@ class ApiClientTest {
     assertEquals(100L, entries[0].ts)
     assertEquals(null, entries[1].username)
   }
+
+  @Test
+  fun push_nonOkThrowsServerExceptionWithStatus() = runBlocking {
+    val api = client(MockEngine { respond("boom", HttpStatusCode.InternalServerError) })
+    try {
+      api.push(emptyList(), timestamp = 1_700_000_000L)
+      throw AssertionError("expected ServerException")
+    } catch (e: ServerException) {
+      assertEquals(500, e.status)
+    }
+  }
+
+  @Test
+  fun pull_nonOkThrowsServerExceptionWithStatus() = runBlocking {
+    val api = client(MockEngine { respond("boom", HttpStatusCode.InternalServerError) })
+    try {
+      api.pull(timestamp = 1_700_000_000L)
+      throw AssertionError("expected ServerException")
+    } catch (e: ServerException) {
+      assertEquals(500, e.status)
+    }
+  }
+
+  @Test
+  fun fetchServerTime_nonOkThrowsServerException() = runBlocking {
+    val api = client(MockEngine { respond("down", HttpStatusCode.ServiceUnavailable) })
+    try {
+      api.fetchServerTime()
+      throw AssertionError("expected ServerException")
+    } catch (e: ServerException) {
+      assertEquals(503, e.status)
+    }
+  }
+
+  @Test
+  fun uploadPhoto_non204ThrowsServerExceptionWithStatus() = runBlocking {
+    val api = client(MockEngine { respond("too large", HttpStatusCode.PayloadTooLarge) })
+    try {
+      api.uploadPhoto("f1", byteArrayOf(1, 2, 3), timestamp = 1_700_000_000L)
+      throw AssertionError("expected ServerException")
+    } catch (e: ServerException) {
+      assertEquals(413, e.status)
+    }
+  }
+
+  @Test
+  fun deleteOn404IsSuccess() = runBlocking {
+    val api = client(MockEngine { respond("gone", HttpStatusCode.NotFound) })
+    assertTrue(api.delete("c1", timestamp = 1_700_000_000L))
+  }
+
+  @Test
+  fun deleteOnServerErrorReturnsFalse() = runBlocking {
+    val api = client(MockEngine { respond("boom", HttpStatusCode.InternalServerError) })
+    assertTrue(!api.delete("c1", timestamp = 1_700_000_000L))
+  }
+
+  @Test
+  fun fetchKeyIdentitySendsSignedRequestAndDecodesIdentity() = runBlocking {
+    var path: String? = null
+    val api = client(MockEngine { request ->
+      path = request.url.encodedPath
+      assertTrue(request.headers[AuthHeaders.TIMESTAMP] != null)
+      assertTrue(request.headers[AuthHeaders.SIGNATURE] != null)
+      okJson("""{"key_id":"k1","username":"Maria"}""")
+    })
+    val identity = api.fetchKeyIdentity(timestamp = 1_700_000_000L)
+    assertEquals("/api/keys/me", path)
+    assertEquals("k1", identity.keyId)
+    assertEquals("Maria", identity.username)
+  }
 }

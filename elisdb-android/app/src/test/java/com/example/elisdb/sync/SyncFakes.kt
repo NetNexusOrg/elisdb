@@ -161,6 +161,8 @@ class FakePhotoPushState : PhotoPushState {
 class FakeSyncApi : SyncApi {
   var pushResult: (List<RecordDto>) -> List<PushResultDto> = { it.map { r -> PushResultDto(r.client.id, "accepted") } }
   var pullResponse: PullResponseDto = PullResponseDto()
+  /** Optional queue of pull responses consumed one per call (for pagination tests). */
+  val pullQueue = ArrayDeque<PullResponseDto>()
   var deleteResult: (String) -> Boolean = { true }
   var failWith: Exception? = null
 
@@ -187,7 +189,7 @@ class FakeSyncApi : SyncApi {
     pulledSinces.add(since)
     pullStarted?.complete(Unit)
     pullGate?.await()
-    return pullResponse
+    return if (pullQueue.isNotEmpty()) pullQueue.removeFirst() else pullResponse
   }
 
   val pulledSinces = mutableListOf<Long?>()

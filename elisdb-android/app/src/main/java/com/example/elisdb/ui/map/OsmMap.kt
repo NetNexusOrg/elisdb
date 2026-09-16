@@ -37,7 +37,6 @@ fun OsmMap(
   modifier: Modifier = Modifier,
   draggable: Boolean = false,
   interactive: Boolean = true,
-  showZoomControls: Boolean = false,
   onMarkerMoved: (GeoPoint) -> Unit = {},
   onMapTapped: (GeoPoint) -> Unit = {},
 ) {
@@ -75,7 +74,6 @@ fun OsmMap(
       factory = { ctx ->
         mapView.apply {
           setTileSource(TileSourceFactory.MAPNIK)
-          setBuiltInZoomControls(showZoomControls)
           setMultiTouchControls(interactive)
           controller.setZoom(16.0)
           overlays.add(

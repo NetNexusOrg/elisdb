@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
+import android.os.Build
 import androidx.core.graphics.scale
 import androidx.exifinterface.media.ExifInterface
 import java.io.File
@@ -31,7 +32,7 @@ class PhotoEncoder(private val context: Context) {
     val bitmap = decode(source) ?: run { dest.delete(); error("Não foi possível ler a imagem.") }
     try {
       FileOutputStream(dest).use { out ->
-        if (!bitmap.compress(Bitmap.CompressFormat.WEBP, WEBP_QUALITY, out)) {
+        if (!bitmap.compress(webpFormat(), WEBP_QUALITY, out)) {
           dest.delete()
           error("Não foi possível codificar a imagem.")
         }
@@ -41,6 +42,19 @@ class PhotoEncoder(private val context: Context) {
     }
     return dest
   }
+
+  /**
+   * Lossy WebP format. `Bitmap.CompressFormat.WEBP` is deprecated in favour of
+   * `WEBP_LOSSY` from API 30; the old constant behaves as lossy, so this keeps
+   * the same output on all supported API levels.
+   */
+  @Suppress("DEPRECATION")
+  private fun webpFormat(): Bitmap.CompressFormat =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      Bitmap.CompressFormat.WEBP_LOSSY
+    } else {
+      Bitmap.CompressFormat.WEBP
+    }
 
   private fun decode(source: Uri): Bitmap? {
     val resolver = context.contentResolver

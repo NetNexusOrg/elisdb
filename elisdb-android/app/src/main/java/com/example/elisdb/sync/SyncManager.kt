@@ -165,13 +165,10 @@ class SyncManager(
     }
 
   private fun publish(outcome: SyncOutcome) {
-    when (val display = mapOutcome(outcome)) {
-      is OutcomeDisplay -> {
-        display.fault?.let { _fault.value = it }
-        display.lastResult?.let { _lastResult.value = it }
-        _status.value = display.status
-      }
-    }
+    val display = mapOutcome(outcome)
+    display.fault?.let { _fault.value = it }
+    display.lastResult?.let { _lastResult.value = it }
+    _status.value = display.status
   }
 
   /** Maps a sync outcome to a status + optional diagnostic, so it is unit-testable. */

@@ -30,10 +30,7 @@ fun MainNavigation() {
   val saveableStateHolderNavEntryDecorator =
     rememberSaveableStateHolderNavEntryDecorator<NavKey>(rememberSaveableStateHolder())
   val viewModelNavEntryDecorator =
-    rememberViewModelStoreNavEntryDecorator<NavKey>(
-      viewModelStoreOwner = viewModelStoreOwner,
-      removeViewModelStoreOnPop = { true },
-    )
+    rememberViewModelStoreNavEntryDecorator<NavKey>(viewModelStoreOwner = viewModelStoreOwner)
 
   NavDisplay(
     backStack = backStack,

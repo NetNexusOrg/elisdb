@@ -61,7 +61,13 @@ class PrefsSettingsStore(context: Context) : SettingsStore {
      * Creates the encrypted preferences, migrating any values stored in plain
      * text by older versions of the app. The plain file is read first, then
      * cleared, so the encrypted store never has to decode raw plaintext.
+     *
+     * `EncryptedSharedPreferences`/`MasterKey` are deprecated in
+     * security-crypto 1.1.0 (Jetpack Security is being retired), but the API is
+     * stable and functional. Migrating the seed storage to the Android Keystore
+     * or Tink directly is tracked as a separate, deliberate change.
      */
+    @Suppress("DEPRECATION")
     fun createEncryptedPrefs(context: Context): SharedPreferences {
       val plainPrefs =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -73,7 +79,7 @@ class PrefsSettingsStore(context: Context) : SettingsStore {
       }
 
       val masterKey =
-        MasterKey.Builder(context)
+        MasterKey.Builder(context, MasterKey.DEFAULT_MASTER_KEY_ALIAS)
           .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
           .build()
       val encrypted =

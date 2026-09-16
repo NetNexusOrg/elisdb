@@ -129,6 +129,10 @@ class SyncCoordinator(
           // reconciles, but report the lost edit to the user.
           staleNames += cliente.nome
           clienteDao.update(cliente.copy(pending = false))
+        } else if (status == "error") {
+          // The server rejected this record (e.g. blank name, future timestamp).
+          // Keep it pending so the user's data is not lost, and surface a warning.
+          onWarning("Servidor rejeitou o registo ${cliente.id}; mantido pendente")
         } else if (status != null) {
           // Any other server response (accepted) is an ack: the server owns
           // conflict resolution, so clear pending and let pull reconcile.
@@ -226,20 +230,34 @@ class SyncCoordinator(
           api.delete(cliente.id, timestamp = normalizedEpochSeconds(), deletedAt = normalizedEpochSeconds())
         } catch (e: AuthException) {
           throw e
+        } catch (e: ConfigException) {
+          throw e
         } catch (e: Exception) {
+          onWarning("Falha ao eliminar cliente ${cliente.id} no servidor: ${e.message ?: "erro"}")
           false
         }
-      if (confirmed) finalizeDeletion(cliente.id)
+      if (confirmed) {
+        finalizeDeletion(cliente.id).forEach { photoStore.delete(it) }
+      } else {
+        onWarning("Servidor não confirmou a eliminação do cliente ${cliente.id}")
+      }
     }
   }
 
-  private suspend fun finalizeDeletion(clienteId: String) {
+  /**
+   * Removes a client's rows and returns the photo files to delete. Files are
+   * deleted by the caller only after the enclosing transaction has committed,
+   * so a rollback can never leave rows pointing at deleted files.
+   */
+  private suspend fun finalizeDeletion(clienteId: String): Set<String> {
+    val filesToDelete = mutableSetOf<String>()
     runInTransaction {
       val fotos = fotoDao.getByCliente(clienteId)
-      fotos.forEach { photoStore.delete(it.uriLocal) }
+      fotos.forEach { filesToDelete += it.uriLocal }
       if (fotos.isNotEmpty()) fotoDao.deleteByIds(fotos.map { it.id })
       clienteDao.getById(clienteId)?.let { clienteDao.delete(it) }
     }
+    return filesToDelete
   }
 
   private suspend fun pull() {
@@ -271,13 +289,14 @@ class SyncCoordinator(
         }
       }
 
+      val filesToDelete = mutableSetOf<String>()
       runInTransaction {
         // Tombstoned records are deleted locally unless they have pending edits,
         // so a delete made on another device propagates even on delta pulls.
         allTombstones.forEach { tombstone ->
           val local = clienteDao.getById(tombstone.id)
           if (local != null && !local.pending && !local.deletePending) {
-            finalizeDeletion(tombstone.id)
+            filesToDelete += finalizeDeletion(tombstone.id)
           }
         }
 
@@ -289,7 +308,7 @@ class SyncCoordinator(
           val serverIds = allServerClients.mapTo(mutableSetOf()) { it.client.id }
           clienteDao.getAll().forEach { local ->
             if (local.id !in serverIds && !local.pending && !local.deletePending) {
-              finalizeDeletion(local.id)
+              filesToDelete += finalizeDeletion(local.id)
             }
           }
         }
@@ -309,6 +328,10 @@ class SyncCoordinator(
           }
         }
       }
+      // Photo files removed by the deletions above are deleted only after the
+      // transaction has committed, so a rollback cannot leave rows pointing at
+      // deleted files.
+      filesToDelete.forEach { photoStore.delete(it) }
 
       // Reclaim files left over after a successful pull, inside the same guard
       // that serializes materialization vs. any app-start sweep (R8).

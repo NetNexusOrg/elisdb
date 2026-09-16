@@ -76,58 +76,64 @@ class ClienteRepositoryImpl(
 
   override suspend fun save(draft: ClienteDraft): String {
     val now = nowMillis()
-    return database.withTransaction {
-      val clienteId =
-        if (draft.id == null) {
-          val newId = UUID.randomUUID().toString()
-          clienteDao.insert(
-            Cliente(
-              id = newId,
-              nome = draft.nome.trim().uppercase(),
-              contrato = draft.contrato?.takeIf { it.isNotBlank() },
-              latitude = draft.latitude,
-              longitude = draft.longitude,
-              notas = draft.notas?.takeIf { it.isNotBlank() },
-              dataCriacao = now,
-              updatedAt = now,
-              createdAt = now,
-              pending = true,
+    val removedFiles = mutableListOf<Foto>()
+    val clienteId =
+      database.withTransaction {
+        val clienteId =
+          if (draft.id == null) {
+            val newId = UUID.randomUUID().toString()
+            clienteDao.insert(
+              Cliente(
+                id = newId,
+                nome = draft.nome.trim().uppercase(),
+                contrato = draft.contrato?.takeIf { it.isNotBlank() },
+                latitude = draft.latitude,
+                longitude = draft.longitude,
+                notas = draft.notas?.takeIf { it.isNotBlank() },
+                dataCriacao = now,
+                updatedAt = now,
+                createdAt = now,
+                pending = true,
+              )
             )
-          )
-          newId
-        } else {
-          val existing = clienteDao.getById(draft.id) ?: return@withTransaction draft.id
-          clienteDao.update(
-            existing.copy(
-              nome = draft.nome.trim().uppercase(),
-              contrato = draft.contrato?.takeIf { it.isNotBlank() },
-              latitude = draft.latitude,
-              longitude = draft.longitude,
-              notas = draft.notas?.takeIf { it.isNotBlank() },
-              updatedAt = now,
-              pending = true,
+            newId
+          } else {
+            val existing = clienteDao.getById(draft.id) ?: return@withTransaction draft.id
+            clienteDao.update(
+              existing.copy(
+                nome = draft.nome.trim().uppercase(),
+                contrato = draft.contrato?.takeIf { it.isNotBlank() },
+                latitude = draft.latitude,
+                longitude = draft.longitude,
+                notas = draft.notas?.takeIf { it.isNotBlank() },
+                updatedAt = now,
+                pending = true,
+              )
             )
-          )
-          draft.id
-        }
+            draft.id
+          }
 
-      val keptIds = draft.fotos.filter { it.id.isNotEmpty() }.map { it.id }.toSet()
-      val existingFotos = fotoDao.getByCliente(clienteId)
-      val removed = existingFotos.filter { it.id !in keptIds }
-      removed.forEach { deleteFile(it) }
-      if (removed.isNotEmpty()) fotoDao.deleteByIds(removed.map { it.id })
-      draft.fotos
-        .forEachIndexed { index, foto ->
-          fotoDao.insert(
-            foto.copy(
-              id = foto.id.ifEmpty { UUID.randomUUID().toString() },
-              clienteId = clienteId,
-              ordem = index,
+        val keptIds = draft.fotos.filter { it.id.isNotEmpty() }.map { it.id }.toSet()
+        val existingFotos = fotoDao.getByCliente(clienteId)
+        val removed = existingFotos.filter { it.id !in keptIds }
+        removedFiles += removed
+        if (removed.isNotEmpty()) fotoDao.deleteByIds(removed.map { it.id })
+        draft.fotos
+          .forEachIndexed { index, foto ->
+            fotoDao.insert(
+              foto.copy(
+                id = foto.id.ifEmpty { UUID.randomUUID().toString() },
+                clienteId = clienteId,
+                ordem = index,
+              )
             )
-          )
-        }
-      clienteId
-    }
+          }
+        clienteId
+      }
+    // Removed photo files are deleted only after the transaction commits, so a
+    // rollback cannot leave rows pointing at deleted files.
+    removedFiles.forEach { deleteFile(it) }
+    return clienteId
   }
 
   override suspend fun deleteCliente(id: String) {

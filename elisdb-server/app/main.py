@@ -10,10 +10,10 @@ from pathlib import Path
 
 import time
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 
 from . import auth
-from .database import Database
+from .database import Database, MAX_FUTURE_SKEW_SECONDS
 from .ratelimit import RateLimiter
 from .models import (
     AuditEntryOut,
@@ -202,7 +202,11 @@ def create_app(database: Database | None = None) -> FastAPI:
             try:
                 status, existing_id, canonical = store.save_client(record.client, record.fotos, actor=actor)
             except ValueError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
+                # One invalid record must not abort the whole batch: report it
+                # per-record and keep processing the rest.
+                logger.warning("push record %s rejected: %s", record.client.id, exc)
+                results.append(PushResult(id=record.client.id, status="error"))
+                continue
             results.append(
                 PushResult(
                     id=record.client.id,
@@ -217,9 +221,11 @@ def create_app(database: Database | None = None) -> FastAPI:
     @app.get("/api/pull", response_model=None, dependencies=[auth_dep])
     def pull(
         since: int | None = None,
-        limit: int | None = None,
+        limit: int | None = Query(None, ge=1, le=1000),
         since_id: str | None = None,
     ) -> dict:
+        if since_id is not None and since is None:
+            raise HTTPException(status_code=400, detail="since_id requires since")
         records, tombstones, next_since, next_since_id = store.pull_all(
             since=since, limit=limit, since_id=since_id
         )
@@ -257,6 +263,10 @@ def create_app(database: Database | None = None) -> FastAPI:
 
     @app.delete("/api/clients/{cliente_id}", status_code=204, dependencies=[auth_dep])
     def delete_client(cliente_id: str, deleted_at: int | None = None) -> None:
+        # deleted_at is epoch seconds; reject a far-future tombstone so it
+        # cannot permanently win last-write-wins over concurrent edits.
+        if deleted_at is not None and deleted_at > int(time.time()) + MAX_FUTURE_SKEW_SECONDS:
+            raise HTTPException(status_code=400, detail="deleted_at is in the future")
         if not store.delete_client(cliente_id, deleted_at=deleted_at):
             raise HTTPException(status_code=404, detail="client not found")
 

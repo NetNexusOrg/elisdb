@@ -13,6 +13,11 @@ import time
 
 from .models import ClienteIn, FotoIn, normalize_nome
 
+# Reject data timestamps further in the future than this many seconds, so a
+# malicious or broken client timestamp cannot permanently win last-write-wins.
+# Data `updated_at` is epoch milliseconds; `deleted_at` is epoch seconds.
+MAX_FUTURE_SKEW_SECONDS = 3600
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS clientes (
     id TEXT PRIMARY KEY,
@@ -233,6 +238,11 @@ class Database:
         nome = normalize_nome(cliente.nome)
         if not nome:
             raise ValueError("nome cannot be blank")
+
+        # updated_at is epoch milliseconds (client-side `nowMillis()`), so the
+        # future bound is compared against the server clock in milliseconds.
+        if cliente.updated_at > int(time.time()) * 1000 + MAX_FUTURE_SKEW_SECONDS * 1000:
+            raise ValueError("updated_at is too far in the future")
 
         conn = self._conn()
         try:

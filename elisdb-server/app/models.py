@@ -30,11 +30,11 @@ class FotoIn(BaseModel):
 
 class ClienteIn(BaseModel):
     id: str
-    nome: str
-    contrato: str | None = None
+    nome: str = Field(max_length=200)
+    contrato: str | None = Field(None, max_length=100_000)
     latitude: float | None = None
     longitude: float | None = None
-    notas: str | None = None
+    notas: str | None = Field(None, max_length=100_000)
     updated_at: int
 
 
@@ -86,7 +86,7 @@ class AuditEntryOut(BaseModel):
 
 class PushResult(BaseModel):
     id: str
-    status: str  # accepted | duplicate | stale
+    status: str  # accepted | duplicate | stale | error
     existing_id: str | None = None
     # Present only on "duplicate": the canonical record (client + photos) so the
     # client can reconcile without a separate round-trip.

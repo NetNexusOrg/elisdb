@@ -745,7 +745,12 @@ class SyncCoordinatorTest {
       )
     val photoStore = FakePhotoStore().apply { stage("file:/f1.jpg", "aGk=") }
     val pushState = FakePhotoPushState()
-    val api = FakeSyncApi()
+    val api =
+      FakeSyncApi().apply {
+        // The server now holds the pushed record, so the full pull keeps it
+        // (and its stored push hashes) instead of reconciling it away.
+        pullResponse = pullResponseOf(serverItem(id = "1", nome = "ANA", updatedAt = 1))
+      }
     val c = coord(clienteDao = dao, fotoDao = fotoDao, api = api, photoStore = photoStore, photoPushState = pushState)
 
     c.sync()

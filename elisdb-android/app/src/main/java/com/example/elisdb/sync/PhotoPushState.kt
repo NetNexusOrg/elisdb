@@ -13,6 +13,9 @@ interface PhotoPushState {
 
   /** Records the content hashes of the client's photos after a successful push. */
   fun setHashes(clienteId: String, hashes: Map<String, String>)
+
+  /** Drops any persisted hashes for a client (e.g. when it is permanently deleted). */
+  fun clear(clienteId: String)
 }
 
 /** SharedPreferences-backed [PhotoPushState]. */
@@ -37,6 +40,10 @@ class PrefsPhotoPushState(context: Context) : PhotoPushState {
       .edit()
       .putString(key(clienteId), hashes.entries.joinToString("|") { (id, hash) -> "$id=$hash" })
       .apply()
+  }
+
+  override fun clear(clienteId: String) {
+    prefs.edit().remove(key(clienteId)).apply()
   }
 
   private fun key(clienteId: String) = "push_hashes_$clienteId"

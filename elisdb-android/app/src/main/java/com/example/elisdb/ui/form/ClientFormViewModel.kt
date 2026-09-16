@@ -11,6 +11,7 @@ import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -112,6 +113,9 @@ class ClientFormViewModel(
       runCatching { repository.stagePhoto(Uri.fromFile(file)) }
         .onSuccess { foto -> _uiState.update { it.copy(fotos = it.fotos + foto, showCamera = false) } }
         .onFailure { _uiState.update { it.copy(showCamera = false, message = "Não foi possível guardar a imagem.") } }
+      // stagePhoto re-encodes to a new .webp; the original capture file is no
+      // longer referenced, so remove it instead of leaving an orphan on disk.
+      runCatching { withContext(Dispatchers.IO) { file.delete() } }
     }
   }
 

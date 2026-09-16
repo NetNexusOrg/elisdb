@@ -25,11 +25,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,12 +44,17 @@ fun SettingsScreen(
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   val context = LocalContext.current
+  val scope = rememberCoroutineScope()
   val importKeyLauncher =
     rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
       if (uri != null) {
-        val text =
-          context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-        viewModel.importKey(text.orEmpty())
+        scope.launch {
+          val text =
+            withContext(Dispatchers.IO) {
+              context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            }
+          viewModel.importKey(text.orEmpty())
+        }
       }
     }
   Scaffold(

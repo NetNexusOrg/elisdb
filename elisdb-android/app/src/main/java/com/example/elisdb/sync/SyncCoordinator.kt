@@ -258,6 +258,9 @@ class SyncCoordinator(
       if (fotos.isNotEmpty()) fotoDao.deleteByIds(fotos.map { it.id })
       clienteDao.getById(clienteId)?.let { clienteDao.delete(it) }
     }
+    // Drop the persisted push-hash entry so a deleted client's tracking does not
+    // linger forever in SharedPreferences.
+    photoPushState?.clear(clienteId)
     return filesToDelete
   }
 

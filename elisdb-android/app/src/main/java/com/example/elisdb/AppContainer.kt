@@ -100,7 +100,7 @@ class AppContainer(context: Context) {
           fotoDao = database.fotoDao(),
           photoStore = photoStore,
           transaction = { block -> database.withTransaction { block() } },
-          pullWatermark = RoomPullWatermark(database.syncMetaDao()),
+          pullWatermark = watermark,
           photoSweeper = photoSweeper,
           clockOffsetStore = clockOffsetStore,
           photoPushState = photoPushState,
@@ -109,7 +109,7 @@ class AppContainer(context: Context) {
       },
       workManager = WorkManager.getInstance(context),
       clienteDao = database.clienteDao(),
-      pullWatermark = RoomPullWatermark(database.syncMetaDao()),
+      pullWatermark = watermark,
       fetchLatestUpdatedAt = {
         try {
           createApiClient().fetchLatestUpdatedAt(timestamp = normalizedEpochSeconds())

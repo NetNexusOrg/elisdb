@@ -151,6 +151,10 @@ class FakePhotoPushState : PhotoPushState {
   override fun setHashes(clienteId: String, hashes: Map<String, String>) {
     this.hashes[clienteId] = hashes
   }
+
+  override fun clear(clienteId: String) {
+    hashes.remove(clienteId)
+  }
 }
 
 /** Fake network transport controlled by the test. */

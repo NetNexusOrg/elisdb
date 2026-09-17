@@ -3,6 +3,7 @@ package com.example.elisdb.ui.settings
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -26,7 +27,8 @@ class SyncStatusBarTest {
     status: SyncStatus,
     fault: SyncFault? = null,
     hasConfig: Boolean = true,
-    onSyncClick: () -> Unit = {},
+    checking: Boolean = false,
+    onCheckClick: () -> Unit = {},
   ) {
     composeTestRule.setContent {
       ElisdbTheme {
@@ -34,39 +36,41 @@ class SyncStatusBarTest {
           syncStatus = status,
           syncFault = fault,
           hasConfig = hasConfig,
-          onSyncClick = onSyncClick,
+          checking = checking,
+          onCheckClick = onCheckClick,
         )
       }
     }
   }
 
   @Test
-  fun idleComConfig_mostraSincronizado() {
+  fun idleComConfig_mostraSincronizadoEVerificar() {
     setBar(SyncStatus.IDLE, hasConfig = true)
-    composeTestRule.onNodeWithContentDescription("Sincronizar").assertIsDisplayed()
+    composeTestRule.onNodeWithContentDescription("Verificar").assertIsDisplayed()
     composeTestRule.onNodeWithText("Sincronizado").assertIsDisplayed()
     composeTestRule.onNodeWithText("A sincronizar…").assertDoesNotExist()
   }
 
   @Test
-  fun idleSemConfig_mostraNaoConfigurado() {
+  fun idleSemConfig_mostraNaoConfiguradoEDesativaVerificar() {
     setBar(SyncStatus.IDLE, hasConfig = false)
     composeTestRule.onNodeWithText("Não configurado").assertIsDisplayed()
     composeTestRule.onNodeWithText("Sincronizado").assertDoesNotExist()
+    composeTestRule.onNodeWithTag("check_action").assertIsNotEnabled()
   }
 
   @Test
-  fun inProgress_mostraMensagemSemBotaoAtivo() {
+  fun inProgress_mostraMensagemAManteraVerificar() {
     setBar(SyncStatus.IN_PROGRESS)
     composeTestRule.onNodeWithText("A sincronizar…").assertIsDisplayed()
-    composeTestRule.onNodeWithContentDescription("Sincronizar").assertDoesNotExist()
+    composeTestRule.onNodeWithContentDescription("Verificar").assertIsDisplayed()
   }
 
   @Test
-  fun success_mostraSincronizado() {
+  fun success_mostraSincronizadoEVerificar() {
     setBar(SyncStatus.SUCCESS)
     composeTestRule.onNodeWithText("Sincronizado").assertIsDisplayed()
-    composeTestRule.onNodeWithContentDescription("Sincronizar").assertIsDisplayed()
+    composeTestRule.onNodeWithContentDescription("Verificar").assertIsDisplayed()
   }
 
   @Test
@@ -96,12 +100,19 @@ class SyncStatusBarTest {
   }
 
   @Test
-  fun cliqueNoSincronizarInvocaCallback() {
+  fun cliqueNoVerificarInvocaCallback() {
     var clicked = false
-    setBar(SyncStatus.IDLE, onSyncClick = { clicked = true })
-    composeTestRule.onNodeWithContentDescription("Sincronizar").performClick()
+    setBar(SyncStatus.IDLE, onCheckClick = { clicked = true })
+    composeTestRule.onNodeWithContentDescription("Verificar").performClick()
     composeTestRule.waitForIdle()
     assert(clicked)
+  }
+
+  @Test
+  fun checking_mostraSpinnerEDesativaVerificar() {
+    setBar(SyncStatus.IDLE, checking = true)
+    composeTestRule.onNodeWithContentDescription("Verificar").assertDoesNotExist()
+    composeTestRule.onNodeWithTag("check_action").assertIsNotEnabled()
   }
 
   @Test
@@ -142,7 +153,7 @@ class SyncStatusBarTest {
           syncFault = null,
           hasPendingUploads = hasPendingUploads,
           hasPendingDownloads = hasPendingDownloads,
-          onSyncClick = {},
+          onCheckClick = {},
         )
       }
     }
@@ -150,13 +161,13 @@ class SyncStatusBarTest {
   }
 
   private fun actionLeftEdge(): Dp =
-    composeTestRule.onNodeWithTag("sync_action").getBoundsInRoot().left
+    composeTestRule.onNodeWithTag("check_action").getBoundsInRoot().left
 
   @Test
-  fun acao_mantemBordaEsquerdaFixaEmTodosEstados() {
+  fun acaoVerificar_mantemBordaEsquerdaFixaEmTodosEstados() {
     val status = mutableStateOf(SyncStatus.IDLE)
     val fault = mutableStateOf<SyncFault?>(null)
-    setContent(status, fault)
+    setContent(status, fault, mutableStateOf(false))
     val idleLeft = actionLeftEdge()
     status.value = SyncStatus.IN_PROGRESS
     composeTestRule.waitForIdle()
@@ -174,18 +185,18 @@ class SyncStatusBarTest {
   }
 
   @Test
-  fun acao_ficaADireitaDaMensagem() {
-    setContent(mutableStateOf(SyncStatus.SUCCESS), mutableStateOf<SyncFault?>(null))
+  fun acaoVerificar_ficaADireitaDaMensagem() {
+    setContent(mutableStateOf(SyncStatus.SUCCESS), mutableStateOf<SyncFault?>(null), mutableStateOf(false))
     val messageRight = composeTestRule.onNodeWithText("Sincronizado").getBoundsInRoot().right
     assertTrue(actionLeftEdge() >= messageRight)
   }
 
   @Test
-  fun spinner_ficaNaPosicaoDaAcao() {
-    val status = mutableStateOf(SyncStatus.IDLE)
-    setContent(status, mutableStateOf<SyncFault?>(null))
+  fun spinnerDaVerificacao_ficaNaPosicaoDaAcao() {
+    val checking = mutableStateOf(false)
+    setContent(mutableStateOf(SyncStatus.IDLE), mutableStateOf<SyncFault?>(null), checking)
     val idleLeft = actionLeftEdge()
-    status.value = SyncStatus.IN_PROGRESS
+    checking.value = true
     composeTestRule.waitForIdle()
     assertEquals(idleLeft, actionLeftEdge())
   }
@@ -193,13 +204,15 @@ class SyncStatusBarTest {
   private fun setContent(
     status: androidx.compose.runtime.MutableState<SyncStatus>,
     fault: androidx.compose.runtime.MutableState<SyncFault?>,
+    checking: androidx.compose.runtime.MutableState<Boolean>,
   ) {
     composeTestRule.setContent {
       ElisdbTheme {
         SyncStatusBar(
           syncStatus = status.value,
           syncFault = fault.value,
-          onSyncClick = {},
+          checking = checking.value,
+          onCheckClick = {},
         )
       }
     }

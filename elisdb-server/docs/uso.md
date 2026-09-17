@@ -54,7 +54,7 @@ O servidor **não tem proteção própria de transporte** (sem TLS/HTTPS própri
 a autenticação é por assinatura dos pedidos. Está pensado para uso privado/local
 numa rede de confiança. Se quiseres expô-lo publicamente, põe-no atrás de um
 proxy com TLS (ex.: nginx, Caddy) — e nunca expões a chave privada de um
-telemóvel fora das Definições da tua app. Para um passo a passo com o Nginx
+telemóvel fora do ecrã Servidor da tua app. Para um passo a passo com o Nginx
 Proxy Manager, vê [Expor o servidor com NPM](nginx-proxy-manager.md).
 
 ## Passo seguinte

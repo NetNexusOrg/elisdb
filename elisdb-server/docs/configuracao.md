@@ -2,7 +2,7 @@
 
 Este é o guia mais importante: **como dar acesso a um telemóvel**. No final,
 vais ter um ficheiro de configuração (`<nome>.config.json`) que a app do
-telemóvel importa nas Definições.
+telemóvel importa no ecrã **Servidor**.
 
 ## Passo único: emitir a chave de um telemóvel
 
@@ -63,9 +63,9 @@ Então:
 
 1. **Transfere** o ficheiro `maria.config.json` para o telemóvel (email, pen,
    transferência na rede, etc.).
-2. **Na app:** abre **Definições** → **Importar configuração do servidor** e
+2. **Na app:** abre o menu (⋮) → **Servidor** → **Importar configuração do servidor** e
    escolhe o ficheiro. O URL e a chave ficam preenchidos em simultâneo.
-3. Volta à lista e **sincroniza**. Deve aparecer "Sincronizado".
+3. Abre o menu (⋮) → **Sincronização** e **sincroniza**. Deve aparecer "Sincronizado".
 
 > O URL do servidor é obrigatório — passa por `--server-url`, pelo modo
 > interativo ou pela variável `ELISDB_SERVER_URL`. Sem URL, o comando

@@ -42,6 +42,7 @@ class SyncManager(
   private val clienteDao: ClienteDao? = null,
   private val pullWatermark: PullWatermark? = null,
   private val fetchLatestUpdatedAt: suspend () -> Long? = { null },
+  private val lastSyncStore: LastSyncStore? = null,
 ) {
   private val _status = MutableStateFlow(SyncStatus.IDLE)
   val status: StateFlow<SyncStatus> = _status.asStateFlow()
@@ -55,8 +56,18 @@ class SyncManager(
   private val _hasPendingUploads = MutableStateFlow(false)
   val hasPendingUploads: StateFlow<Boolean> = _hasPendingUploads.asStateFlow()
 
+  private val _pendingUploadCount = MutableStateFlow(0)
+
+  /** Number of local records (created/edited/deleted) waiting to be sent. */
+  val pendingUploadCount: StateFlow<Int> = _pendingUploadCount.asStateFlow()
+
   private val _hasPendingDownloads = MutableStateFlow(false)
   val hasPendingDownloads: StateFlow<Boolean> = _hasPendingDownloads.asStateFlow()
+
+  private val _lastSuccessAt = MutableStateFlow(lastSyncStore?.getLastSuccessAt())
+
+  /** Epoch seconds of the last successful sync, or null when never completed. */
+  val lastSuccessAt: StateFlow<Long?> = _lastSuccessAt.asStateFlow()
 
   private val mutex = Mutex()
 
@@ -70,7 +81,9 @@ class SyncManager(
         // Include locally-deleted (pending-deletion) records so the sync status
         // reflects uploads that are still waiting to be sent to the server.
         dao.observeAllIncludingDeleted().collect { clients ->
-          _hasPendingUploads.value = clients.any { it.pending || it.deletePending }
+          val pending = clients.count { it.pending || it.deletePending }
+          _pendingUploadCount.value = pending
+          _hasPendingUploads.value = pending > 0
         }
       }
     }
@@ -141,7 +154,10 @@ class SyncManager(
         }
       }
     publish(outcome)
-    if (outcome is SyncOutcome.Success || outcome is SyncOutcome.SuccessWithStatuses) {
+    if (_status.value == SyncStatus.SUCCESS) {
+      val now = System.currentTimeMillis() / 1000
+      _lastSuccessAt.value = now
+      lastSyncStore?.setLastSuccessAt(now)
       refreshPendingDownloads()
     }
     return outcome

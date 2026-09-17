@@ -5,11 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.elisdb.remote.KeyIdentityDto
 import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.settings.parseServerConfig
-import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncManager
 import com.example.elisdb.sync.SyncStatus
 import com.example.elisdb.util.Signer
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,33 +29,26 @@ sealed interface KeyIdentity {
   data object Unavailable : KeyIdentity
 }
 
-data class SettingsUiState(
+data class ServerConfigUiState(
   val baseUrl: String = "",
   val signingKey: String = "",
   val hasKey: Boolean = false,
   val signingKeyError: String? = null,
-  val syncNotice: String? = null,
-  val syncStatus: SyncStatus = SyncStatus.IDLE,
-  val syncFault: SyncFault? = null,
-  val hasPendingUploads: Boolean = false,
-  val hasPendingDownloads: Boolean = false,
   val keyIdentity: KeyIdentity = KeyIdentity.Unresolved,
 )
 
-class SettingsViewModel(
+class ServerConfigViewModel(
   private val settingsStore: SettingsStore,
   private val syncManager: SyncManager,
   private val fetchKeyIdentity: suspend () -> KeyIdentityDto? = { null },
 ) : ViewModel() {
-  private val _uiState = MutableStateFlow(SettingsUiState())
-  val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
-
-  private var syncJob: Job? = null
+  private val _uiState = MutableStateFlow(ServerConfigUiState())
+  val uiState: StateFlow<ServerConfigUiState> = _uiState.asStateFlow()
 
   init {
     val current = settingsStore.settings()
     _uiState.value =
-      SettingsUiState(
+      ServerConfigUiState(
         baseUrl = current.baseUrl,
         signingKey = current.signingKey,
         hasKey = current.signingKey.isNotEmpty(),
@@ -67,34 +58,11 @@ class SettingsViewModel(
     }
     viewModelScope.launch {
       syncManager.status.collect { status ->
-        _uiState.update { it.copy(syncStatus = status) }
         if (status == SyncStatus.SUCCESS && _uiState.value.keyIdentity !is KeyIdentity.Resolved) {
           lookupKeyIdentity()
         }
       }
     }
-    viewModelScope.launch {
-      syncManager.fault.collect { fault -> _uiState.update { it.copy(syncFault = fault) } }
-    }
-    viewModelScope.launch {
-      syncManager.lastResult.collect { notice -> _uiState.update { it.copy(syncNotice = notice) } }
-    }
-    viewModelScope.launch {
-      syncManager.hasPendingUploads.collect { pending ->
-        _uiState.update { it.copy(hasPendingUploads = pending) }
-      }
-    }
-    viewModelScope.launch {
-      syncManager.hasPendingDownloads.collect { pending ->
-        _uiState.update { it.copy(hasPendingDownloads = pending) }
-      }
-    }
-    refreshPendingState()
-  }
-
-  /** Refreshes pending-uploads/downloads when the screen opens (best-effort). */
-  fun refreshPendingState() {
-    viewModelScope.launch { syncManager.refreshPendingDownloads() }
   }
 
   fun importKey(content: String) {
@@ -157,12 +125,6 @@ class SettingsViewModel(
     } catch (e: IllegalArgumentException) {
       false
     }
-
-  fun manualSync() {
-    if (_uiState.value.syncStatus == SyncStatus.IN_PROGRESS) return
-    if (syncJob?.isActive == true) return
-    syncJob = viewModelScope.launch { syncManager.syncNow() }
-  }
 
   private companion object {
     const val INVALID_CONFIG_MESSAGE =

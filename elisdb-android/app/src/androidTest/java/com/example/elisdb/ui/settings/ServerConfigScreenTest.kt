@@ -17,7 +17,7 @@ import junit.framework.TestCase.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-class SettingsScreenTest {
+class ServerConfigScreenTest {
 
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -26,7 +26,7 @@ class SettingsScreenTest {
   private fun syncManager() =
     SyncManager(
       SyncCoordinatorProvider {
-        throw RuntimeException("no network in settings screen test")
+        throw RuntimeException("no network in server config screen test")
       },
     )
 
@@ -36,28 +36,28 @@ class SettingsScreenTest {
   }
 
   @Test
-  fun settings_mostraBotaoImportarConfiguracao() {
+  fun server_mostraBotaoImportarConfiguracao() {
     val store = store()
-    val vm = SettingsViewModel(store, syncManager())
+    val vm = ServerConfigViewModel(store, syncManager())
     setContent(vm)
     composeTestRule.onNodeWithText("Importar configuração do servidor").assertExists()
     composeTestRule.onNodeWithText("Guardar").assertDoesNotExist()
   }
 
   @Test
-  fun settings_urlApareceComoTextoNaoEditavel() {
+  fun server_urlApareceComoTextoNaoEditavel() {
     val store = store()
     store.save("https://db.example.com", "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
-    val vm = SettingsViewModel(store, syncManager())
+    val vm = ServerConfigViewModel(store, syncManager())
     setContent(vm)
     composeTestRule.onNodeWithText("URL do servidor").assertExists()
     composeTestRule.onNodeWithText("https://db.example.com").assertExists()
   }
 
   @Test
-  fun settings_importConfigPreencheUrlEChave() {
+  fun server_importConfigPreencheUrlEChave() {
     val store = store()
-    val vm = SettingsViewModel(store, syncManager())
+    val vm = ServerConfigViewModel(store, syncManager())
     setContent(vm)
     val config =
       """{"server_url":"https://db.example.com","private_seed":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}"""
@@ -69,10 +69,10 @@ class SettingsScreenTest {
   }
 
   @Test
-  fun settings_mostraBotaoRemoverConfiguracaoELimpa() {
+  fun server_mostraBotaoRemoverConfiguracaoELimpa() {
     val store = store()
     store.save("https://db.example.com", "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
-    val vm = SettingsViewModel(store, syncManager())
+    val vm = ServerConfigViewModel(store, syncManager())
     setContent(vm)
     composeTestRule.onNodeWithText("Remover configuração").assertExists()
     composeTestRule.onNodeWithText("Remover chave").assertDoesNotExist()
@@ -85,9 +85,9 @@ class SettingsScreenTest {
   }
 
   @Test
-  fun settings_importInvalidMostraErro() {
+  fun server_importInvalidMostraErro() {
     val store = store()
-    val vm = SettingsViewModel(store, syncManager())
+    val vm = ServerConfigViewModel(store, syncManager())
     setContent(vm)
     vm.importKey("not-a-config-file")
     composeTestRule.waitForIdle()
@@ -96,10 +96,10 @@ class SettingsScreenTest {
       .assertExists()
   }
 
-  private fun setContent(vm: SettingsViewModel) {
+  private fun setContent(vm: ServerConfigViewModel) {
     composeTestRule.setContent {
       ElisdbTheme {
-        SettingsScreen(viewModel = vm, onBack = {})
+        ServerConfigScreen(viewModel = vm, onBack = {})
       }
     }
   }

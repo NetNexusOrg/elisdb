@@ -5,7 +5,7 @@ Provides the user-facing Compose screens for managing clients: a list of clients
 ## Requirements
 ### Requirement: Client list screen
 
-The system SHALL show a list of all clients, each row displaying the client's name and a thumbnail: the client's first photo when present, otherwise a generic profile image. The system SHALL allow filtering the list by a search term. The screen SHALL have a top bar that shows a title for the screen and SHALL host a menu containing the create-client action and the settings action.
+The system SHALL show a list of all clients, each row displaying the client's name and a thumbnail: the client's first photo when present, otherwise a generic profile image. The system SHALL allow filtering the list by a search term. The screen SHALL have a top bar that shows a title for the screen and SHALL host a menu containing the create-client action, the synchronization action, the server action, and the about action.
 
 #### Scenario: List shows clients with thumbnails
 - **WHEN** the client list screen is shown and clients exist
@@ -41,7 +41,9 @@ The system SHALL show a list of all clients, each row displaying the client's na
 - **WHEN** the client list screen is shown
 - **THEN** the screen SHALL show a top bar with a title for the screen
 - **AND** the top bar SHALL host a menu that contains the add-a-new-client action
-- **AND** the top bar SHALL host a menu that contains the action to open the settings screen
+- **AND** the top bar SHALL host a menu that contains the action to open the synchronization screen
+- **AND** the top bar SHALL host a menu that contains the action to open the server screen
+- **AND** the top bar SHALL host a menu that contains the action to open the about screen
 - **AND** the create-client action SHALL NOT be shown as a floating action button
 
 #### Scenario: Show current sync status

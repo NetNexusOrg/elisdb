@@ -15,11 +15,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
 /** In-memory fake [ClienteDao]. */
-class FakeClienteDao(initial: List<Cliente> = emptyList()) : ClienteDao {
-  val data = initial.toMutableList()
+class FakeClienteDao(initial: List<Cliente> = emptyList()) : ClienteDao {  val data = initial.toMutableList()
 
   override fun observeAll(): Flow<List<Cliente>> = flowOf(data.filter { !it.deletePending })
   override fun observeAllIncludingDeleted(): Flow<List<Cliente>> = flowOf(data.toList())
+  override fun observeCount(): Flow<Int> = flowOf(data.count { !it.deletePending })
 
   override suspend fun getAll(): List<Cliente> = data.toList()
 
@@ -257,3 +257,12 @@ fun decoded(dataB64: String): ByteArray = java.util.Base64.getDecoder().decode(d
 
 /** SHA-256 hex of the decoded [dataB64], matching the server's photo hash. */
 fun sha256Of(dataB64: String): String = PhotoHashes.sha256(decoded(dataB64))
+
+/** In-memory fake [LastSyncStore]. */
+class FakeLastSyncStore(var value: Long? = null) : LastSyncStore {
+  override fun getLastSuccessAt(): Long? = value
+
+  override fun setLastSuccessAt(epochSeconds: Long) {
+    value = epochSeconds
+  }
+}

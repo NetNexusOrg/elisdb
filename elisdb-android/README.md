@@ -23,12 +23,12 @@ O APK sai em `app/build/outputs/apk/release/app-release.apk`.
 
 ## Ligar ao servidor
 
-Para sincronizar, importa o ficheiro de configuração nas **Definições**:
+Para sincronizar, importa o ficheiro de configuração no ecrã **Servidor**:
 1. No servidor (pasta `elisdb-server/`):
    `docker compose exec elisdb-server python -m app.keys issue <nome> --server-url <URL>`
    (cria o `<nome>.config.json`).
-2. Na app: **Definições** → **Importar configuração do servidor** → escolhe o
-   ficheiro e sincroniza.
+2. Na app: menu (⋮) → **Servidor** → **Importar configuração do servidor** → escolhe o
+   ficheiro e sincroniza (menu ⋮ → **Sincronização**).
 
 ## Documentação
 

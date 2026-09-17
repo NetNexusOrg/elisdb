@@ -30,10 +30,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,7 +57,9 @@ fun ClientListScreen(
   onClienteClick: (String) -> Unit,
   onAddClick: () -> Unit,
   modifier: Modifier = Modifier,
-  onSettingsClick: () -> Unit = {},
+  onSyncClick: () -> Unit = {},
+  onServerClick: () -> Unit = {},
+  onAboutClick: () -> Unit = {},
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   ClientListScreen(
@@ -63,7 +67,9 @@ fun ClientListScreen(
     onClienteClick = onClienteClick,
     onAddClick = onAddClick,
     onQueryChange = viewModel::onQueryChange,
-    onSettingsClick = onSettingsClick,
+    onSyncClick = onSyncClick,
+    onServerClick = onServerClick,
+    onAboutClick = onAboutClick,
     modifier = modifier,
   )
 }
@@ -75,7 +81,9 @@ internal fun ClientListScreen(
   onClienteClick: (String) -> Unit,
   onAddClick: () -> Unit,
   onQueryChange: (String) -> Unit,
-  onSettingsClick: () -> Unit,
+  onSyncClick: () -> Unit,
+  onServerClick: () -> Unit,
+  onAboutClick: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   Scaffold(
@@ -95,9 +103,19 @@ internal fun ClientListScreen(
               leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
             )
             DropdownMenuItem(
-              text = { Text("Definições") },
-              onClick = { menuOpen = false; onSettingsClick() },
-              leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
+              text = { Text("Sincronização") },
+              onClick = { menuOpen = false; onSyncClick() },
+              leadingIcon = { Icon(Icons.Default.Sync, contentDescription = null) },
+            )
+            DropdownMenuItem(
+              text = { Text("Servidor") },
+              onClick = { menuOpen = false; onServerClick() },
+              leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null) },
+            )
+            DropdownMenuItem(
+              text = { Text("Sobre") },
+              onClick = { menuOpen = false; onAboutClick() },
+              leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
             )
           }
         },

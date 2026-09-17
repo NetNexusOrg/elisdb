@@ -18,6 +18,9 @@ interface ClienteDao {
   @Query("SELECT * FROM clientes ORDER BY nome COLLATE NOCASE")
   fun observeAllIncludingDeleted(): Flow<List<Cliente>>
 
+  @Query("SELECT COUNT(*) FROM clientes WHERE deletePending = 0")
+  fun observeCount(): Flow<Int>
+
   @Query("SELECT * FROM clientes")
   suspend fun getAll(): List<Cliente>
 

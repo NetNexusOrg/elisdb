@@ -21,9 +21,11 @@ import com.example.elisdb.settings.PrefsSettingsStore
 import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.sync.ClockOffsetStore
 import com.example.elisdb.sync.FilePhotoStore
+import com.example.elisdb.sync.LastSyncStore
 import com.example.elisdb.sync.PhotoPushState
 import com.example.elisdb.sync.PhotoSweeper
 import com.example.elisdb.sync.PrefsClockOffsetStore
+import com.example.elisdb.sync.PrefsLastSyncStore
 import com.example.elisdb.sync.PrefsPhotoPushState
 import com.example.elisdb.sync.SyncCoordinator
 import com.example.elisdb.sync.SyncCoordinatorProvider
@@ -54,6 +56,9 @@ class AppContainer(context: Context) {
 
   /** Device↔server clock offset, refreshed on each successful sync. */
   val clockOffsetStore: ClockOffsetStore = PrefsClockOffsetStore(context)
+
+  /** Timestamp of the last successful sync, shown on the synchronization screen. */
+  val lastSyncStore: LastSyncStore = PrefsLastSyncStore(context)
 
   /**
    * Device clock (epoch seconds) shifted by the last-known server offset, so
@@ -117,6 +122,7 @@ class AppContainer(context: Context) {
           null
         }
       },
+      lastSyncStore = lastSyncStore,
     )
 
   val repository: ClienteRepositoryImpl =

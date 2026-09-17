@@ -24,8 +24,8 @@ Para ligar um telemóvel, emite a chave dele dentro do contentor:
 docker compose exec elisdb-server python -m app.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
 ```
 
-Isto cria o ficheiro `<nome>.config.json` — importa-o nas **Definições** da app
-e sincroniza. Ver [Configuração](docs/configuracao.md).
+Isto cria o ficheiro `<nome>.config.json` — importa-o no ecrã **Servidor** da app
+e sincroniza no ecrã **Sincronização**. Ver [Configuração](docs/configuracao.md).
 
 ## Documentação
 

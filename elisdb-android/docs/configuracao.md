@@ -55,10 +55,9 @@ assinatura**. Há duas formas de os definir:
 
 ### 1. Em tempo de execução (recomendado)
 
-Abre a app → **Definições** → **Importar configuração do servidor** e escolhe o
-ficheiro `<nome>.config.json` emitido no servidor. O URL e a chave ficam
-preenchidos de uma só vez. (Também podes preencher os campos à mão e **Guardar**
-— isso sobrepõe qualquer valor de build.)
+Abre a app → menu (⋮) → **Servidor** → **Importar configuração do servidor** e
+escolhe o ficheiro `<nome>.config.json` emitido no servidor. O URL e a chave
+ficam preenchidos de uma só vez. O ecrã é só de leitura (não há edição manual).
 
 > Este é o caminho mais simples: ver [Utilização](uso.md), que mostra como
 > emitir o ficheiro no servidor.
@@ -73,7 +72,7 @@ As variáveis de ambiente preenchem dois campos no momento do build:
 | Chave de assinatura       | `ELISDB_PRIVATE_KEY`   | *(vazio — sem chave embutida)*    |
 
 Mesmo sem estas variáveis, a app funciona offline; a sincronização só fica
-ativa quando houver URL e chave (de build **ou** das Definições).
+ativa quando houver URL e chave (de build **ou** do ecrã Servidor).
 
 Exemplo:
 
@@ -89,6 +88,6 @@ Para obter a chave e registar a chave pública no servidor, vê o fluxo único e
 
 ### Se as duas formas forem usadas
 
-A app guarda o que definir nas **Definições**; se existir um valor guardado,
-**ele sobrepõe-se** ao valor do build. Sem valor guardado, usa o do build.
-Os builds existentes continuam a funcionar sem alterações.
+A app guarda o que for importado no ecrã **Servidor**; se existir um valor
+guardado, **ele sobrepõe-se** ao valor do build. Sem valor guardado, usa o do
+build. Os builds existentes continuam a funcionar sem alterações.

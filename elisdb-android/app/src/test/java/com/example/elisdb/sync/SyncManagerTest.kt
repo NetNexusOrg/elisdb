@@ -247,4 +247,48 @@ class SyncManagerTest {
     manager.schedulePeriodic()
     assertTrue(true)
   }
+
+  @Test
+  fun `pending upload count reflects pending and deleted records`() = runBlocking {
+    val records =
+      listOf(
+        Cliente(id = "1", nome = "A", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0, pending = true),
+        Cliente(id = "2", nome = "B", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0, deletePending = true),
+        Cliente(id = "3", nome = "C", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0),
+      )
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        clienteDao = FakeClienteDao(records),
+      )
+    delay(50)
+    assertEquals(2, manager.pendingUploadCount.value)
+  }
+
+  @Test
+  fun `successful sync records and persists last success time`() = runBlocking {
+    val lastSyncStore = FakeLastSyncStore()
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        lastSyncStore = lastSyncStore,
+      )
+    assertEquals(null, manager.lastSuccessAt.value)
+    manager.sync()
+    assertTrue("last success timestamp published", manager.lastSuccessAt.value != null)
+    assertEquals("timestamp persisted", manager.lastSuccessAt.value, lastSyncStore.value)
+  }
+
+  @Test
+  fun `failed sync does not record a last success time`() = runBlocking {
+    val lastSyncStore = FakeLastSyncStore()
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi().apply { failWith = IOException("boom") }, FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        lastSyncStore = lastSyncStore,
+      )
+    manager.sync()
+    assertEquals(null, manager.lastSuccessAt.value)
+    assertEquals(null, lastSyncStore.value)
+  }
 }

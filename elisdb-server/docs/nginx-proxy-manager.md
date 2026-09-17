@@ -134,8 +134,8 @@ docker compose exec elisdb-server python -m app.keys issue <nome-do-utilizador> 
 
 Isto cria o `<nome>.config.json` com o URL `https://db.exemplo.com`. Copia-o do
 contentor para a tua máquina (`docker cp elisdb-server:/app/<nome>.config.json .`)
-e importa-o na app: **Definições** → **Importar configuração do servidor**, e
-sincroniza.
+e importa-o na app: menu (⋮) → **Servidor** → **Importar configuração do servidor**, e
+sincroniza (menu ⋮ → **Sincronização**).
 
 ## 7. Segurança
 
@@ -145,7 +145,7 @@ sincroniza.
   chave registada. Um visitante anónimo continua a receber `401` em tudo o que
   não seja `/health`.
 - **Nunca exposes fora da tua infraestrutura** o ficheiro `ELISDB_DB`, a pasta
-  `ELISDB_PHOTOS`, nem as chaves privadas (o seed dentro do config ou nas
-  Definições da app).
+  `ELISDB_PHOTOS`, nem as chaves privadas (o seed dentro do config ou no
+  ecrã Servidor da app).
 - Para exposição pública considera restringir o acesso no NPM com *Access Lists*
   (limitar IPs) — é configurável em cada Proxy Host e fora do âmbito deste guia.

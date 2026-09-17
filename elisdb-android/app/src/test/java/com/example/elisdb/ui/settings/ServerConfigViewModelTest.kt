@@ -26,7 +26,7 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class SettingsViewModelTest {
+class ServerConfigViewModelTest {
   private val dispatcher = StandardTestDispatcher()
 
   @Before
@@ -51,7 +51,7 @@ class SettingsViewModelTest {
     store: SettingsStore,
     runScope: kotlinx.coroutines.CoroutineScope,
     fetch: suspend () -> KeyIdentityDto? = { null },
-  ): SettingsViewModel = SettingsViewModel(store, syncManager(runScope), fetch)
+  ): ServerConfigViewModel = ServerConfigViewModel(store, syncManager(runScope), fetch)
 
   @Test
   fun `sem chave mantem identidade nao resolvida`() = runTest(dispatcher) {
@@ -120,7 +120,7 @@ class SettingsViewModelTest {
     var calls = 0
     val manager = syncManager(backgroundScope)
     val viewModel =
-      SettingsViewModel(
+      ServerConfigViewModel(
         FakeSettingsStore(ServerSettings("https://s", "seed")),
         manager,
         fetchKeyIdentity = {
@@ -133,7 +133,7 @@ class SettingsViewModelTest {
     assertEquals(1, calls)
     manager.syncNow()
     advanceUntilIdle()
-    assertEquals(SyncStatus.SUCCESS, viewModel.uiState.value.syncStatus)
+    assertEquals(SyncStatus.SUCCESS, manager.status.value)
     assertEquals(KeyIdentity.Resolved("maria"), viewModel.uiState.value.keyIdentity)
   }
 

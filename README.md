@@ -22,7 +22,7 @@ sincronizam automaticamente.
    ```bash
    docker compose exec elisdb-server python -m app.keys issue <nome> --server-url <URL-do-servidor>
    ```
-3. **Importa** o `<nome>.config.json` nas **Definições** da app e sincroniza.
+3. **Importa** o `<nome>.config.json` no ecrã **Servidor** da app e sincroniza no ecrã **Sincronização**.
 
 Tudo isto está explicado passo a passo na [utilização da app](elisdb-android/docs/uso.md).
 

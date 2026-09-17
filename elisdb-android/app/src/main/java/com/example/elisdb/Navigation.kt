@@ -10,6 +10,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.example.elisdb.ui.about.AboutScreen
 import com.example.elisdb.ui.cliente.ClientListScreen
 import com.example.elisdb.ui.cliente.ClientListViewModel
 import com.example.elisdb.ui.detalhe.ClientDetailScreen
@@ -19,8 +20,10 @@ import com.example.elisdb.ui.detalhe.PhotoViewerScreen
 import com.example.elisdb.ui.detalhe.PhotoViewerViewModel
 import com.example.elisdb.ui.form.ClientFormScreen
 import com.example.elisdb.ui.form.ClientFormViewModel
-import com.example.elisdb.ui.settings.SettingsScreen
-import com.example.elisdb.ui.settings.SettingsViewModel
+import com.example.elisdb.ui.settings.ServerConfigScreen
+import com.example.elisdb.ui.settings.ServerConfigViewModel
+import com.example.elisdb.ui.settings.SyncScreen
+import com.example.elisdb.ui.settings.SyncViewModel
 import com.example.elisdb.ui.rememberAppContainer
 
 @Composable
@@ -45,15 +48,31 @@ fun MainNavigation() {
             viewModel = viewModel { ClientListViewModel(container.repository) },
             onClienteClick = { id -> backStack.add(ClientDetail(id)) },
             onAddClick = { backStack.add(ClientForm()) },
-            onSettingsClick = { backStack.add(Settings) },
+            onSyncClick = { backStack.add(Sync) },
+            onServerClick = { backStack.add(Server) },
+            onAboutClick = { backStack.add(About) },
           )
         }
-        entry<Settings> {
+        entry<Sync> {
           val container = rememberAppContainer()
-          SettingsScreen(
+          SyncScreen(
             viewModel =
               viewModel {
-                SettingsViewModel(
+                SyncViewModel(
+                  settingsStore = container.settingsStore,
+                  syncManager = container.syncManager,
+                  clienteCount = container.database.clienteDao().observeCount(),
+                )
+              },
+            onBack = { backStack.removeLastOrNull() },
+          )
+        }
+        entry<Server> {
+          val container = rememberAppContainer()
+          ServerConfigScreen(
+            viewModel =
+              viewModel {
+                ServerConfigViewModel(
                   settingsStore = container.settingsStore,
                   syncManager = container.syncManager,
                   fetchKeyIdentity = {
@@ -67,6 +86,9 @@ fun MainNavigation() {
               },
             onBack = { backStack.removeLastOrNull() },
           )
+        }
+        entry<About> {
+          AboutScreen(onBack = { backStack.removeLastOrNull() })
         }
         entry<ClientForm> { key ->
           val container = rememberAppContainer()

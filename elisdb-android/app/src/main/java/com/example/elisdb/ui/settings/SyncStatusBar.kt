@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -26,17 +27,22 @@ import androidx.compose.ui.unit.dp
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncStatus
 
+/**
+ * Sync status row: an icon + message describing the current state, plus a
+ * fixed-position "check for updates" action. The action only queries the server
+ * for updates; the actual data transfer is triggered elsewhere.
+ */
 @Composable
 internal fun SyncStatusBar(
   syncStatus: SyncStatus,
   syncFault: SyncFault?,
-  onSyncClick: () -> Unit,
+  onCheckClick: () -> Unit,
   modifier: Modifier = Modifier,
+  checking: Boolean = false,
   hasPendingUploads: Boolean = false,
   hasPendingDownloads: Boolean = false,
   hasConfig: Boolean = true,
 ) {
-  val syncing = syncStatus == SyncStatus.IN_PROGRESS
   Row(
     modifier = modifier.fillMaxWidth(),
     verticalAlignment = Alignment.CenterVertically,
@@ -59,11 +65,15 @@ internal fun SyncStatusBar(
         )
       }
     }
-    IconButton(onClick = onSyncClick, enabled = !syncing, modifier = Modifier.testTag("sync_action")) {
-      if (syncing) {
+    IconButton(
+      onClick = onCheckClick,
+      enabled = !checking && hasConfig,
+      modifier = Modifier.testTag("check_action"),
+    ) {
+      if (checking) {
         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
       } else {
-        Icon(Icons.Default.Sync, contentDescription = "Sincronizar")
+        Icon(Icons.Default.Refresh, contentDescription = "Verificar")
       }
     }
   }

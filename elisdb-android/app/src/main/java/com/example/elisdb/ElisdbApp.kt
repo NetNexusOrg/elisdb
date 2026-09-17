@@ -16,7 +16,7 @@ class ElisdbApp : Application() {
     super.onCreate()
     Configuration.getInstance().userAgentValue = osmdroidUserAgent()
     container = AppContainer(this)
-    // No periodic sync: synchronization is manual only. The Settings screen
+    // No periodic sync: synchronization is manual only. The Sync screen
     // checks pending work on open; data transfers happen only on the manual action.
     container.applicationScope.launch {
       PhotoStoreGuard.mutex.withLock { container.photoSweeper.sweep() }

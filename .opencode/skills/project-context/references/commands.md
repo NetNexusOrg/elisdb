@@ -15,6 +15,22 @@ Verified command reference. Run from the directory shown.
 
 Release APK: `app/build/outputs/apk/release/app-release.apk`.
 
+### Machine setup (android CLI)
+
+SDK/AVD managed with the official `android` CLI (no Android Studio required);
+SDK defaults to `~/Android/Sdk` on Linux — `local.properties` already points there:
+
+```bash
+android sdk install platforms/android-37.0 build-tools/37.0.0 platform-tools
+android sdk install system-images/android-37.0/google_apis/x86_64   # instrumented tests
+android emulator create medium_phone    # creates an AVD from a profile
+android emulator start medium_phone     # blocks until ready (e.g. emulator-5554)
+android emulator stop medium_phone
+```
+
+`~/.bashrc`: `export ANDROID_HOME="$HOME/Android/Sdk"` and
+`export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"`.
+
 ## Server (run from `elisdb-server/`)
 
 ```bash

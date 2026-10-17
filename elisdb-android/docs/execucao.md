@@ -69,13 +69,21 @@ KEY_PASSWORD=...
 
 ## Emulador
 
-1. Cria um dispositivo virtual (AVD) com o *Device Manager* do Android Studio
-   (ou `avdmanager`).
-2. Lança o emulador:
+Com o [Android CLI](https://developer.android.com/tools/android-cli-reference)
+(instalado à mão, sem Android Studio):
+
+1. Cria um dispositivo virtual (AVD) a partir de um perfil:
    ```bash
-   emulator -avd <nome-do-avd>
+   android emulator create medium_phone
+   ```
+2. Lança o emulador (o comando bloqueia até o dispositivo estar pronto):
+   ```bash
+   android emulator start medium_phone
    ```
 3. Instala a app como acima (`installDebug` ou `adb install`).
+
+Outras opções: o *Device Manager* do Android Studio (ou `avdmanager`) e
+`emulator -avd <nome-do-avd>`. Para parar: `android emulator stop <nome>`.
 
 ## Testar com o telemóvel físico e o servidor
 

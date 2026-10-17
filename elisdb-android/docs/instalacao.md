@@ -11,6 +11,23 @@ Studio é opcional). Este guia prepara o computador; o próximo
 - (Opcional) **Android Studio** — mais fácil para editar código, gerir o
   emulador e instalar a app.
 
+### Instalar o SDK sem Android Studio: Android CLI
+
+O [Android CLI](https://developer.android.com/tools/android-cli-reference)
+(`android`) gere o SDK à mão. Para este projeto bastam:
+
+```bash
+android sdk install platforms/android-37.0 build-tools/37.0.0 platform-tools
+```
+
+Por omissão o SDK fica em `~/Android/Sdk` (Linux). Vale a pena acrescentar ao
+`~/.bashrc` para que `adb` e o emulador fiquem no PATH:
+
+```bash
+export ANDROID_HOME="$HOME/Android/Sdk"
+export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
+```
+
 ### Dizer ao projeto onde está o SDK
 
 O projeto precisa de saber onde o Android SDK está instalado. Cria (ou edita) o

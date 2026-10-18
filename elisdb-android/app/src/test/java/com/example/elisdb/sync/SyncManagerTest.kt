@@ -291,4 +291,31 @@ class SyncManagerTest {
     assertEquals(null, manager.lastSuccessAt.value)
     assertEquals(null, lastSyncStore.value)
   }
+
+  @Test
+  fun `cancelled caller still publishes terminal status and last success`() = runBlocking {
+    val releasePull = CompletableDeferred<Unit>()
+    val api = FakeSyncApi().apply { pullGate = releasePull }
+    val lastSyncStore = FakeLastSyncStore()
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(api, FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        lastSyncStore = lastSyncStore,
+      )
+
+    val caller = launch { manager.sync() }
+    while (api.pulledSinces.isEmpty()) delay(5)
+    // The triggering caller goes away mid-run (screen closed → scope cancelled).
+    caller.cancel()
+    delay(20)
+    assertEquals("run still in progress", SyncStatus.IN_PROGRESS, manager.status.value)
+
+    releasePull.complete(Unit)
+    // The run publishes its terminal state without depending on the caller.
+    while (manager.status.value == SyncStatus.IN_PROGRESS) delay(5)
+    assertEquals(SyncStatus.SUCCESS, manager.status.value)
+    while (manager.lastSuccessAt.value == null) delay(5)
+    assertEquals("timestamp persisted", manager.lastSuccessAt.value, lastSyncStore.value)
+    assertEquals("a new sync can start afterwards", SyncStatus.SUCCESS, manager.syncNow())
+  }
 }

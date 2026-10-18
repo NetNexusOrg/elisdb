@@ -16,6 +16,7 @@ import com.example.elisdb.remote.ConfigException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** Provides the coordinator; abstracted so tests can substitute one. */
 fun interface SyncCoordinatorProvider {
@@ -129,38 +131,39 @@ class SyncManager(
    * Runs exactly one sync (single-flight): concurrent callers join the in-flight
    * run and observe its outcome. Publishes [SyncStatus]/[SyncFault] for every
    * execution, including those started by the periodic [SyncWorker].
+   *
+   * Publication happens in [runScope] (see [startRun]), so the observable status
+   * reaches a terminal state even when the calling coroutine is cancelled while
+   * awaiting — e.g. the user leaves the screen that triggered the sync.
    */
   suspend fun sync(): SyncOutcome {
-    _status.value = SyncStatus.IN_PROGRESS
-    _fault.value = null
-    _lastResult.value = null
-    val (created, run) =
-      mutex.withLock {
-        val existing = inFlight
-        if (existing != null && existing.isActive) {
-          false to existing
-        } else {
-          val fresh = startRun()
-          inFlight = fresh
-          true to fresh
+    // Entry is non-cancellable: a caller cancelled between setting IN_PROGRESS
+    // and starting/joining the run must not leave the status stuck in
+    // IN_PROGRESS. Cancellation still takes effect at run.await() below.
+    val run =
+      withContext(NonCancellable) {
+        _status.value = SyncStatus.IN_PROGRESS
+        _fault.value = null
+        _lastResult.value = null
+        mutex.withLock {
+          val existing = inFlight
+          if (existing != null && existing.isActive) {
+            existing
+          } else {
+            startRun().also { inFlight = it }
+          }
         }
       }
-    val outcome =
-      try {
-        run.await()
-      } finally {
-        if (created) {
-          mutex.withLock { if (inFlight === run) inFlight = null }
-        }
+    try {
+      return run.await()
+    } finally {
+      // Best-effort: drop the finished run so the next trigger starts fresh.
+      // A skipped cleanup is harmless — joiners only join while the run is
+      // active, and a completed reference is replaced on the next call.
+      if (!run.isActive) {
+        mutex.withLock { if (inFlight === run) inFlight = null }
       }
-    publish(outcome)
-    if (_status.value == SyncStatus.SUCCESS) {
-      val now = System.currentTimeMillis() / 1000
-      _lastSuccessAt.value = now
-      lastSyncStore?.setLastSuccessAt(now)
-      refreshPendingDownloads()
     }
-    return outcome
   }
 
   /** Runs a sync attempt in a background scope, updating [status]. */
@@ -169,15 +172,32 @@ class SyncManager(
     return mapOutcome(outcome).status
   }
 
+  /**
+   * Runs a sync attempt in the background scope, updating [status].
+   *
+   * Publication (and the post-success bookkeeping) lives inside the run's own
+   * coroutine so it never depends on a caller's lifecycle: awaiting callers may
+   * be cancelled (navigation, scope teardown) while the transfer keeps running,
+   * and the observable status must still reach a terminal state.
+   */
   private fun startRun(): Deferred<SyncOutcome> =
     runScope.async {
-      try {
-        coordinatorProvider.coordinator().sync()
-      } catch (e: ConfigException) {
-        SyncOutcome.ConfigFault
-      } catch (e: Exception) {
-        SyncOutcome.TransientError
+      val outcome =
+        try {
+          coordinatorProvider.coordinator().sync()
+        } catch (e: ConfigException) {
+          SyncOutcome.ConfigFault
+        } catch (e: Exception) {
+          SyncOutcome.TransientError
+        }
+      publish(outcome)
+      if (_status.value == SyncStatus.SUCCESS) {
+        val now = System.currentTimeMillis() / 1000
+        _lastSuccessAt.value = now
+        lastSyncStore?.setLastSuccessAt(now)
+        refreshPendingDownloads()
       }
+      outcome
     }
 
   private fun publish(outcome: SyncOutcome) {

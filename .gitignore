@@ -24,6 +24,8 @@ __pycache__/
 *.db-*
 *.sqlite
 *.sqlite3
+# Artefacto local do uv (o servidor instala via requirements.txt/pip)
+elisdb-server/uv.lock
 
 # ---- Configuração de dispositivo (contém seed ed25519 privada) ----
 *.config.json

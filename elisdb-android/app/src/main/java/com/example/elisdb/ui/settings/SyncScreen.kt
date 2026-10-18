@@ -105,7 +105,7 @@ fun SyncScreen(
         )
         InfoRow(
           label = "Alterações por receber",
-          value = if (state.hasPendingDownloads) "Disponível" else "Nada a receber",
+          value = if (state.hasPendingDownloads) "≥1" else "0",
           valueColor =
             if (state.hasPendingDownloads) MaterialTheme.colorScheme.onSurface
             else MaterialTheme.colorScheme.onSurfaceVariant,

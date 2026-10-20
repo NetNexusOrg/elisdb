@@ -34,12 +34,10 @@ class SyncViewModelTest {
       },
     )
 
-  private fun store(): SettingsStore = PrefsSettingsStore(context)
-
   private fun vm(
     manager: SyncManager,
     clienteCount: kotlinx.coroutines.flow.Flow<Int> = kotlinx.coroutines.flow.flowOf(0),
-  ): SyncViewModel = SyncViewModel(store(), manager, clienteCount)
+  ): SyncViewModel = SyncViewModel(manager, clienteCount)
 
   @Test
   fun manualSync_triggersSync_andStatusUpdates() {
@@ -94,14 +92,6 @@ class SyncViewModelTest {
   private fun waitForSyncFinished(vm: SyncViewModel) {
     val deadline = System.currentTimeMillis() + 5_000
     while (vm.uiState.value.syncStatus == SyncStatus.IN_PROGRESS && System.currentTimeMillis() < deadline) {
-      InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-      Thread.sleep(50)
-    }
-  }
-
-  private fun waitForChecking(vm: SyncViewModel, checking: Boolean) {
-    val deadline = System.currentTimeMillis() + 5_000
-    while (vm.uiState.value.checking != checking && System.currentTimeMillis() < deadline) {
       InstrumentationRegistry.getInstrumentation().waitForIdleSync()
       Thread.sleep(50)
     }
@@ -192,26 +182,18 @@ class SyncViewModelTest {
   }
 
   @Test
-  fun checkForUpdates_ativaCheckingDuranteAVerificacao() {
-    val gate = CompletableDeferred<Unit>()
+  fun verificacaoAoAbrir_atualizaPendentesSemTransferir() {
+    // No separate check action: opening the screen refreshes the pending state.
     val manager =
       SyncManager(
         SyncCoordinatorProvider { throw RuntimeException("no network in sync test") },
         pullWatermark = FakeAndroidPullWatermark(null),
-        fetchServerInfo = {
-          gate.await()
-          ServerInfo(500L, 0)
-        },
+        fetchServerInfo = { ServerInfo(500L, 12) },
       )
     val vm = vm(manager)
-    vm.checkForUpdates()
-    waitForChecking(vm, true)
-    assertEquals(true, vm.uiState.value.checking)
-    gate.complete(Unit)
-    waitForChecking(vm, false)
-    assertEquals(false, vm.uiState.value.checking)
     waitForPendingDownloads(vm, true)
     assertEquals(true, vm.uiState.value.hasPendingDownloads)
+    assertEquals(12, vm.uiState.value.serverClienteCount)
   }
 
   private fun pendingSyncManager(

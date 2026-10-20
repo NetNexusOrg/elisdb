@@ -34,18 +34,18 @@ precisa. Transfere-o para o telemóvel.
 
 ### 1.2 Importar a chave na app
 
-Na app: menu (⋮) → **Servidor** → **Importar configuração do servidor** → escolhe o
-`maria.config.json`. O **URL do servidor** e a **chave de assinatura** ficam
-preenchidos em simultâneo.
+Na app: menu (⋮) → **Configuração** → **Importar configuração do servidor** → escolhe
+o `maria.config.json`. O **URL do servidor** e a **chave de assinatura** ficam
+preenchidos em simultâneo e a sincronização arranca logo.
 
-(O ecrã **Servidor** mostra o URL e a chave em modo só de leitura; a
-configuração entra sempre pela importação do ficheiro. Ver
-[Configuração](configuracao.md).)
+(O cartão **Servidor**, no ecrã **Configuração**, mostra o URL, a chave mascarada e
+o utilizador associado, em modo só de leitura; a configuração entra sempre pela
+importação do ficheiro. Ver [Configuração](configuracao.md).)
 
 ### 1.3 Primeira sincronização
 
-Na app: menu (⋮) → **Sincronização** → carrega no botão **Sincronizar**. O
-resultado aparece nesse ecrã:
+Na app: menu (⋮) → **Configuração** → carrega no botão **Sincronizar**. O
+resultado aparece nesse mesmo ecrã:
 
 - **Sincronizado** — o servidor aceitou os dados.
 - Outra mensagem? → consulta a [tabela de resolução de problemas](#3-resolucao-de-problemas).
@@ -54,7 +54,7 @@ resultado aparece nesse ecrã:
 
 A app trabalha **offline-first**: podes criar e editar clientes, tirar e remover
 fotos, e marcar a localização no mapa mesmo sem servidor. A sincronização é
-acionada no ecrã **Sincronização** (menu ⋮ → **Sincronização**); o estado
+acionada no ecrã **Configuração** (menu ⋮ → **Configuração**); o estado
 aparece nesse mesmo ecrã — ícone + mensagem curta.
 
 Fluxos principais:
@@ -63,8 +63,7 @@ Fluxos principais:
 - **Novo/editar cliente** — formulário com nome, contrato, coordenadas, notas.
 - **Mapa** — escolher/indicar a localização (Picker).
 - **Fotos** — capturar e associar imagens; ver em ecrã inteiro.
-- **Sincronização** — estado, botão **Verificar** (consulta o servidor sem transferir dados) e botão **Sincronizar** (envia e recebe os dados).
-- **Servidor** — URL do servidor e chave de assinatura (só de leitura).
+- **Configuração** — o ecrã único de sincronização e servidor: estado, resumo do que falta sincronizar, totais de clientes na app e no servidor e o botão **Sincronizar** (envia e recebe os dados); abaixo, o cartão **Servidor** com o URL, a chave mascarada e o utilizador associado; sem configuração mostra **Importar configuração do servidor**, e depois de configurado mostra apenas **Remover configuração**. O estado pendente é verificado automaticamente ao abrir o ecrã.
 - **Sobre** — informação sobre a app (nome, versão, descrição) e o desenvolvedor.
 
 Durante uma sincronização, as fotos que já existem no servidor **sem mudanças**
@@ -75,7 +74,7 @@ de dados — se a sincronização falhar a meio, as fotos anteriores ficam intac
 > servidor (comparação por nome normalizado), o servidor responde `duplicate` e
 > a app **funde** o registo local com o existente: o teu registo é reatribuído
 > ao id canónico, mantendo o que introduziste, e re-enviado na sincronização
-> seguinte (vence pelo mais recente). No ecrã **Sincronização** aparece: *"Registo
+> seguinte (vence pelo mais recente). No ecrã **Configuração** aparece: *"Registo
 > «Nome» foi fundido com um registo existente."*. O teu registo nunca é apagado
 > em silêncio.
 
@@ -83,7 +82,7 @@ de dados — se a sincronização falhar a meio, as fotos anteriores ficam intac
 
 | O que aparece na barra de estado   | O que está a acontecer                | O que fazer |
 | ---------------------------------- | ------------------------------------- | ----------- |
-| "Servidor não configurado. Abre o ecrã Servidor para configurar." | Falta o URL ou a chave (no ecrã Servidor ou no build) | Importa o `<nome>.config.json` (ou emite um novo no servidor) |
+| "Servidor não configurado. Abre o ecrã Servidor para configurar." | Falta o URL ou a chave (no ecrã Configuração ou no build) | Importa o `<nome>.config.json` (ou emite um novo no servidor) |
 | "Servidor rejeitou a sincronização (chave não registada)." | A chave pública não está registada no servidor | No servidor: `docker compose exec elisdb-server python -m app.keys issue <nome> --server-url <url>` e importa o ficheiro (ver passo 1) |
 | "Relógio do dispositivo dessincronizado. Verifique a hora do dispositivo." | O relógio do telemóvel está fora da janela de ±5 min do servidor | Ativa a hora automática no telemóvel (e no servidor) e sincroniza de novo |
 | "Falha na sincronização. Verifique a ligação." | O servidor não está acessível no URL definido | Confirma a rede e o URL (usa o IP do servidor, não `127.0.0.1`) |

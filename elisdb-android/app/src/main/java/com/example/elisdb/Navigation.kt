@@ -20,9 +20,8 @@ import com.example.elisdb.ui.detalhe.PhotoViewerScreen
 import com.example.elisdb.ui.detalhe.PhotoViewerViewModel
 import com.example.elisdb.ui.form.ClientFormScreen
 import com.example.elisdb.ui.form.ClientFormViewModel
-import com.example.elisdb.ui.settings.ServerConfigScreen
+import com.example.elisdb.ui.settings.ConfigScreen
 import com.example.elisdb.ui.settings.ServerConfigViewModel
-import com.example.elisdb.ui.settings.SyncScreen
 import com.example.elisdb.ui.settings.SyncViewModel
 import com.example.elisdb.ui.rememberAppContainer
 
@@ -48,42 +47,36 @@ fun MainNavigation() {
             viewModel = viewModel { ClientListViewModel(container.repository) },
             onClienteClick = { id -> backStack.add(ClientDetail(id)) },
             onAddClick = { backStack.add(ClientForm()) },
-            onSyncClick = { backStack.add(Sync) },
-            onServerClick = { backStack.add(Server) },
+            onConfigClick = { backStack.add(Config) },
             onAboutClick = { backStack.add(About) },
           )
         }
-        entry<Sync> {
+        entry<Config> {
           val container = rememberAppContainer()
-          SyncScreen(
-            viewModel =
-              viewModel {
-                SyncViewModel(
-                  settingsStore = container.settingsStore,
-                  syncManager = container.syncManager,
-                  clienteCount = container.database.clienteDao().observeCount(),
-                )
-              },
-            onBack = { backStack.removeLastOrNull() },
-          )
-        }
-        entry<Server> {
-          val container = rememberAppContainer()
-          ServerConfigScreen(
-            viewModel =
-              viewModel {
-                ServerConfigViewModel(
-                  settingsStore = container.settingsStore,
-                  syncManager = container.syncManager,
-                  fetchKeyIdentity = {
-                    try {
-                      container.createApiClient().fetchKeyIdentity(timestamp = container.normalizedEpochSeconds())
-                    } catch (e: Exception) {
-                      null
-                    }
-                  },
-                )
-              },
+          val syncViewModel =
+            viewModel {
+              SyncViewModel(
+                syncManager = container.syncManager,
+                clienteCount = container.database.clienteDao().observeCount(),
+              )
+            }
+          val serverViewModel =
+            viewModel {
+              ServerConfigViewModel(
+                settingsStore = container.settingsStore,
+                syncManager = container.syncManager,
+                fetchKeyIdentity = {
+                  try {
+                    container.createApiClient().fetchKeyIdentity(timestamp = container.normalizedEpochSeconds())
+                  } catch (e: Exception) {
+                    null
+                  }
+                },
+              )
+            }
+          ConfigScreen(
+            syncViewModel = syncViewModel,
+            serverViewModel = serverViewModel,
             onBack = { backStack.removeLastOrNull() },
           )
         }

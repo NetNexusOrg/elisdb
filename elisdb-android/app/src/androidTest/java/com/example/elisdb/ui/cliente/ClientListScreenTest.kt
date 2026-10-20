@@ -87,8 +87,7 @@ class ClientListScreenTest {
     composeTestRule.onNodeWithContentDescription("Mais opções").performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Novo").assertExists()
-    composeTestRule.onNodeWithText("Sincronização").assertExists()
-    composeTestRule.onNodeWithText("Servidor").assertExists()
+    composeTestRule.onNodeWithText("Configuração").assertExists()
     composeTestRule.onNodeWithText("Sobre").assertExists()
   }
 

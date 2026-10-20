@@ -13,8 +13,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable data class MapFullscreen(val clienteId: String) : NavKey
 
-@Serializable data object Sync : NavKey
-
-@Serializable data object Server : NavKey
+@Serializable data object Config : NavKey
 
 @Serializable data object About : NavKey

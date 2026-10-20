@@ -16,10 +16,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-/** A titled card used to group related read-only information on the settings screens. */
+/**
+ * A titled card used to group related read-only information on the settings screens.
+ * A card whose content is self-explanatory (e.g. a status summary) may omit the title.
+ */
 @Composable
 fun InfoCard(
-  title: String,
+  title: String? = null,
   modifier: Modifier = Modifier,
   content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -28,11 +31,13 @@ fun InfoCard(
       modifier = Modifier.fillMaxWidth().padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Text(
-        title,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.fillMaxWidth(),
-      )
+      title?.let {
+        Text(
+          it,
+          style = MaterialTheme.typography.titleMedium,
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
       content()
     }
   }

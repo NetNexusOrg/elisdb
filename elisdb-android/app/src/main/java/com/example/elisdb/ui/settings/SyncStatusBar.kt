@@ -1,81 +1,97 @@
 package com.example.elisdb.ui.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncStatus
 
 /**
- * Sync status row: an icon + message describing the current state, plus a
- * fixed-position "check for updates" action. The action only queries the server
- * for updates; the actual data transfer is triggered elsewhere.
+ * Sync status summary: a state-tinted icon, a short state title and an optional
+ * detail line with the concrete pending work. The pending state is refreshed
+ * when the screen opens; there is no separate check action.
  */
 @Composable
 internal fun SyncStatusBar(
   syncStatus: SyncStatus,
   syncFault: SyncFault?,
-  onCheckClick: () -> Unit,
   modifier: Modifier = Modifier,
-  checking: Boolean = false,
   hasPendingUploads: Boolean = false,
   hasPendingDownloads: Boolean = false,
   hasConfig: Boolean = true,
+  detail: String? = null,
 ) {
+  val message =
+    syncMessage(syncStatus, syncFault, hasPendingUploads, hasPendingDownloads, hasConfig)
+  val (containerColor, contentColor) =
+    statusColors(syncStatus, hasConfig, hasPendingUploads, hasPendingDownloads)
   Row(
     modifier = modifier.fillMaxWidth(),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Row(
-      modifier = Modifier.weight(1f),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      syncMessage(syncStatus, syncFault, hasPendingUploads, hasPendingDownloads, hasConfig)?.let { (icon, message) ->
-        Icon(
-          icon,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.width(8.dp))
+    message?.let { (icon, title) ->
+      Box(
+        modifier = Modifier.size(44.dp).background(containerColor, CircleShape),
+        contentAlignment = Alignment.Center,
+      ) {
+        Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(24.dp))
+      }
+      Spacer(Modifier.width(12.dp))
+      Column(modifier = Modifier.weight(1f)) {
         Text(
-          message,
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          title,
+          style = MaterialTheme.typography.titleMedium,
+          color = MaterialTheme.colorScheme.onSurface,
         )
+        detail?.let {
+          Text(
+            it,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
       }
     }
-    IconButton(
-      onClick = onCheckClick,
-      enabled = !checking && hasConfig,
-      modifier = Modifier.testTag("check_action"),
-    ) {
-      if (checking) {
-        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-      } else {
-        Icon(Icons.Default.Refresh, contentDescription = "Verificar")
-      }
-    }
+  }
+}
+
+/** Icon container colours for the current state, following the theme's colour scheme. */
+@Composable
+internal fun statusColors(
+  syncStatus: SyncStatus,
+  hasConfig: Boolean,
+  hasPendingUploads: Boolean,
+  hasPendingDownloads: Boolean,
+): Pair<Color, Color> {
+  val scheme = MaterialTheme.colorScheme
+  return when {
+    syncStatus == SyncStatus.IN_PROGRESS -> scheme.tertiaryContainer to scheme.onTertiaryContainer
+    !hasConfig -> scheme.surfaceVariant to scheme.onSurfaceVariant
+    hasPendingUploads || hasPendingDownloads ->
+      scheme.tertiaryContainer to scheme.onTertiaryContainer
+    syncStatus == SyncStatus.ERROR -> scheme.errorContainer to scheme.onErrorContainer
+    else -> scheme.primaryContainer to scheme.onPrimaryContainer
   }
 }
 
@@ -89,10 +105,9 @@ internal fun syncMessage(
   when {
     syncStatus == SyncStatus.IN_PROGRESS -> Icons.Default.Sync to "A sincronizar…"
     !hasConfig -> Icons.Default.CloudOff to "Não configurado"
-    hasPendingUploads && hasPendingDownloads ->
-      Icons.Default.CloudUpload to "Sincronização disponível (enviar e receber)"
-    hasPendingUploads -> Icons.Default.CloudUpload to "Sincronização disponível (enviar)"
-    hasPendingDownloads -> Icons.Default.CloudDownload to "Sincronização disponível (receber)"
+    hasPendingUploads && hasPendingDownloads -> Icons.Default.Sync to "Alterações por sincronizar"
+    hasPendingUploads -> Icons.Default.CloudUpload to "Alterações por sincronizar"
+    hasPendingDownloads -> Icons.Default.CloudDownload to "Alterações por sincronizar"
     syncStatus == SyncStatus.SUCCESS -> Icons.Default.CloudDone to "Sincronizado"
     syncStatus == SyncStatus.ERROR ->
       when (syncFault) {

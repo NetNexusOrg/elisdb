@@ -2,7 +2,6 @@ package com.example.elisdb.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncManager
 import com.example.elisdb.sync.SyncStatus
@@ -20,17 +19,14 @@ data class SyncUiState(
   val syncFault: SyncFault? = null,
   val hasPendingUploads: Boolean = false,
   val hasPendingDownloads: Boolean = false,
-  val hasKey: Boolean = false,
   val totalClientes: Int = 0,
   /** Clients stored on the server; null when unknown (no config, offline, never fetched). */
   val serverClienteCount: Int? = null,
   val pendingUploadCount: Int = 0,
   val lastSuccessAt: Long? = null,
-  val checking: Boolean = false,
 )
 
 class SyncViewModel(
-  settingsStore: SettingsStore,
   private val syncManager: SyncManager,
   clienteCount: Flow<Int>,
 ) : ViewModel() {
@@ -38,10 +34,8 @@ class SyncViewModel(
   val uiState: StateFlow<SyncUiState> = _uiState.asStateFlow()
 
   private var syncJob: Job? = null
-  private var checkJob: Job? = null
 
   init {
-    _uiState.update { it.copy(hasKey = settingsStore.settings().signingKey.isNotEmpty()) }
     viewModelScope.launch {
       clienteCount.collect { count -> _uiState.update { it.copy(totalClientes = count) } }
     }
@@ -80,27 +74,12 @@ class SyncViewModel(
     refreshPendingState()
   }
 
-  /** Refreshes pending-uploads/downloads when the screen opens (best-effort, silent). */
+  /**
+   * Refreshes the pending-uploads/downloads indicators and the server client total when the
+   * screen opens (best-effort, silent, no data transfer).
+   */
   fun refreshPendingState() {
     viewModelScope.launch { syncManager.refreshPendingDownloads() }
-  }
-
-  /**
-   * Checks the server for updates without transferring data: refreshes the
-   * pending-downloads signal so the indicators reflect the current server state.
-   */
-  fun checkForUpdates() {
-    if (_uiState.value.checking) return
-    if (checkJob?.isActive == true) return
-    _uiState.update { it.copy(checking = true) }
-    checkJob =
-      viewModelScope.launch {
-        try {
-          syncManager.refreshPendingDownloads()
-        } finally {
-          _uiState.update { it.copy(checking = false) }
-        }
-      }
   }
 
   fun manualSync() {

@@ -1,0 +1,335 @@
+package com.example.elisdb.ui.settings
+
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.FileOpen
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.elisdb.sync.SyncStatus
+import com.example.elisdb.ui.components.InfoCard
+import com.example.elisdb.ui.components.StatTile
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/**
+ * Single settings screen: sync status and the server configuration live together,
+ * so the state, the data counts and the connection details are on one page.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ConfigScreen(
+  syncViewModel: SyncViewModel,
+  serverViewModel: ServerConfigViewModel,
+  onBack: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  val state by syncViewModel.uiState.collectAsStateWithLifecycle()
+  val serverState by serverViewModel.uiState.collectAsStateWithLifecycle()
+  val configured = serverState.hasKey
+  val syncing = state.syncStatus == SyncStatus.IN_PROGRESS
+  val context = LocalContext.current
+  val scope = rememberCoroutineScope()
+  val importConfigLauncher =
+    rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+      if (uri != null) {
+        scope.launch {
+          val text =
+            withContext(Dispatchers.IO) {
+              context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            }
+          serverViewModel.importKey(text.orEmpty())
+        }
+      }
+    }
+  val importConfig: () -> Unit = {
+    importConfigLauncher.launch(arrayOf("text/plain", "application/octet-stream", "*/*"))
+  }
+  val formatter = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
+  val lastSyncCaption =
+    state.lastSuccessAt?.let { "Última sincronização: ${formatter.format(Date(it * 1000))}" }
+      ?: "Ainda sem sincronizações"
+  val pendingDetail =
+    when {
+      !configured -> "Importe a configuração do servidor para sincronizar."
+      state.hasPendingUploads && state.hasPendingDownloads ->
+        "${state.pendingUploadCount} por enviar · novidades por receber"
+      state.hasPendingUploads -> "${state.pendingUploadCount} por enviar"
+      state.hasPendingDownloads -> "Novidades por receber"
+      else -> null
+    }
+  Scaffold(
+    modifier = modifier.fillMaxSize(),
+    topBar = {
+      TopAppBar(
+        title = { Text("Configuração") },
+        navigationIcon = {
+          IconButton(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
+          }
+        },
+      )
+    },
+  ) { innerPadding ->
+    Column(
+      modifier =
+        Modifier
+          .fillMaxSize()
+          .padding(innerPadding)
+          .verticalScroll(rememberScrollState())
+          .padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+      InfoCard {
+        SyncStatusBar(
+          syncStatus = state.syncStatus,
+          syncFault = state.syncFault,
+          hasPendingUploads = state.hasPendingUploads,
+          hasPendingDownloads = state.hasPendingDownloads,
+          hasConfig = configured,
+          detail = pendingDetail,
+        )
+        state.syncNotice?.let { notice -> NoticeBanner(notice) }
+        Text(
+          lastSyncCaption,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.fillMaxWidth(),
+        )
+        if (configured) {
+          Button(
+            onClick = syncViewModel::manualSync,
+            enabled = !syncing,
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            if (syncing) {
+              CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                color = LocalContentColor.current,
+                strokeWidth = 2.dp,
+              )
+            } else {
+              Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(if (syncing) "A sincronizar…" else "Sincronizar")
+          }
+        } else {
+          Button(onClick = importConfig, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Outlined.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Importar configuração")
+          }
+        }
+      }
+      InfoCard(title = "Dados") {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+          DataTile(
+            icon = Icons.Outlined.PhoneAndroid,
+            value = state.totalClientes.toString(),
+            label = "Na app",
+            modifier = Modifier.weight(1f),
+          )
+          DataTile(
+            icon = Icons.Outlined.Cloud,
+            value = state.serverClienteCount?.toString() ?: "—",
+            label = "No servidor",
+            modifier = Modifier.weight(1f),
+            valueColor =
+              if (state.serverClienteCount == null) MaterialTheme.colorScheme.onSurfaceVariant
+              else MaterialTheme.colorScheme.onSurface,
+          )
+        }
+      }
+      InfoCard(title = "Servidor") {
+        DetailRow(
+          icon = Icons.Outlined.Public,
+          label = "URL do servidor",
+          value = serverState.baseUrl.ifEmpty { "Não configurado" },
+          valueColor =
+            if (configured) MaterialTheme.colorScheme.onSurface
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        DetailRow(
+          icon = Icons.Outlined.Key,
+          label = "Chave de assinatura",
+          value = if (configured) maskedKey(serverState.signingKey) else "Não configurada",
+          valueColor =
+            if (configured) MaterialTheme.colorScheme.onSurface
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        serverState.signingKeyError?.let { error ->
+          Text(
+            error,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
+        if (configured) {
+          val identity = serverState.keyIdentity
+          val (userLabel, userColor) =
+            when (identity) {
+              KeyIdentity.Unresolved, KeyIdentity.Resolving ->
+                "A identificar utilizador…" to MaterialTheme.colorScheme.onSurfaceVariant
+              is KeyIdentity.Resolved ->
+                if (identity.username == null) {
+                  "Sem utilizador associado a esta chave." to MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                  identity.username to MaterialTheme.colorScheme.onSurface
+                }
+              KeyIdentity.Unavailable ->
+                "Não foi possível determinar o utilizador." to MaterialTheme.colorScheme.onSurfaceVariant
+            }
+          DetailRow(
+            icon = Icons.Outlined.Person,
+            label = "Utilizador associado",
+            value = userLabel,
+            valueColor = userColor,
+          )
+        }
+        // Importing only makes sense before a configuration exists; once it does,
+        // the only action left is removing it.
+        if (!configured) {
+          OutlinedButton(onClick = importConfig, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Outlined.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Importar configuração do servidor")
+          }
+        } else {
+          TextButton(onClick = serverViewModel::clearConfig, modifier = Modifier.fillMaxWidth()) {
+            Text("Remover configuração", color = MaterialTheme.colorScheme.error)
+          }
+        }
+      }
+    }
+  }
+}
+
+/** One of the comparable counts, on a lighter surface so it reads as its own block. */
+@Composable
+private fun DataTile(
+  icon: ImageVector,
+  value: String,
+  label: String,
+  modifier: Modifier = Modifier,
+  valueColor: Color = MaterialTheme.colorScheme.onSurface,
+) {
+  Surface(
+    color = MaterialTheme.colorScheme.surface,
+    shape = RoundedCornerShape(12.dp),
+    modifier = modifier,
+  ) {
+    StatTile(
+      value = value,
+      label = label,
+      icon = icon,
+      valueColor = valueColor,
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+    )
+  }
+}
+
+/** A server detail: icon on the left, small label above the (possibly long) value. */
+@Composable
+private fun DetailRow(
+  icon: ImageVector,
+  label: String,
+  value: String,
+  valueColor: Color = MaterialTheme.colorScheme.onSurface,
+) {
+  Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+    Icon(
+      imageVector = icon,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.size(18.dp),
+    )
+    Spacer(Modifier.width(10.dp))
+    Column(modifier = Modifier.weight(1f)) {
+      Text(
+        text = label,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Text(
+        text = value,
+        style = MaterialTheme.typography.bodyMedium,
+        color = valueColor,
+      )
+    }
+  }
+}
+
+/** Post-sync feedback, highlighted so it reads as a result rather than as part of the status. */
+@Composable
+private fun NoticeBanner(text: String) {
+  Surface(
+    color = MaterialTheme.colorScheme.secondaryContainer,
+    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    shape = RoundedCornerShape(12.dp),
+    modifier = Modifier.fillMaxWidth(),
+  ) {
+    Text(
+      text,
+      style = MaterialTheme.typography.bodyMedium,
+      modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+    )
+  }
+}
+
+private fun maskedKey(seed: String): String {
+  if (seed.isEmpty()) return "vazia"
+  val prefix = seed.take(4)
+  val suffix = seed.takeLast(4)
+  val middle = "•".repeat((seed.length - 8).coerceIn(4, 16))
+  return "$prefix$middle$suffix"
+}

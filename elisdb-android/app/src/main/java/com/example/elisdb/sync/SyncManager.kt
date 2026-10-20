@@ -43,7 +43,7 @@ class SyncManager(
   private val runScope: CoroutineScope = CoroutineScope(SupervisorJob()),
   private val clienteDao: ClienteDao? = null,
   private val pullWatermark: PullWatermark? = null,
-  private val fetchLatestUpdatedAt: suspend () -> Long? = { null },
+  private val fetchServerInfo: suspend () -> ServerInfo? = { null },
   private val lastSyncStore: LastSyncStore? = null,
 ) {
   private val _status = MutableStateFlow(SyncStatus.IDLE)
@@ -65,6 +65,11 @@ class SyncManager(
 
   private val _hasPendingDownloads = MutableStateFlow(false)
   val hasPendingDownloads: StateFlow<Boolean> = _hasPendingDownloads.asStateFlow()
+
+  private val _serverClienteCount = MutableStateFlow<Int?>(null)
+
+  /** Number of clients the server stores, or null when never fetched/unreachable. */
+  val serverClienteCount: StateFlow<Int?> = _serverClienteCount.asStateFlow()
 
   private val _lastSuccessAt = MutableStateFlow(lastSyncStore?.getLastSuccessAt())
 
@@ -92,21 +97,24 @@ class SyncManager(
   }
 
   /**
-   * Refreshes [hasPendingDownloads] from the server's latest timestamp vs the
-   * persisted pull watermark. Best-effort: failures leave the last value.
+   * Refreshes [hasPendingDownloads] and [serverClienteCount] from the server's
+   * status response (`/api/latest`) compared with the persisted pull watermark.
+   * Best-effort: failures leave the last values.
    */
   suspend fun refreshPendingDownloads() {
     val watermark = pullWatermark ?: return
-    val latest = try {
-      fetchLatestUpdatedAt()
+    val info = try {
+      fetchServerInfo()
     } catch (e: Exception) {
       null
     } ?: return
+    _serverClienteCount.value = info.clientCount
     val current = watermark.get()
     // With no local watermark (fresh install / never pulled), any server data
     // (latest > 0) is still to be received. Once a watermark exists, only a
     // newer server timestamp counts.
-    _hasPendingDownloads.value = if (current == null) latest > 0 else latest > current
+    _hasPendingDownloads.value =
+      if (current == null) info.latestUpdatedAt > 0 else info.latestUpdatedAt > current
   }
 
   fun schedulePeriodic() {

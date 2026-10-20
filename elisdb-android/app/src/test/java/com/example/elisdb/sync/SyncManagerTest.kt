@@ -8,6 +8,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -171,7 +172,7 @@ class SyncManagerTest {
       SyncManager(
         SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
         pullWatermark = watermark,
-        fetchLatestUpdatedAt = { 200L },
+        fetchServerInfo = { ServerInfo(200L, 0) },
       )
     manager.refreshPendingDownloads()
     assertTrue(manager.hasPendingDownloads.value)
@@ -184,7 +185,7 @@ class SyncManagerTest {
       SyncManager(
         SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
         pullWatermark = watermark,
-        fetchLatestUpdatedAt = { 500L },
+        fetchServerInfo = { ServerInfo(500L, 0) },
       )
     manager.refreshPendingDownloads()
     assertTrue(manager.hasPendingDownloads.value)
@@ -197,7 +198,7 @@ class SyncManagerTest {
       SyncManager(
         SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
         pullWatermark = watermark,
-        fetchLatestUpdatedAt = { 0L },
+        fetchServerInfo = { ServerInfo(0L, 0) },
       )
     manager.refreshPendingDownloads()
     assertTrue(!manager.hasPendingDownloads.value)
@@ -210,7 +211,7 @@ class SyncManagerTest {
       SyncManager(
         SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
         pullWatermark = watermark,
-        fetchLatestUpdatedAt = { 100L },
+        fetchServerInfo = { ServerInfo(100L, 0) },
       )
     manager.refreshPendingDownloads()
     assertTrue(!manager.hasPendingDownloads.value)
@@ -224,7 +225,7 @@ class SyncManagerTest {
       SyncManager(
         SyncCoordinatorProvider { SyncCoordinator(api, FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
         pullWatermark = watermark,
-        fetchLatestUpdatedAt = { api.latestUpdatedAt },
+        fetchServerInfo = { ServerInfo(api.latestUpdatedAt ?: 0L, api.clientCount) },
       )
     // First: server has newer data.
     api.latestUpdatedAt = 500L
@@ -235,6 +236,31 @@ class SyncManagerTest {
     api.latestUpdatedAt = 500L
     manager.sync()
     assertTrue(!manager.hasPendingDownloads.value)
+  }
+
+  @Test
+  fun `refresh exposes the server client count`() = runBlocking {
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        pullWatermark = FakePullWatermark(value = 100L),
+        fetchServerInfo = { ServerInfo(100L, 480) },
+      )
+    assertNull(manager.serverClienteCount.value)
+    manager.refreshPendingDownloads()
+    assertEquals(480, manager.serverClienteCount.value)
+  }
+
+  @Test
+  fun `server client count stays unknown when the fetch fails`() = runBlocking {
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        pullWatermark = FakePullWatermark(value = 100L),
+        fetchServerInfo = { null },
+      )
+    manager.refreshPendingDownloads()
+    assertNull(manager.serverClienteCount.value)
   }
 
   @Test

@@ -96,7 +96,14 @@ fun SyncScreen(
       }
       InfoCard(title = "Dados") {
         InfoRow(
-          label = "Clientes guardados",
+          label = "Clientes no servidor",
+          value = state.serverClienteCount?.toString() ?: "—",
+          valueColor =
+            if (state.serverClienteCount == null) MaterialTheme.colorScheme.onSurfaceVariant
+            else MaterialTheme.colorScheme.onSurface,
+        )
+        InfoRow(
+          label = "Clientes na app",
           value = state.totalClientes.toString(),
         )
         InfoRow(

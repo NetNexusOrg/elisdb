@@ -202,12 +202,15 @@ class FakeSyncApi : SyncApi {
 
   override suspend fun fetchServerTime(): Long = serverTime
 
-  /** Latest data timestamp returned by [fetchLatestUpdatedAt]; null to simulate failure. */
+  /** Latest data timestamp returned by [fetchServerInfo]; null to simulate failure. */
   var latestUpdatedAt: Long? = 0L
 
-  override suspend fun fetchLatestUpdatedAt(timestamp: Long): Long {
+  /** Client count returned by [fetchServerInfo]. */
+  var clientCount: Int = 0
+
+  override suspend fun fetchServerInfo(timestamp: Long): ServerInfo {
     failWith?.let { throw it }
-    return latestUpdatedAt ?: throw java.io.IOException("no latest")
+    return ServerInfo(latestUpdatedAt ?: throw java.io.IOException("no latest"), clientCount)
   }
 
   /** Entries returned by [fetchClientHistory]; empty by default. */

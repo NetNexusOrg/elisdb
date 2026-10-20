@@ -2,6 +2,7 @@ package com.example.elisdb.remote
 
 import com.example.elisdb.util.AuthHeaders
 import com.example.elisdb.util.Signer
+import com.example.elisdb.sync.ServerInfo
 import com.example.elisdb.sync.SyncApi
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -157,8 +158,8 @@ class ApiClient(
     return response.body<TimeDto>().time
   }
 
-  /** Fetches the server's latest data timestamp (max updated_at/deleted_at). */
-  override suspend fun fetchLatestUpdatedAt(timestamp: Long): Long {
+  /** Fetches the server's latest data timestamp and how many clients it stores. */
+  override suspend fun fetchServerInfo(timestamp: Long): ServerInfo {
     val path = "/api/latest"
     val signature = signer.signRequest("GET", path, ByteArray(0), timestamp)
     val response = client.get("$baseUrl$path") {
@@ -169,13 +170,17 @@ class ApiClient(
     if (response.status != io.ktor.http.HttpStatusCode.OK) {
       throw ServerException("latest fetch failed HTTP ${response.status}", response.status.value)
     }
-    return response.body<LatestDto>().latestUpdatedAt
+    val dto = response.body<LatestDto>()
+    return ServerInfo(latestUpdatedAt = dto.latest_updated_at, clientCount = dto.client_count)
   }
 
   @kotlinx.serialization.Serializable
-  private data class LatestDto(val latest_updated_at: Long) {
-    val latestUpdatedAt: Long get() = latest_updated_at
-  }
+  private data class LatestDto(
+    val latest_updated_at: Long,
+    // Null against an older server that predates the field: the UI then shows
+    // a placeholder instead of a misleading 0.
+    val client_count: Int? = null,
+  )
 
   /** Fetches a client's edit history (who created/edited it and when). */
   override suspend fun fetchClientHistory(id: String, timestamp: Long): List<AuditEntryDto> {

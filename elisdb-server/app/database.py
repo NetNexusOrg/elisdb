@@ -507,6 +507,14 @@ class Database:
         finally:
             conn.close()
 
+    def client_count(self) -> int:
+        """Number of live client records (tombstoned deletions are not clients)."""
+        conn = self._conn()
+        try:
+            return conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
+        finally:
+            conn.close()
+
     def client_history(self, cliente_id: str) -> list[dict]:
         conn = self._conn()
         try:

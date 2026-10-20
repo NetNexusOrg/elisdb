@@ -115,9 +115,9 @@ class AppContainer(context: Context) {
       workManager = WorkManager.getInstance(context),
       clienteDao = database.clienteDao(),
       pullWatermark = watermark,
-      fetchLatestUpdatedAt = {
+      fetchServerInfo = {
         try {
-          createApiClient().fetchLatestUpdatedAt(timestamp = normalizedEpochSeconds())
+          createApiClient().fetchServerInfo(timestamp = normalizedEpochSeconds())
         } catch (e: Exception) {
           null
         }

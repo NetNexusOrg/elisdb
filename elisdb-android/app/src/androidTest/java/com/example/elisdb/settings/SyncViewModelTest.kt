@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.elisdb.data.local.Cliente
+import com.example.elisdb.sync.ServerInfo
 import com.example.elisdb.sync.SyncCoordinatorProvider
 import com.example.elisdb.sync.SyncManager
 import com.example.elisdb.sync.SyncStatus
@@ -138,11 +139,20 @@ class SyncViewModelTest {
   @Test
   fun pendingDownloads_saoExpotasNoUiState() {
     val watermark = FakeAndroidPullWatermark(100L)
-    val manager = pendingSyncManager(watermark = watermark, latest = { 500L })
+    val manager = pendingSyncManager(watermark = watermark, info = { ServerInfo(500L, 0) })
     val vm = vm(manager)
     vm.refreshPendingState()
     Thread.sleep(200)
     assertTrue(vm.uiState.value.hasPendingDownloads)
+  }
+
+  @Test
+  fun serverClienteCount_eExpotaNoUiState() {
+    val manager = pendingSyncManager(info = { ServerInfo(100L, 42) })
+    val vm = vm(manager)
+    vm.refreshPendingState()
+    Thread.sleep(200)
+    assertEquals(42, vm.uiState.value.serverClienteCount)
   }
 
   @Test
@@ -188,9 +198,9 @@ class SyncViewModelTest {
       SyncManager(
         SyncCoordinatorProvider { throw RuntimeException("no network in sync test") },
         pullWatermark = FakeAndroidPullWatermark(null),
-        fetchLatestUpdatedAt = {
+        fetchServerInfo = {
           gate.await()
-          500L
+          ServerInfo(500L, 0)
         },
       )
     val vm = vm(manager)
@@ -207,7 +217,7 @@ class SyncViewModelTest {
   private fun pendingSyncManager(
     dao: FakeAndroidClienteDao = FakeAndroidClienteDao(),
     watermark: FakeAndroidPullWatermark = FakeAndroidPullWatermark(null),
-    latest: () -> Long? = { null },
+    info: () -> ServerInfo? = { null },
   ) =
     SyncManager(
       SyncCoordinatorProvider {
@@ -215,7 +225,7 @@ class SyncViewModelTest {
       },
       clienteDao = dao,
       pullWatermark = watermark,
-      fetchLatestUpdatedAt = latest,
+      fetchServerInfo = info,
     )
 }
 

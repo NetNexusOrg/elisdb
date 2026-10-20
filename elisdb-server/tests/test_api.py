@@ -135,6 +135,23 @@ def test_latest_timestamp_reflects_pushes(server):
     assert latest.json()["latest_updated_at"] == 4242
 
 
+def test_latest_includes_live_client_count(server):
+    client, _db = server
+    base = int(time.time())
+    first = client.get("/api/latest", timestamp=base)
+    assert first.status_code == 200
+    assert first.json()["client_count"] == 0
+
+    client.post("/api/push", _body([_record(id="1"), _record(id="2", nome="Bia")]))
+    two = client.get("/api/latest", timestamp=base + 1)
+    assert two.json()["client_count"] == 2
+
+    assert client.delete("/api/clients/1", timestamp=base + 2).status_code == 204
+    # The tombstone left by the deletion is not a client.
+    one = client.get("/api/latest", timestamp=base + 3)
+    assert one.json()["client_count"] == 1
+
+
 def test_client_history_records_the_actor(server):
     client, _db = server
     client.post("/api/push", _body([_record(id="1", updated_at=1000)]))

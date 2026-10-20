@@ -197,7 +197,12 @@ def create_app(database: Database | None = None) -> FastAPI:
 
     @app.get("/api/latest", dependencies=[auth_dep])
     def latest() -> dict:
-        return {"latest_updated_at": store.latest_updated_at()}
+        # client_count is additive: older clients ignore it, newer ones show the
+        # server total next to the local one on the sync screen.
+        return {
+            "latest_updated_at": store.latest_updated_at(),
+            "client_count": store.client_count(),
+        }
 
     @app.post("/api/push", response_model=list[PushResult], dependencies=[auth_dep])
     def push(request: Request, req: PushRequest) -> list[PushResult]:

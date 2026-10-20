@@ -11,6 +11,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.elisdb.settings.PrefsSettingsStore
 import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.sync.PullWatermark
+import com.example.elisdb.sync.ServerInfo
 import com.example.elisdb.sync.SyncCoordinatorProvider
 import com.example.elisdb.sync.SyncManager
 import com.example.elisdb.theme.ElisdbTheme
@@ -36,7 +37,7 @@ class SyncScreenTest {
     return PrefsSettingsStore(context)
   }
 
-  private fun syncManagerWithPendingDownloads() =
+  private fun syncManagerWithServerInfo(latest: Long, clientCount: Int) =
     SyncManager(
       SyncCoordinatorProvider { throw RuntimeException("no network in sync screen test") },
       pullWatermark =
@@ -45,8 +46,10 @@ class SyncScreenTest {
 
           override suspend fun set(value: Long) = Unit
         },
-      fetchLatestUpdatedAt = { 200L },
+      fetchServerInfo = { ServerInfo(latest, clientCount) },
     )
+
+  private fun syncManagerWithPendingDownloads() = syncManagerWithServerInfo(latest = 200L, clientCount = 0)
 
   @Test
   fun sync_mostraTituloEAsDuasAcoesDistintas() {
@@ -69,8 +72,12 @@ class SyncScreenTest {
     composeTestRule.onNodeWithText("Nunca").assertExists()
     composeTestRule.onNodeWithText("Alterações por enviar").assertExists()
     composeTestRule.onNodeWithText("Alterações por receber").assertExists()
+    composeTestRule.onNodeWithText("Clientes no servidor").assertExists()
+    composeTestRule.onNodeWithText("Clientes na app").assertExists()
     // Numeric pending-downloads value, like the uploads row (no "Nada a receber"):
-    // the three numeric rows (total, uploads, downloads) all read "0" here.
+    // the three numeric rows (local, uploads, downloads) all read "0" here; the
+    // server row shows a placeholder because the test manager has no server info.
+    composeTestRule.onNodeWithText("—").assertExists()
     composeTestRule.onNodeWithText("Nada a receber").assertDoesNotExist()
     composeTestRule.onAllNodesWithText("0").assertCountEquals(3)
   }
@@ -88,11 +95,24 @@ class SyncScreenTest {
   }
 
   @Test
-  fun sync_mostraTotalDeClientes() {    val store = store()
+  fun sync_mostraContagemDoServidorEDaApp() {
+    val store = store()
+    val vm = SyncViewModel(store, syncManagerWithServerInfo(latest = 200L, clientCount = 7), flowOf(7))
+    setContent(vm)
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("Clientes no servidor").assertExists()
+    composeTestRule.onNodeWithText("Clientes na app").assertExists()
+    // Server total and local total both read 7.
+    composeTestRule.onAllNodesWithText("7").assertCountEquals(2)
+  }
+
+  @Test
+  fun sync_mostraTotalDeClientes() {
+    val store = store()
     val vm = SyncViewModel(store, syncManager(), flowOf(3))
     setContent(vm)
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("Clientes guardados").assertExists()
+    composeTestRule.onNodeWithText("Clientes na app").assertExists()
     composeTestRule.onNodeWithText("3").assertExists()
   }
 

@@ -22,6 +22,8 @@ data class SyncUiState(
   val hasPendingDownloads: Boolean = false,
   val hasKey: Boolean = false,
   val totalClientes: Int = 0,
+  /** Clients stored on the server; null when unknown (no config, offline, never fetched). */
+  val serverClienteCount: Int? = null,
   val pendingUploadCount: Int = 0,
   val lastSuccessAt: Long? = null,
   val checking: Boolean = false,
@@ -65,6 +67,11 @@ class SyncViewModel(
     viewModelScope.launch {
       syncManager.hasPendingDownloads.collect { pending ->
         _uiState.update { it.copy(hasPendingDownloads = pending) }
+      }
+    }
+    viewModelScope.launch {
+      syncManager.serverClienteCount.collect { count ->
+        _uiState.update { it.copy(serverClienteCount = count) }
       }
     }
     viewModelScope.launch {

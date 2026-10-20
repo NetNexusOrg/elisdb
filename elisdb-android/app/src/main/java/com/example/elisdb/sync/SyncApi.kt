@@ -25,8 +25,8 @@ interface SyncApi {
   /** Fetches the server's current Unix time (seconds); unauthenticated. */
   suspend fun fetchServerTime(): Long
 
-  /** Fetches the server's latest data timestamp (max updated_at/deleted_at); authenticated. */
-  suspend fun fetchLatestUpdatedAt(timestamp: Long = System.currentTimeMillis() / 1000): Long
+  /** Fetches the server's latest data timestamp and its live client count; authenticated. */
+  suspend fun fetchServerInfo(timestamp: Long = System.currentTimeMillis() / 1000): ServerInfo
 
   /** Fetches a client's edit history (who created/edited it and when). */
   suspend fun fetchClientHistory(id: String, timestamp: Long = System.currentTimeMillis() / 1000): List<AuditEntryDto>

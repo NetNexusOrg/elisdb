@@ -52,8 +52,11 @@ class ServerConfigViewModel(
         baseUrl = current.baseUrl,
         signingKey = current.signingKey,
         hasKey = current.signingKey.isNotEmpty(),
+        keyIdentity = importedIdentity(current.userName),
       )
-    if (current.signingKey.isNotEmpty()) {
+    // The configuration carries the user name, so the server lookup is only a
+    // fallback for files issued before it was included.
+    if (current.signingKey.isNotEmpty() && current.userName.isBlank()) {
       lookupKeyIdentity()
     }
     viewModelScope.launch {
@@ -78,21 +81,22 @@ class ServerConfigViewModel(
       return
     }
     val baseUrl = config.serverUrl.trim()
-    settingsStore.save(baseUrl, config.privateSeed)
+    val userName = config.userName.orEmpty()
+    settingsStore.save(baseUrl, config.privateSeed, userName)
     _uiState.update {
       it.copy(
         baseUrl = baseUrl,
         signingKey = config.privateSeed,
         hasKey = true,
-        keyIdentity = KeyIdentity.Unresolved,
+        keyIdentity = importedIdentity(userName),
       )
     }
-    lookupKeyIdentity()
+    if (userName.isBlank()) lookupKeyIdentity()
     viewModelScope.launch { syncManager.syncNow() }
   }
 
   fun clearConfig() {
-    settingsStore.save("", "")
+    settingsStore.save("", "", "")
     _uiState.update {
       it.copy(
         baseUrl = "",
@@ -103,6 +107,10 @@ class ServerConfigViewModel(
       )
     }
   }
+
+  /** The user name stored with the configuration, resolved without a server round trip. */
+  private fun importedIdentity(userName: String): KeyIdentity =
+    if (userName.isBlank()) KeyIdentity.Unresolved else KeyIdentity.Resolved(userName)
 
   /** Informational identity lookup: any failure leaves the identity unavailable and never blocks. */
   private fun lookupKeyIdentity() {

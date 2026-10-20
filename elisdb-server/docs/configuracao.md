@@ -53,6 +53,11 @@ registered public key:          <public_key_b64>
 Há **um** sinal de sucesso: a criação do ficheiro **`maria.config.json`**.
 O resto da saída é informativo.
 
+O ficheiro tem três campos: `server_url`, `user_name` (o nome do utilizador, o
+mesmo usado como comentário da chave na allowlist) e `private_seed` (a chave
+privada ed25519). A app mostra o `user_name` como utilizador associado assim que
+importa o ficheiro, sem consultar o servidor.
+
 O ficheiro é escrito dentro do contentor; copia-o para a tua máquina:
 
 ```bash

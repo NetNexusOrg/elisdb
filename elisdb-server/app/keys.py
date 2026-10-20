@@ -5,7 +5,8 @@ Usage:
 
 ``issue`` generates an ed25519 keypair, registers the public key in the
 allowlist with the user name as comment, and writes a configuration file
-(JSON) with the server URL and the private seed for import into the app.
+(JSON) with the server URL, the user name and the private seed for import
+into the app.
 The server URL is required and comes from ``--server-url`` or the
 ``ELISDB_SERVER_URL`` environment variable.
 
@@ -76,7 +77,7 @@ def issue_and_register(
     """Run the server-issue flow (shared by the argument and interactive modes)."""
     seed_b64, public_b64, key_id = issue(user)
     output_path = output or f"{user}.config.json"
-    config = {"server_url": server_url, "private_seed": seed_b64}
+    config = {"server_url": server_url, "private_seed": seed_b64, "user_name": user}
     # The config carries the private seed, so write it owner-only (0600) and
     # re-chmod in case the file already existed with looser permissions.
     fd = os.open(output_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)

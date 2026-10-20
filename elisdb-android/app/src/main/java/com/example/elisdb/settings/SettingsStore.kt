@@ -11,6 +11,8 @@ import com.example.elisdb.BuildConfig
 data class ServerSettings(
   val baseUrl: String,
   val signingKey: String,
+  /** User name carried by the imported configuration, blank when unknown. */
+  val userName: String = "",
 )
 
 /** Storage for runtime server connection settings (base URL + signing key). */
@@ -19,7 +21,7 @@ interface SettingsStore {
   fun settings(): ServerSettings
 
   /** Persists runtime overrides. Blank values are stored verbatim. */
-  fun save(baseUrl: String, signingKey: String)
+  fun save(baseUrl: String, signingKey: String, userName: String = "")
 }
 
 /**
@@ -43,12 +45,14 @@ class PrefsSettingsStore(context: Context) : SettingsStore {
       // to authenticate. When no key has been imported, this is blank and the
       // sync layer reports a configuration fault instead of signing with a seed.
       signingKey = prefs.getString(KEY_SIGNING_KEY, null) ?: "",
+      userName = prefs.getString(KEY_USER_NAME, null) ?: "",
     )
 
-  override fun save(baseUrl: String, signingKey: String) {
+  override fun save(baseUrl: String, signingKey: String, userName: String) {
     prefs.edit {
       putString(KEY_BASE_URL, baseUrl)
       putString(KEY_SIGNING_KEY, signingKey)
+      putString(KEY_USER_NAME, userName)
     }
   }
 
@@ -56,6 +60,7 @@ class PrefsSettingsStore(context: Context) : SettingsStore {
     const val PREFS_NAME = "elisdb_settings"
     const val KEY_BASE_URL = "server_base_url_override"
     const val KEY_SIGNING_KEY = "signing_key_override"
+    const val KEY_USER_NAME = "user_name_override"
 
     /**
      * Creates the encrypted preferences, migrating any values stored in plain
@@ -73,7 +78,8 @@ class PrefsSettingsStore(context: Context) : SettingsStore {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
       val legacyBaseUrl = plainPrefs.getString(KEY_BASE_URL, null)
       val legacySigningKey = plainPrefs.getString(KEY_SIGNING_KEY, null)
-      if (legacyBaseUrl != null || legacySigningKey != null) {
+      val legacyUserName = plainPrefs.getString(KEY_USER_NAME, null)
+      if (legacyBaseUrl != null || legacySigningKey != null || legacyUserName != null) {
         // Commit synchronously so the plaintext file is cleared before returning.
         plainPrefs.edit(commit = true) { clear() }
       }
@@ -90,11 +96,12 @@ class PrefsSettingsStore(context: Context) : SettingsStore {
           EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
           EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
         )
-      if (legacyBaseUrl != null || legacySigningKey != null) {
+      if (legacyBaseUrl != null || legacySigningKey != null || legacyUserName != null) {
         // Commit synchronously so the migrated secrets are persisted before returning.
         encrypted.edit(commit = true) {
           putString(KEY_BASE_URL, legacyBaseUrl ?: "")
           putString(KEY_SIGNING_KEY, legacySigningKey ?: "")
+          putString(KEY_USER_NAME, legacyUserName ?: "")
         }
       }
       return encrypted

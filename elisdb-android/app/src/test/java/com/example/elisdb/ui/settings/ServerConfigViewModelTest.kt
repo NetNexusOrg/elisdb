@@ -138,6 +138,45 @@ class ServerConfigViewModelTest {
   }
 
   @Test
+  fun `nome do ficheiro e mostrado sem consultar o servidor`() = runTest(dispatcher) {
+    var calls = 0
+    val viewModel =
+      vm(
+        FakeSettingsStore(ServerSettings("https://s", "seed", "maria")),
+        backgroundScope,
+        fetch = {
+          calls++
+          KeyIdentityDto("k1", "outro")
+        },
+      )
+    advanceUntilIdle()
+    assertEquals(KeyIdentity.Resolved("maria"), viewModel.uiState.value.keyIdentity)
+    assertEquals(0, calls)
+  }
+
+  @Test
+  fun `importar configuracao guarda o nome do utilizador`() = runTest(dispatcher) {
+    var calls = 0
+    val store = FakeSettingsStore(ServerSettings("", ""))
+    val viewModel =
+      vm(
+        store,
+        backgroundScope,
+        fetch = {
+          calls++
+          null
+        },
+      )
+    viewModel.importKey(
+      """{"server_url":"https://s","private_seed":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","user_name":"carlos"}""",
+    )
+    advanceUntilIdle()
+    assertEquals(KeyIdentity.Resolved("carlos"), viewModel.uiState.value.keyIdentity)
+    assertEquals("carlos", store.current.userName)
+    assertEquals(0, calls)
+  }
+
+  @Test
   fun `clearConfig limpa url chave e utilizador`() = runTest(dispatcher) {
     val store = FakeSettingsStore(ServerSettings("https://s", "seed"))
     val viewModel =
@@ -165,7 +204,7 @@ class ServerConfigViewModelTest {
 private class FakeSettingsStore(var current: ServerSettings) : SettingsStore {
   override fun settings(): ServerSettings = current
 
-  override fun save(baseUrl: String, signingKey: String) {
-    current = ServerSettings(baseUrl, signingKey)
+  override fun save(baseUrl: String, signingKey: String, userName: String) {
+    current = ServerSettings(baseUrl, signingKey, userName)
   }
 }

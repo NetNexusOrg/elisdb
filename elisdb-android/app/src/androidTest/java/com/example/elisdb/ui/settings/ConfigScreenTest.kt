@@ -42,7 +42,11 @@ class ConfigScreenTest {
   }
 
   private fun configure(store: SettingsStore) {
-    store.save("https://db.example.com", "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
+    store.save(
+      "https://db.example.com",
+      "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+      "maria",
+    )
   }
 
   private fun syncManagerWithServerInfo(latest: Long, clientCount: Int) =
@@ -182,6 +186,21 @@ class ConfigScreenTest {
     composeTestRule.onNodeWithText("https://db.example.com").assertExists()
     composeTestRule.onNodeWithText("Chave de assinatura").assertExists()
     composeTestRule.onNodeWithText("AAEC", substring = true).assertExists()
+  }
+
+  @Test
+  fun config_importMostraUtilizadorDoFicheiro() {
+    val store = store()
+    val viewModel = setContent(store)
+
+    viewModel.importKey(
+      """{"server_url":"https://db.example.com","private_seed":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=","user_name":"carlos"}"""
+    )
+    composeTestRule.waitForIdle()
+
+    // The name comes from the file, so it shows even with no server lookup.
+    composeTestRule.onNodeWithText("Utilizador associado").assertExists()
+    composeTestRule.onNodeWithText("carlos").assertExists()
   }
 
   @Test

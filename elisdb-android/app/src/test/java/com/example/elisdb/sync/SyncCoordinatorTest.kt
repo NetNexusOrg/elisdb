@@ -28,6 +28,7 @@ class SyncCoordinatorTest {
     incrementalPullEnabled: Boolean = false,
     clockOffsetStore: FakeClockOffsetStore? = null,
     photoPushState: FakePhotoPushState? = null,
+    onError: (Throwable) -> Unit = {},
   ) =
     SyncCoordinator(
       api,
@@ -38,6 +39,7 @@ class SyncCoordinatorTest {
       incrementalPullEnabled = incrementalPullEnabled,
       clockOffsetStore = clockOffsetStore,
       photoPushState = photoPushState,
+      onError = onError,
     )
 
   private fun cliente(
@@ -584,6 +586,44 @@ class SyncCoordinatorTest {
     assertTrue("old row referencing the old file intact", fotoDao.data.any { it.id == "f1" && it.uriLocal == "file:/old.jpg" })
     assertTrue("old file intact", "file:/old.jpg" in photoStore.files)
     assertEquals("old content intact", "b2xk", photoStore.contentB64("file:/old.jpg"))
+  }
+
+  @Test
+  fun `transient photo download failure is retried and the pull completes`() = runBlocking {
+    val dao = FakeClienteDao()
+    val fotoDao = FakeFotoDao()
+    val api =
+      FakeSyncApi().apply {
+        photos["f1"] = decoded("bmV3")
+        photoFailures = 1
+        pullResponse =
+          pullResponseOf(
+            serverItem(
+              id = "s1",
+              fotos = listOf(FotoOutDto(id = "f1", mime = "image/jpeg", hash = sha256Of("bmV3"), ordem = 0)),
+            ),
+          )
+      }
+    val c = coord(clienteDao = dao, fotoDao = fotoDao, api = api)
+
+    val outcome = c.sync()
+
+    assertEquals(SyncOutcome.Success, outcome)
+    assertEquals("photo downloaded after one retry", 2, api.photoDownloadCalls)
+    assertEquals("photo row stored", 1, fotoDao.data.size)
+  }
+
+  @Test
+  fun `unexpected failure is reported to the error hook`() = runBlocking {
+    val cause = java.io.IOException("boom")
+    val api = FakeSyncApi().apply { failWith = cause }
+    val reported = mutableListOf<Throwable>()
+    val c = coord(clienteDao = FakeClienteDao(), api = api, onError = { reported += it })
+
+    val outcome = c.sync()
+
+    assertEquals(SyncOutcome.TransientError, outcome)
+    assertEquals("cause surfaced for logging", listOf(cause), reported)
   }
 
   @Test

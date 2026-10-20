@@ -194,8 +194,12 @@ class SyncManager(
         try {
           coordinatorProvider.coordinator().sync()
         } catch (e: ConfigException) {
+          android.util.Log.w("ElisdbSync", "sync run aborted: configuration problem", e)
           SyncOutcome.ConfigFault
         } catch (e: Exception) {
+          // A transient fault is surfaced to the user as a generic network
+          // message, so log the cause to keep it diagnosable.
+          android.util.Log.w("ElisdbSync", "sync run failed", e)
           SyncOutcome.TransientError
         }
       publish(outcome)

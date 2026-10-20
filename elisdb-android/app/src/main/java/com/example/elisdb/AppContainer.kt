@@ -110,6 +110,7 @@ class AppContainer(context: Context) {
           clockOffsetStore = clockOffsetStore,
           photoPushState = photoPushState,
           onWarning = { msg -> Log.w("ElisdbSync", msg) },
+          onError = { e -> Log.w("ElisdbSync", "sync run failed", e) },
         )
       },
       workManager = WorkManager.getInstance(context),

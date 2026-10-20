@@ -224,11 +224,22 @@ class FakeSyncApi : SyncApi {
   /** Server-side photo bytes keyed by id, served by [downloadPhoto]. */
   val photos = mutableMapOf<String, ByteArray>()
 
+  /** Number of transient failures [downloadPhoto] throws before succeeding. */
+  var photoFailures = 0
+
+  /** How many times [downloadPhoto] was called. */
+  var photoDownloadCalls = 0
+
   /** Photos uploaded via [uploadPhoto], keyed by id. */
   val uploaded = mutableMapOf<String, ByteArray>()
 
   override suspend fun downloadPhoto(id: String, timestamp: Long): ByteArray {
     failWith?.let { throw it }
+    photoDownloadCalls++
+    if (photoFailures > 0) {
+      photoFailures--
+      throw java.io.IOException("transient photo failure")
+    }
     return photos[id] ?: throw java.io.IOException("no photo $id")
   }
 

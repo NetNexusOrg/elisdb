@@ -33,6 +33,11 @@ class SyncCoordinator(
   private val clockOffsetStore: ClockOffsetStore? = null,
   private val photoPushState: PhotoPushState? = null,
   private val onWarning: (String) -> Unit = {},
+  /**
+   * Receives the unexpected exception that aborts a run. The UI only shows a
+   * generic network message, so this keeps the real cause diagnosable.
+   */
+  private val onError: (Throwable) -> Unit = {},
 ) {
   /** Device clock (epoch seconds) shifted by the last-known server offset, when available. */
   private fun normalizedEpochSeconds(): Long =
@@ -55,8 +60,31 @@ class SyncCoordinator(
     } catch (e: AuthException) {
       if (e.kind == AuthCause.STALE_CLOCK) SyncOutcome.ClockFailure
       else SyncOutcome.AuthFailure
+    } catch (e: kotlinx.coroutines.CancellationException) {
+      throw e
     } catch (e: Exception) {
+      onError(e)
       SyncOutcome.TransientError
+    }
+
+  /**
+   * Downloads a photo, retrying once on a transient failure. Photo GETs are
+   * idempotent, so one retry is cheap and keeps a momentary network hiccup from
+   * aborting the whole pull (which discards its progress and forces a full retry).
+   */
+  private suspend fun downloadPhoto(id: String): ByteArray =
+    try {
+      api.downloadPhoto(id, normalizedEpochSeconds())
+    } catch (e: kotlinx.coroutines.CancellationException) {
+      throw e
+    } catch (e: AuthException) {
+      throw e
+    } catch (e: ConfigException) {
+      throw e
+    } catch (e: Exception) {
+      onWarning("Falha ao descarregar a foto $id; a tentar novamente")
+      kotlinx.coroutines.delay(PHOTO_RETRY_DELAY_MS)
+      api.downloadPhoto(id, normalizedEpochSeconds())
     }
 
   /** Refreshes the persisted clock offset from the server time, best-effort. */
@@ -173,7 +201,7 @@ class SyncCoordinator(
     val filesToDeleteAfterCommit = mutableSetOf<String>()
     for (fotoDto in result.fotos) {
       val existing = existingCanonicalFotos.firstOrNull { it.id == fotoDto.id }
-      when (val m = materializer.materialize(existing, fotoDto, download = { api.downloadPhoto(it, timestamp = normalizedEpochSeconds()) })) {
+      when (val m = materializer.materialize(existing, fotoDto, download = { downloadPhoto(it) })) {
         is MaterializeResult.Keep -> canonicalKeptIds += fotoDto.id
         is MaterializeResult.Repointed -> {
           canonicalUpserts +=
@@ -387,7 +415,7 @@ class SyncCoordinator(
     // Compare + materialize files outside the transaction.
     for (fotoDto in serverItem.fotos) {
       val existing = existingFotos.firstOrNull { it.id == fotoDto.id }
-      when (val result = materializer.materialize(existing, fotoDto, download = { api.downloadPhoto(it, timestamp = normalizedEpochSeconds()) })) {
+      when (val result = materializer.materialize(existing, fotoDto, download = { downloadPhoto(it) })) {
         is MaterializeResult.Keep ->
           if (existing != null) keptIds += existing.id
         is MaterializeResult.Repointed -> {
@@ -422,5 +450,10 @@ class SyncCoordinator(
 
     // Old files are safe to delete only after the new rows are committed.
     filesToDeleteAfterCommit.forEach { photoStore.delete(it) }
+  }
+
+  private companion object {
+    /** Pause before retrying a failed photo download. */
+    const val PHOTO_RETRY_DELAY_MS = 500L
   }
 }

@@ -2,6 +2,7 @@ package com.example.elisdb.ui.settings
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,12 +19,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -34,7 +37,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -125,7 +127,7 @@ fun ConfigScreen(
           .padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-      InfoCard {
+      InfoCard(title = "Sincronização") {
         SyncStatusBar(
           syncStatus = state.syncStatus,
           syncFault = state.syncFault,
@@ -160,11 +162,13 @@ fun ConfigScreen(
             Text(if (syncing) "A sincronizar…" else "Sincronizar")
           }
         } else {
-          Button(onClick = importConfig, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Outlined.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Importar configuração")
-          }
+          // Importing lives in the Servidor card; here only the unavailable notice.
+          Text(
+            "Não disponível",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+          )
         }
       }
       InfoCard(title = "Dados") {
@@ -245,8 +249,20 @@ fun ConfigScreen(
             Text("Importar configuração do servidor")
           }
         } else {
-          TextButton(onClick = serverViewModel::clearConfig, modifier = Modifier.fillMaxWidth()) {
-            Text("Remover configuração", color = MaterialTheme.colorScheme.error)
+          OutlinedButton(
+            onClick = serverViewModel::clearConfig,
+            modifier = Modifier.fillMaxWidth(),
+            colors =
+              ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f)),
+          ) {
+            Icon(
+              Icons.Outlined.DeleteOutline,
+              contentDescription = null,
+              modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("Remover configuração")
           }
         }
       }
@@ -273,7 +289,8 @@ private fun DataTile(
       label = label,
       icon = icon,
       valueColor = valueColor,
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
     )
   }
 }

@@ -7,7 +7,7 @@
 
 ## 2. Screen
 - [x] 2.1 `ConfigScreen`: summary card (bar + notice banner + last-sync caption + primary control), data card (two stat tiles + divider + pending rows), server card (icon-led URL/key/user rows + import/remove actions)
-- [x] 2.2 Primary control shows "Importar configuração" when not configured and opens the file picker on the same screen
+- [x] 2.2 When unconfigured the summary states synchronization is not available, with the single import action in the server card
 - [x] 2.3 Muted pending rows when the count reads `0`; muted "—" when the server total is unknown
 - [x] 2.4 `Navigation`/`NavigationKeys`: single `Config` destination fed by `SyncViewModel` + `ServerConfigViewModel`; menu has one "Configuração" entry
 - [x] 2.5 Delete `SyncScreen.kt` and `ServerConfigScreen.kt`; drop `hasKey` from `SyncUiState` (the server view model owns the configured state)

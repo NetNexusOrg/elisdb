@@ -8,6 +8,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -22,8 +23,9 @@ fun StatTile(
   modifier: Modifier = Modifier,
   icon: ImageVector? = null,
   valueColor: Color = MaterialTheme.colorScheme.onSurface,
+  horizontalAlignment: Alignment.Horizontal = Alignment.Start,
 ) {
-  Column(modifier = modifier) {
+  Column(modifier = modifier, horizontalAlignment = horizontalAlignment) {
     if (icon != null) {
       Icon(
         imageVector = icon,

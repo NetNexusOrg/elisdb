@@ -133,7 +133,7 @@ class ConfigScreenTest {
   }
 
   @Test
-  fun config_semConfiguracaoPedeAImportacao() {
+  fun config_semConfiguracaoMostraAvisoEImportacaoNoCartaoDoServidor() {
     val store = store()
     setContent(store)
     composeTestRule.waitForIdle()
@@ -143,9 +143,11 @@ class ConfigScreenTest {
     composeTestRule
       .onNodeWithText("Importe a configuração do servidor para sincronizar.")
       .assertExists()
-    // The primary action imports a configuration instead of starting a sync.
     composeTestRule.onNodeWithText("Sincronizar").assertDoesNotExist()
-    composeTestRule.onNodeWithText("Importar configuração").assertIsDisplayed()
+    // The status card only reports that sync is unavailable; the single import
+    // action lives in the Servidor card.
+    composeTestRule.onNodeWithText("Não disponível").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Importar configuração").assertDoesNotExist()
     composeTestRule.onNodeWithText("Importar configuração do servidor").assertExists()
     composeTestRule.onNodeWithText("Remover configuração").assertDoesNotExist()
   }

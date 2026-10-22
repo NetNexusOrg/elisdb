@@ -13,7 +13,7 @@ The synchronization screen and the server screen are also two halves of the same
 - The "Dados" card leads with the two client totals side by side ("Na app" / "No servidor"), followed by the pending-changes rows. Both pending rows are muted when they read `0`.
 - The synchronization screen and the server screen become a single **Configuração** screen with three cards in the same visual language (status, data, server). The menu has one entry, "Configuração".
 - The server card shows the URL, the masked key and the associated user with icon-led detail rows, followed by the import action and, when configured, the remove action. Importing a configuration stays on the same screen and starts a sync, so the status card reflects it immediately.
-- When no server configuration is loaded, the primary control becomes "Importar configuração" and opens the file picker on the same screen, instead of starting a sync that cannot succeed.
+- When no server configuration is loaded, the summary states that synchronization is not available and the import action is offered only once, in the server card.
 - The post-sync notice is shown as a highlighted banner instead of a bare colored line.
 - No data-transfer changes: the check performed on open remains a read-only server query, and syncing stays manual.
 

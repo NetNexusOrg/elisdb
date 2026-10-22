@@ -101,7 +101,7 @@ The system SHALL provide a single configuration screen, reached from the client 
 
 ### Requirement: Sync summary and manual sync control
 
-The sync summary SHALL be the screen's prominent block: a state icon, a short state title, and a detail line naming the pending work. A single full-width manual sync control SHALL be the only sync action; when no server is configured it SHALL offer to import a configuration instead of starting a sync.
+The sync summary SHALL be the screen's prominent block: a state icon, a short state title, and a detail line naming the pending work. A single full-width manual sync control SHALL be the only sync action; when no server is configured the summary SHALL state that synchronization is not available instead of offering an action.
 
 #### Scenario: Sync status is shown
 - **WHEN** the user opens the configuration screen
@@ -129,8 +129,9 @@ The sync summary SHALL be the screen's prominent block: a state icon, a short st
 #### Scenario: No configuration shows not configured
 - **WHEN** no server configuration is loaded
 - **THEN** the sync summary SHALL indicate that the server is not configured, without requiring a sync attempt
-- **AND** the primary control SHALL offer to import a configuration on the same screen
-- **AND** tapping it SHALL NOT start a synchronisation
+- **AND** it SHALL state that synchronization is not available
+- **AND** the import action SHALL be offered only in the server card, as a single entry point
+- **AND** no control in the summary SHALL start a synchronisation
 
 #### Scenario: Missing server configuration is shown
 - **WHEN** a sync fails because the server is not configured

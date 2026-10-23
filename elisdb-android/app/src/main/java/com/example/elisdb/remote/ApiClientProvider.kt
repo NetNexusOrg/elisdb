@@ -1,6 +1,7 @@
 package com.example.elisdb.remote
 
 import com.example.elisdb.settings.SettingsStore
+import com.example.elisdb.sync.ClockSync
 import com.example.elisdb.util.Signer
 
 /**
@@ -13,7 +14,7 @@ import com.example.elisdb.util.Signer
  * round trip.
  */
 object ApiClientProvider {
-  fun create(store: SettingsStore): ApiClient {
+  fun create(store: SettingsStore, clock: ClockSync? = null): ApiClient {
     val settings = store.settings()
     if (settings.signingKey.isBlank()) {
       throw ConfigException("Nenhuma chave de assinatura configurada (SIGNER_PRIVATE_KEY_B64)")
@@ -30,6 +31,7 @@ object ApiClientProvider {
     return ApiClient.create(
       baseUrl = settings.baseUrl,
       signer = signer,
+      clock = clock,
     )
   }
 }

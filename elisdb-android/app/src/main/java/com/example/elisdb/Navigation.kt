@@ -58,6 +58,8 @@ fun MainNavigation() {
               SyncViewModel(
                 syncManager = container.syncManager,
                 clienteCount = container.database.clienteDao().observeCount(),
+                clockSkewSeconds = container.clockSync.skewSeconds,
+                onCorrectClock = { container.refreshClock() },
               )
             }
           val serverViewModel =

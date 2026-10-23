@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -24,11 +25,17 @@ data class SyncUiState(
   val serverClienteCount: Int? = null,
   val pendingUploadCount: Int = 0,
   val lastSuccessAt: Long? = null,
+  /** Device clock minus server clock (seconds); negative when the device is behind. */
+  val clockSkewSeconds: Long? = null,
+  /** True while the user-requested clock correction is running. */
+  val clockCorrecting: Boolean = false,
 )
 
 class SyncViewModel(
   private val syncManager: SyncManager,
   clienteCount: Flow<Int>,
+  clockSkewSeconds: Flow<Long?> = flowOf(null),
+  private val onCorrectClock: suspend () -> Unit = {},
 ) : ViewModel() {
   private val _uiState = MutableStateFlow(SyncUiState())
   val uiState: StateFlow<SyncUiState> = _uiState.asStateFlow()
@@ -71,6 +78,9 @@ class SyncViewModel(
     viewModelScope.launch {
       syncManager.lastSuccessAt.collect { at -> _uiState.update { it.copy(lastSuccessAt = at) } }
     }
+    viewModelScope.launch {
+      clockSkewSeconds.collect { skew -> _uiState.update { it.copy(clockSkewSeconds = skew) } }
+    }
     refreshPendingState()
   }
 
@@ -80,6 +90,19 @@ class SyncViewModel(
    */
   fun refreshPendingState() {
     viewModelScope.launch { syncManager.refreshPendingDownloads() }
+  }
+
+  /** Re-measures the clock offset when the user taps "Corrigir" on the skew warning. */
+  fun correctClock() {
+    if (_uiState.value.clockCorrecting) return
+    _uiState.update { it.copy(clockCorrecting = true) }
+    viewModelScope.launch {
+      try {
+        onCorrectClock()
+      } finally {
+        _uiState.update { it.copy(clockCorrecting = false) }
+      }
+    }
   }
 
   fun manualSync() {

@@ -196,6 +196,34 @@ class SyncViewModelTest {
     assertEquals(12, vm.uiState.value.serverClienteCount)
   }
 
+  @Test
+  fun clockSkew_eExpotaNoUiState() {
+    val skew = kotlinx.coroutines.flow.MutableStateFlow<Long?>(-300L)
+    val vm =
+      SyncViewModel(
+        syncManager(),
+        kotlinx.coroutines.flow.flowOf(0),
+        clockSkewSeconds = skew,
+      )
+    Thread.sleep(200)
+    assertEquals(-300L, vm.uiState.value.clockSkewSeconds)
+  }
+
+  @Test
+  fun corrigirRelogio_pedeNovaMedicao() {
+    val calls = AtomicInteger()
+    val vm =
+      SyncViewModel(
+        syncManager(),
+        kotlinx.coroutines.flow.flowOf(0),
+        onCorrectClock = { calls.incrementAndGet() },
+      )
+    vm.correctClock()
+    Thread.sleep(300)
+    assertEquals(1, calls.get())
+    assertFalse(vm.uiState.value.clockCorrecting)
+  }
+
   private fun pendingSyncManager(
     dao: FakeAndroidClienteDao = FakeAndroidClienteDao(),
     watermark: FakeAndroidPullWatermark = FakeAndroidPullWatermark(null),

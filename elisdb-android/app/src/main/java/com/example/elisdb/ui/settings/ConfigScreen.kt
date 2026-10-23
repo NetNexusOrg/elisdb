@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +38,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -137,6 +139,11 @@ fun ConfigScreen(
           detail = pendingDetail,
         )
         state.syncNotice?.let { notice -> NoticeBanner(notice) }
+        ClockWarning(
+          skewSeconds = state.clockSkewSeconds,
+          correcting = state.clockCorrecting,
+          onCorrect = syncViewModel::correctClock,
+        )
         Text(
           lastSyncCaption,
           style = MaterialTheme.typography.bodySmall,
@@ -350,3 +357,58 @@ private fun maskedKey(seed: String): String {
   val middle = "•".repeat((seed.length - 8).coerceIn(4, 16))
   return "$prefix$middle$suffix"
 }
+
+/** Banner shown while the device clock is far enough off to threaten sync ordering. */
+@Composable
+private fun ClockWarning(
+  skewSeconds: Long?,
+  correcting: Boolean,
+  onCorrect: () -> Unit,
+) {
+  val skew = skewSeconds ?: return
+  if (kotlin.math.abs(skew) < CLOCK_SKEW_WARNING_SECONDS) return
+  val behind = skew < 0
+  val amount = formatSkew(kotlin.math.abs(skew))
+  Surface(
+    color = MaterialTheme.colorScheme.tertiaryContainer,
+    shape = RoundedCornerShape(12.dp),
+    modifier = Modifier.fillMaxWidth(),
+  ) {
+    Row(
+      modifier = Modifier.padding(start = 12.dp, top = 6.dp, end = 4.dp, bottom = 6.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Icon(
+        Icons.Outlined.Schedule,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+        modifier = Modifier.size(18.dp),
+      )
+      Spacer(Modifier.width(10.dp))
+      Text(
+        text =
+          if (behind) {
+            "Relógio do dispositivo $amount atrasado. As alterações podem não chegar aos outros dispositivos."
+          } else {
+            "Relógio do dispositivo $amount adiantado. As alterações podem não chegar aos outros dispositivos."
+          },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onTertiaryContainer,
+        modifier = Modifier.weight(1f),
+      )
+      TextButton(onClick = onCorrect, enabled = !correcting) {
+        Text(if (correcting) "A corrigir…" else "Corrigir")
+      }
+    }
+  }
+}
+
+private fun formatSkew(seconds: Long): String =
+  when {
+    seconds < 3_600 -> "${(seconds / 60).coerceAtLeast(1)} min"
+    seconds < 172_800 -> "${seconds / 3_600} h"
+    else -> "${seconds / 86_400} dias"
+  }
+
+/** Below this skew the warning would be noise (server window is 5 minutes). */
+private const val CLOCK_SKEW_WARNING_SECONDS = 120L

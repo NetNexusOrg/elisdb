@@ -236,12 +236,43 @@ class ConfigScreenTest {
   }
 
   /** Compõe o ecrã com os dois view models reais; devolve o do servidor para os testes o manipularem. */
+  @Test
+  fun config_mostraAvisoDeRelogioComAcaoCorrigir() {
+    var corrected = 0
+    setContent(store(), skew = -300L, onCorrectClock = { corrected++ })
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("Corrigir").assertExists()
+    composeTestRule
+      .onNodeWithText(
+        "Relógio do dispositivo 5 min atrasado. As alterações podem não chegar aos outros dispositivos."
+      )
+      .assertExists()
+    composeTestRule.onNodeWithText("Corrigir").performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(1, corrected)
+  }
+
+  @Test
+  fun config_semDesvioNaoMostraAvisoDeRelogio() {
+    setContent(store(), skew = 30L)
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("Corrigir").assertDoesNotExist()
+  }
+
   private fun setContent(
     store: SettingsStore,
     clienteCount: Flow<Int> = flowOf(0),
     manager: SyncManager = syncManager(),
+    skew: Long? = null,
+    onCorrectClock: suspend () -> Unit = {},
   ): ServerConfigViewModel {
-    val syncViewModel = SyncViewModel(manager, clienteCount)
+    val syncViewModel =
+      SyncViewModel(
+        manager,
+        clienteCount,
+        clockSkewSeconds = flowOf(skew),
+        onCorrectClock = onCorrectClock,
+      )
     val serverViewModel = ServerConfigViewModel(store, manager)
     composeTestRule.setContent {
       ElisdbTheme {

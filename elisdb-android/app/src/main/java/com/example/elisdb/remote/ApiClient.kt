@@ -2,6 +2,7 @@ package com.example.elisdb.remote
 
 import com.example.elisdb.util.AuthHeaders
 import com.example.elisdb.util.Signer
+import com.example.elisdb.sync.ClockSync
 import com.example.elisdb.sync.ServerInfo
 import com.example.elisdb.sync.SyncApi
 import io.ktor.client.HttpClient
@@ -19,11 +20,16 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 
 /** Reason the server rejected an authenticated request. */
 enum class AuthCause {
@@ -50,13 +56,19 @@ class ApiClient(
   private val baseUrl: String,
   internal val signer: Signer,
   private val client: HttpClient,
+  /** Keeps signed timestamps aligned with the server clock; null in tests. */
+  private val clock: ClockSync? = null,
 ) : SyncApi {
   companion object {
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** Detail text the server returns when the signed timestamp is outside its window. */
+    private const val STALE_CLOCK_DETAIL = "stale or future timestamp"
+
     fun create(
       baseUrl: String,
       signer: Signer,
+      clock: ClockSync? = null,
     ): ApiClient {
       val http = HttpClient(Android) {
         install(ContentNegotiation) { json(json) }
@@ -78,7 +90,7 @@ class ApiClient(
           header(AuthHeaders.KEY, signer.publicKeyB64)
         }
       }
-      return ApiClient(baseUrl.trimEnd('/'), signer, http)
+      return ApiClient(baseUrl.trimEnd('/'), signer, http, clock)
     }
   }
 
@@ -90,15 +102,15 @@ class ApiClient(
     val body = ApiClient.json.encodeToString(PushRequestDto.serializer(), PushRequestDto(records))
     val bodyBytes = body.toByteArray(Charsets.UTF_8)
     val path = "/api/push"
-    val signature = signer.signRequest("POST", path, bodyBytes, timestamp)
-    val response = client.post("$baseUrl$path") {
-      contentType(ContentType.Application.Json)
-      header(AuthHeaders.TIMESTAMP, timestamp.toString())
-      header(AuthHeaders.SIGNATURE, signature)
-      setBody(bodyBytes)
+    val response = execute(timestamp) { ts ->
+      client.post("$baseUrl$path") {
+        contentType(ContentType.Application.Json)
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("POST", path, bodyBytes, ts))
+        setBody(bodyBytes)
+      }
     }
-    checkAuthError(response)
-    if (response.status != io.ktor.http.HttpStatusCode.OK) {
+    if (response.status != HttpStatusCode.OK) {
       throw ServerException("push failed HTTP ${response.status}", response.status.value)
     }
     return response.body()
@@ -117,13 +129,13 @@ class ApiClient(
         if (sinceId != null) append(if (since != null) "&" else "?").append("since_id=$sinceId")
       }
     val url = "$baseUrl$path$query"
-    val signature = signer.signRequest("GET", "$path$query", ByteArray(0), timestamp)
-    val response = client.get(url) {
-      header(AuthHeaders.TIMESTAMP, timestamp.toString())
-      header(AuthHeaders.SIGNATURE, signature)
+    val response = execute(timestamp) { ts ->
+      client.get(url) {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("GET", "$path$query", ByteArray(0), ts))
+      }
     }
-    checkAuthError(response)
-    if (response.status != io.ktor.http.HttpStatusCode.OK) throw ServerException("pull failed HTTP ${response.status}", response.status.value)
+    if (response.status != HttpStatusCode.OK) throw ServerException("pull failed HTTP ${response.status}", response.status.value)
     return response.body()
   }
 
@@ -136,15 +148,15 @@ class ApiClient(
     val path = "/api/clients/$id"
     val query = if (deletedAt != null) "?deleted_at=$deletedAt" else ""
     val url = "$baseUrl$path$query"
-    val signature = signer.signRequest("DELETE", "$path$query", ByteArray(0), timestamp)
-    val response = client.delete(url) {
-      header(AuthHeaders.TIMESTAMP, timestamp.toString())
-      header(AuthHeaders.SIGNATURE, signature)
+    val response = execute(timestamp) { ts ->
+      client.delete(url) {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("DELETE", "$path$query", ByteArray(0), ts))
+      }
     }
-    checkAuthError(response)
     return when (response.status) {
-      io.ktor.http.HttpStatusCode.NoContent -> true
-      io.ktor.http.HttpStatusCode.NotFound -> true
+      HttpStatusCode.NoContent -> true
+      HttpStatusCode.NotFound -> true
       else -> false
     }
   }
@@ -161,13 +173,13 @@ class ApiClient(
   /** Fetches the server's latest data timestamp and how many clients it stores. */
   override suspend fun fetchServerInfo(timestamp: Long): ServerInfo {
     val path = "/api/latest"
-    val signature = signer.signRequest("GET", path, ByteArray(0), timestamp)
-    val response = client.get("$baseUrl$path") {
-      header(AuthHeaders.TIMESTAMP, timestamp.toString())
-      header(AuthHeaders.SIGNATURE, signature)
+    val response = execute(timestamp) { ts ->
+      client.get("$baseUrl$path") {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
+      }
     }
-    checkAuthError(response)
-    if (response.status != io.ktor.http.HttpStatusCode.OK) {
+    if (response.status != HttpStatusCode.OK) {
       throw ServerException("latest fetch failed HTTP ${response.status}", response.status.value)
     }
     val dto = response.body<LatestDto>()
@@ -185,13 +197,13 @@ class ApiClient(
   /** Fetches a client's edit history (who created/edited it and when). */
   override suspend fun fetchClientHistory(id: String, timestamp: Long): List<AuditEntryDto> {
     val path = "/api/clients/$id/history"
-    val signature = signer.signRequest("GET", path, ByteArray(0), timestamp)
-    val response = client.get("$baseUrl$path") {
-      header(AuthHeaders.TIMESTAMP, timestamp.toString())
-      header(AuthHeaders.SIGNATURE, signature)
+    val response = execute(timestamp) { ts ->
+      client.get("$baseUrl$path") {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
+      }
     }
-    checkAuthError(response)
-    if (response.status != io.ktor.http.HttpStatusCode.OK) {
+    if (response.status != HttpStatusCode.OK) {
       throw ServerException("history fetch failed HTTP ${response.status}", response.status.value)
     }
     return response.body()
@@ -200,15 +212,61 @@ class ApiClient(
   @kotlinx.serialization.Serializable
   private data class TimeDto(val time: Long)
 
-  private suspend fun checkAuthError(response: HttpResponse) {
-    if (response.status == io.ktor.http.HttpStatusCode.Unauthorized) {
-      val detail = response.bodyAsText()
-      val kind =
-        if (detail.contains("stale or future timestamp")) AuthCause.STALE_CLOCK
-        else AuthCause.INVALID_KEY
-      throw AuthException("request rejected with 401: $detail", kind)
+  /**
+   * Runs a signed request, keeping the clock offset aligned with the server's
+   * `Date` header. If the server rejects the timestamp as stale, the offset is
+   * corrected from that same response (or `/api/time`) and the request is
+   * retried once with a fresh signature, so a wrong device clock cannot turn
+   * every sync into a failure.
+   */
+  private suspend fun execute(
+    timestamp: Long,
+    send: suspend (Long) -> HttpResponse,
+  ): HttpResponse {
+    val first = send(timestamp)
+    observeServerDate(first)
+    if (first.status != HttpStatusCode.Unauthorized) return first
+    val detail = first.bodyAsText()
+    if (!detail.contains(STALE_CLOCK_DETAIL)) {
+      throw AuthException("request rejected with 401: $detail", AuthCause.INVALID_KEY)
     }
+    val serverTime = serverTimeFrom(first) ?: runCatching { fetchServerTime() }.getOrNull()
+    if (serverTime == null) {
+      throw AuthException("request rejected with 401: $detail", AuthCause.STALE_CLOCK)
+    }
+    val corrected = clock?.observeServerTime(serverTime) ?: serverTime
+    val retried = send(corrected)
+    observeServerDate(retried)
+    if (retried.status == HttpStatusCode.Unauthorized) {
+      val retryDetail = retried.bodyAsText()
+      val kind =
+        if (retryDetail.contains(STALE_CLOCK_DETAIL)) AuthCause.STALE_CLOCK
+        else AuthCause.INVALID_KEY
+      throw AuthException("request rejected with 401: $retryDetail", kind)
+    }
+    return retried
   }
+
+  /** Learns the server clock from the response `Date` header (no extra request). */
+  private fun observeServerDate(response: HttpResponse) {
+    val clock = clock ?: return
+    serverTimeFrom(response)?.let { clock.observeServerTime(it) }
+  }
+
+  private fun serverTimeFrom(response: HttpResponse): Long? =
+    response.headers[HttpHeaders.Date]?.let(::parseHttpDate)
+
+  /** Parses an RFC 1123 date (`Mon, 23 Oct 2026 12:00:00 GMT`) into epoch seconds. */
+  private fun parseHttpDate(value: String): Long? =
+    runCatching {
+        val format =
+          SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("GMT")
+            isLenient = true
+          }
+        format.parse(value)?.time?.div(1000)
+      }
+      .getOrNull()
 
   /**
    * Looks up the allowlist identity of the signing key (`GET /api/keys/me`).
@@ -218,13 +276,13 @@ class ApiClient(
    */
   suspend fun fetchKeyIdentity(timestamp: Long): KeyIdentityDto {
     val path = "/api/keys/me"
-    val signature = signer.signRequest("GET", path, ByteArray(0), timestamp)
-    val response = client.get("$baseUrl$path") {
-      header(AuthHeaders.TIMESTAMP, timestamp.toString())
-      header(AuthHeaders.SIGNATURE, signature)
+    val response = execute(timestamp) { ts ->
+      client.get("$baseUrl$path") {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
+      }
     }
-    checkAuthError(response)
-    if (response.status != io.ktor.http.HttpStatusCode.OK) {
+    if (response.status != HttpStatusCode.OK) {
       throw ServerException("key identity lookup failed HTTP ${response.status}", response.status.value)
     }
     return response.body()
@@ -233,13 +291,13 @@ class ApiClient(
   /** Downloads a photo's raw bytes by id. */
   override suspend fun downloadPhoto(id: String, timestamp: Long): ByteArray {
     val path = "/api/photos/$id"
-    val signature = signer.signRequest("GET", path, ByteArray(0), timestamp)
-    val response = client.get("$baseUrl$path") {
-      header(AuthHeaders.TIMESTAMP, timestamp.toString())
-      header(AuthHeaders.SIGNATURE, signature)
+    val response = execute(timestamp) { ts ->
+      client.get("$baseUrl$path") {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
+      }
     }
-    checkAuthError(response)
-    if (response.status != io.ktor.http.HttpStatusCode.OK) {
+    if (response.status != HttpStatusCode.OK) {
       throw ServerException("photo download failed HTTP ${response.status}", response.status.value)
     }
     return response.bodyAsBytes()
@@ -248,14 +306,14 @@ class ApiClient(
   /** Uploads a photo's raw bytes by id. */
   override suspend fun uploadPhoto(id: String, bytes: ByteArray, timestamp: Long) {
     val path = "/api/photos/$id"
-    val signature = signer.signRequest("PUT", path, bytes, timestamp)
-    val response = client.put("$baseUrl$path") {
-      header(AuthHeaders.TIMESTAMP, timestamp.toString())
-      header(AuthHeaders.SIGNATURE, signature)
-      setBody(bytes)
+    val response = execute(timestamp) { ts ->
+      client.put("$baseUrl$path") {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("PUT", path, bytes, ts))
+        setBody(bytes)
+      }
     }
-    checkAuthError(response)
-    if (response.status != io.ktor.http.HttpStatusCode.NoContent) {
+    if (response.status != HttpStatusCode.NoContent) {
       throw ServerException("photo upload failed HTTP ${response.status}", response.status.value)
     }
   }

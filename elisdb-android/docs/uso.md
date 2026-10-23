@@ -57,6 +57,12 @@ fotos, e marcar a localização no mapa mesmo sem servidor. A sincronização é
 acionada no ecrã **Configuração** (menu ⋮ → **Configuração**); o estado
 aparece nesse mesmo ecrã — ícone + mensagem curta.
 
+Se o relógio do dispositivo estiver mais de 2 minutos diferente do servidor,
+o ecrã **Configuração** mostra um aviso a dizer quanto está atrasado ou
+adiantado, com o botão **Corrigir**. As alterações feitas com o relógio errado
+podem não chegar aos outros dispositivos, por isso vale a pena corrigir antes
+de continuar a trabalhar.
+
 Fluxos principais:
 
 - **Lista de clientes** — o ecrã inicial; pesquisa e ordenação.

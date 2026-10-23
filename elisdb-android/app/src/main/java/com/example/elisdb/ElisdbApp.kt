@@ -21,6 +21,10 @@ class ElisdbApp : Application() {
     container.applicationScope.launch {
       PhotoStoreGuard.mutex.withLock { container.photoSweeper.sweep() }
     }
+    // Measure the clock offset at startup too: edits made before the first sync
+    // then carry a timestamp the server accepts (a wrong device clock used to
+    // stamp records so far in the past that other devices never pulled them).
+    container.applicationScope.launch { container.refreshClock() }
   }
 
   private fun osmdroidUserAgent(): String {

@@ -1,5 +1,7 @@
 package com.example.elisdb.remote
 
+import com.example.elisdb.sync.ClockOffsetStore
+import com.example.elisdb.sync.ClockSync
 import com.example.elisdb.util.AuthHeaders
 import com.example.elisdb.util.Signer
 import io.ktor.client.HttpClient
@@ -18,6 +20,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class ApiClientTest {
@@ -25,12 +28,22 @@ class ApiClientTest {
   private val signer = Signer.fromBase64("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
   private val json = Json { ignoreUnknownKeys = true }
 
-  private fun client(engine: MockEngine): ApiClient {
+  private fun client(engine: MockEngine, clock: ClockSync? = null): ApiClient {
     val http = HttpClient(engine) {
       install(ContentNegotiation) { json(json) }
       expectSuccess = false
     }
-    return ApiClient("http://test", signer, http)
+    return ApiClient("http://test", signer, http, clock)
+  }
+
+  private class InMemoryOffsetStore : ClockOffsetStore {
+    var offset: Long? = null
+
+    override fun getOffsetSeconds(): Long? = offset
+
+    override fun setOffsetSeconds(offsetSeconds: Long) {
+      offset = offsetSeconds
+    }
   }
 
   private fun io.ktor.client.engine.mock.MockRequestHandleScope.okJson(body: String): io.ktor.client.request.HttpResponseData =
@@ -304,5 +317,72 @@ class ApiClientTest {
     assertEquals("/api/keys/me", path)
     assertEquals("k1", identity.keyId)
     assertEquals("Maria", identity.username)
+  }
+
+  @Test
+  fun staleClock_isCorrectedFromDateHeaderAndRetriedOnce() = runBlocking {
+    val serverTime = 1_700_000_500L // Tue, 14 Nov 2023 22:21:40 GMT
+    val seen = mutableListOf<Long>()
+    val engine = MockEngine { request ->
+      seen += request.headers[AuthHeaders.TIMESTAMP]!!.toLong()
+      if (seen.size == 1) {
+        respond(
+          """{"detail":"stale or future timestamp"}""",
+          HttpStatusCode.Unauthorized,
+          headersOf(HttpHeaders.Date, "Tue, 14 Nov 2023 22:21:40 GMT"),
+        )
+      } else {
+        okJson("""{"latest_updated_at":1,"client_count":2}""")
+      }
+    }
+    val store = InMemoryOffsetStore()
+    val clock = ClockSync(store, deviceNowSeconds = { 1_600_000_000L })
+    val api = client(engine, clock)
+
+    val info = api.fetchServerInfo(timestamp = clock.nowSeconds())
+
+    assertEquals(2, info.clientCount)
+    assertEquals(listOf(1_600_000_000L, serverTime), seen)
+    assertEquals(100_000_500L, store.offset)
+    assertEquals(-100_000_500L, clock.skewSeconds.value)
+  }
+
+  @Test
+  fun invalidKey_isReportedWithoutRetry() = runBlocking {
+    var calls = 0
+    val engine = MockEngine {
+      calls++
+      respond("""{"detail":"invalid signature"}""", HttpStatusCode.Unauthorized)
+    }
+    val api = client(engine, ClockSync(InMemoryOffsetStore(), deviceNowSeconds = { 100L }))
+    try {
+      api.fetchServerInfo(timestamp = 100L)
+      fail("expected AuthException")
+    } catch (e: AuthException) {
+      assertEquals(AuthCause.INVALID_KEY, e.kind)
+    }
+    assertEquals(1, calls)
+  }
+
+  @Test
+  fun serverDateHeader_keepsTheOffsetFreshOnSuccess() = runBlocking {
+    val engine = MockEngine {
+      respond(
+        """{"latest_updated_at":1,"client_count":2}""",
+        HttpStatusCode.OK,
+        headersOf(
+          HttpHeaders.ContentType to listOf(ContentType.Application.Json.toString()),
+          HttpHeaders.Date to listOf("Tue, 14 Nov 2023 22:21:40 GMT"),
+        ),
+      )
+    }
+    val store = InMemoryOffsetStore()
+    val clock = ClockSync(store, deviceNowSeconds = { 1_600_000_000L })
+    val api = client(engine, clock)
+
+    api.fetchServerInfo(timestamp = clock.nowSeconds())
+
+    assertEquals(100_000_500L, store.offset)
+    assertEquals(1_700_000_500L, clock.nowSeconds())
   }
 }

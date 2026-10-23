@@ -20,6 +20,7 @@ import com.example.elisdb.remote.ApiClientProvider
 import com.example.elisdb.settings.PrefsSettingsStore
 import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.sync.ClockOffsetStore
+import com.example.elisdb.sync.ClockSync
 import com.example.elisdb.sync.FilePhotoStore
 import com.example.elisdb.sync.LastSyncStore
 import com.example.elisdb.sync.PhotoPushState
@@ -57,6 +58,12 @@ class AppContainer(context: Context) {
   /** Device↔server clock offset, refreshed on each successful sync. */
   val clockOffsetStore: ClockOffsetStore = PrefsClockOffsetStore(context)
 
+  /**
+   * Keeps signed timestamps on the server's timescale and exposes the measured
+   * skew so the settings screen can warn about a wrong device clock.
+   */
+  val clockSync: ClockSync = ClockSync(clockOffsetStore)
+
   /** Timestamp of the last successful sync, shown on the synchronization screen. */
   val lastSyncStore: LastSyncStore = PrefsLastSyncStore(context)
 
@@ -65,8 +72,16 @@ class AppContainer(context: Context) {
    * signed requests carry a timestamp the server accepts even when the device
    * clock is skewed. Mirrors `SyncCoordinator.normalizedEpochSeconds()`.
    */
-  fun normalizedEpochSeconds(): Long =
-    System.currentTimeMillis() / 1000 + (clockOffsetStore.getOffsetSeconds() ?: 0L)
+  fun normalizedEpochSeconds(): Long = clockSync.nowSeconds()
+
+  /**
+   * Re-measures the device↔server clock offset from `/api/time`. Best-effort:
+   * an unconfigured app or an offline device simply keeps the previous offset.
+   */
+  suspend fun refreshClock() {
+    val api = runCatching { createApiClient() }.getOrNull() ?: return
+    runCatching { clockSync.observeServerTime(api.fetchServerTime()) }
+  }
 
   /** Photo content hashes at last successful push, for incremental photo push. */
   val photoPushState: PhotoPushState = PrefsPhotoPushState(context)
@@ -87,7 +102,7 @@ class AppContainer(context: Context) {
       val signature = "${settings.baseUrl}|${settings.signingKey}"
       if (cachedApiClient == null || cachedApiSignature != signature) {
         cachedApiClient?.close()
-        cachedApiClient = ApiClientProvider.create(settingsStore)
+        cachedApiClient = ApiClientProvider.create(settingsStore, clockSync)
         cachedApiSignature = signature
       }
       return cachedApiClient!!

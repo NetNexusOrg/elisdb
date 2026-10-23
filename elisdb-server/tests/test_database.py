@@ -74,6 +74,15 @@ def test_pull_pagination_keyset(tmp_path):
     for i in ("a", "b", "c"):
         db.save_client(_cliente(id=i, nome=i.upper(), updated_at=100), [])
     db.save_client(_cliente(id="d", nome="D", updated_at=200), [])
+    # Accepted writes are bumped onto the next watermark value, so rewind the
+    # timestamps here to exercise the keyset over records sharing updated_at.
+    conn = connect(db.db_path)
+    try:
+        conn.execute("UPDATE clientes SET updated_at = 100 WHERE id IN ('a', 'b', 'c')")
+        conn.execute("UPDATE clientes SET updated_at = 200 WHERE id = 'd'")
+        conn.commit()
+    finally:
+        conn.close()
 
     page1 = db.pull_all(limit=2)
     ids1 = [r["client"]["id"] for r in page1[0]]
@@ -132,3 +141,36 @@ def test_migration_converts_milliseconds_and_is_idempotent(tmp_path):
     _apply_schema(conn)  # idempotent: second run must not divide again
     assert conn.execute("SELECT updated_at FROM clientes WHERE id='1'").fetchone()[0] == 1758000000
     conn.close()
+
+
+def test_old_timestamp_is_bumped_so_the_write_is_deliverable(tmp_path):
+    db = _db(tmp_path)
+    assert db.save_client(_cliente(id="a", updated_at=2000), [])[0] == "accepted"
+
+    # An edit made with a lagging clock (or synced days later) arrives after a
+    # newer record exists: storing its old timestamp verbatim would leave it
+    # invisible to every device that already pulled past that point.
+    assert db.save_client(_cliente(id="b", nome="Bea", updated_at=1500), [])[0] == "accepted"
+
+    assert db.get_client_with_photos("b")["client"]["updated_at"] == 2001
+    records, _tombstones, _since, _since_id = db.pull_all(2000)
+    assert [record["client"]["id"] for record in records] == ["b"]
+
+
+def test_equal_timestamp_is_also_bumped(tmp_path):
+    db = _db(tmp_path)
+    db.save_client(_cliente(id="a", updated_at=2000), [])
+    db.save_client(_cliente(id="b", nome="Bea", updated_at=2000), [])
+
+    assert db.get_client_with_photos("b")["client"]["updated_at"] == 2001
+
+
+def test_audit_entry_keeps_the_original_edit_time(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    db.save_client(_cliente(id="a", updated_at=2000), [], actor)
+    db.save_client(_cliente(id="b", nome="Bea", updated_at=1500), [], actor)
+
+    history = db.client_history("b")
+    assert history[-1]["action"] == "create"
+    assert history[-1]["ts"] == 1500

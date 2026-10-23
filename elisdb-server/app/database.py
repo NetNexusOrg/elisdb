@@ -272,6 +272,10 @@ class Database:
 
         conn = self._conn()
         try:
+            # Serialize writers before reading the delivery watermark below, so
+            # two concurrent pushes cannot both pick the same bumped timestamp
+            # and hide each other from devices pulling in between.
+            conn.execute("BEGIN IMMEDIATE")
             tombstone = conn.execute(
                 "SELECT deleted_at FROM tombstones WHERE id = ?", (cliente.id,)
             ).fetchone()
@@ -281,6 +285,17 @@ class Database:
                 # The pushed record is newer than the deletion: resurrect the
                 # client and clear the tombstone so it persists as a new record.
                 conn.execute("DELETE FROM tombstones WHERE id = ?", (cliente.id,))
+
+            # Pulls are timestamp-cursored: a device only receives records newer
+            # than its watermark. A push can be accepted while carrying an older
+            # updated_at (device clock behind, or an edit made days ago and only
+            # synced now); storing it as-is would leave it invisible to every
+            # device that already pulled past that timestamp. Give accepted
+            # writes the next watermark value instead, so they are delivered.
+            # The audit entry keeps the original timestamp: that is when the
+            # change was actually made.
+            watermark = self._delivery_watermark(conn)
+            delivery_ts = max(cliente.updated_at, watermark + 1)
 
             existing = conn.execute(
                 "SELECT id, updated_at FROM clientes WHERE id = ?", (cliente.id,)
@@ -304,7 +319,7 @@ class Database:
                         cliente.latitude,
                         cliente.longitude,
                         cliente.notas,
-                        cliente.updated_at,
+                        delivery_ts,
                         cliente.id,
                     ),
                 )
@@ -324,7 +339,7 @@ class Database:
                         cliente.latitude,
                         cliente.longitude,
                         cliente.notas,
-                        cliente.updated_at,
+                        delivery_ts,
                         cliente.updated_at,
                     ),
                 )
@@ -493,17 +508,22 @@ class Database:
                     pass
         return removed
 
+    @staticmethod
+    def _delivery_watermark(conn: sqlite3.Connection) -> int:
+        """Newest timestamp a device may already hold (clients + tombstones)."""
+        max_clients = conn.execute(
+            "SELECT COALESCE(MAX(updated_at), 0) FROM clientes"
+        ).fetchone()[0]
+        max_tombstones = conn.execute(
+            "SELECT COALESCE(MAX(deleted_at), 0) FROM tombstones"
+        ).fetchone()[0]
+        return max(max_clients, max_tombstones)
+
     def latest_updated_at(self) -> int:
         """Largest `updated_at` over stored clients and `deleted_at` over tombstones (0 when empty)."""
         conn = self._conn()
         try:
-            max_clients = conn.execute(
-                "SELECT COALESCE(MAX(updated_at), 0) FROM clientes"
-            ).fetchone()[0]
-            max_tombstones = conn.execute(
-                "SELECT COALESCE(MAX(deleted_at), 0) FROM tombstones"
-            ).fetchone()[0]
-            return max(max_clients, max_tombstones)
+            return self._delivery_watermark(conn)
         finally:
             conn.close()
 

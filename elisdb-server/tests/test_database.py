@@ -174,3 +174,156 @@ def test_audit_entry_keeps_the_original_edit_time(tmp_path):
     history = db.client_history("b")
     assert history[-1]["action"] == "create"
     assert history[-1]["ts"] == 1500
+
+
+def test_edit_details_describe_the_changed_fields(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    db.save_client(_cliente(id="a", contrato="C1", updated_at=1000), [], actor)
+    db.save_client(
+        _cliente(id="a", nome="Ana Silva", contrato="", notas="Entregar", updated_at=1001),
+        [],
+        actor,
+    )
+
+    details = db.client_history("a")[-1]["details"]
+    fields = {field["field"]: field for field in details["fields"]}
+    assert fields["nome"] == {
+        "field": "nome",
+        "old": "ANA",
+        "new": "ANA SILVA",
+        "truncated": False,
+    }
+    assert fields["contrato"]["old"] == "C1"
+    assert fields["contrato"]["new"] is None
+    assert fields["notas"]["old"] is None
+    assert fields["notas"]["new"] == "Entregar"
+    assert "photos" not in details
+
+
+def test_location_change_is_a_single_field(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    db.save_client(_cliente(id="a", latitude=1.0, longitude=2.0, updated_at=1000), [], actor)
+
+    # Sub-millimetre float noise is not a change, so no entry is recorded.
+    db.save_client(_cliente(id="a", latitude=1.0000001, longitude=2.0, updated_at=1001), [], actor)
+    assert len(db.client_history("a")) == 1
+
+    db.save_client(_cliente(id="a", latitude=1.5, longitude=-2.25, updated_at=1002), [], actor)
+    details = db.client_history("a")[-1]["details"]
+    assert details["fields"] == [
+        {
+            "field": "localizacao",
+            "old": "1.000000, 2.000000",
+            "new": "1.500000, -2.250000",
+            "truncated": False,
+        }
+    ]
+
+
+def test_photo_changes_are_recorded(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    db.write_photo("p1", b"1")
+    db.write_photo("p2", b"2")
+
+    db.save_client(
+        _cliente(id="a", updated_at=1000), [FotoIn(id="p1", mime="image/jpeg")], actor
+    )
+    assert db.client_history("a")[-1]["details"] == {
+        "fields": [],
+        "photos": {"added": ["p1"], "removed": [], "reordered": False},
+    }
+
+    db.save_client(
+        _cliente(id="a", updated_at=1001),
+        [
+            FotoIn(id="p1", mime="image/jpeg"),
+            FotoIn(id="p2", mime="image/jpeg", ordem=1),
+        ],
+        actor,
+    )
+    assert db.client_history("a")[-1]["details"]["photos"] == {
+        "added": ["p2"],
+        "removed": [],
+        "reordered": False,
+    }
+
+    db.save_client(
+        _cliente(id="a", updated_at=1002), [FotoIn(id="p2", mime="image/jpeg")], actor
+    )
+    assert db.client_history("a")[-1]["details"]["photos"] == {
+        "added": [],
+        "removed": ["p1"],
+        "reordered": False,
+    }
+
+
+def test_reordering_photos_is_recorded(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    db.write_photo("p1", b"1")
+    db.write_photo("p2", b"2")
+    db.save_client(
+        _cliente(id="a", updated_at=1000),
+        [
+            FotoIn(id="p1", mime="image/jpeg"),
+            FotoIn(id="p2", mime="image/jpeg", ordem=1),
+        ],
+        actor,
+    )
+    db.save_client(
+        _cliente(id="a", updated_at=1001),
+        [
+            FotoIn(id="p2", mime="image/jpeg"),
+            FotoIn(id="p1", mime="image/jpeg", ordem=1),
+        ],
+        actor,
+    )
+
+    assert db.client_history("a")[-1]["details"]["photos"] == {
+        "added": [],
+        "removed": [],
+        "reordered": True,
+    }
+
+
+def test_unchanged_push_records_no_entry(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    db.save_client(_cliente(id="a", updated_at=1000), [], actor)
+
+    status, _existing, _canonical = db.save_client(
+        _cliente(id="a", nome="  ana ", updated_at=1001), [], actor
+    )
+
+    assert status == "accepted"
+    assert len(db.client_history("a")) == 1
+    # The record is still re-delivered under a newer timestamp.
+    assert db.get_client_with_photos("a")["client"]["updated_at"] == 1001
+
+
+def test_long_text_is_truncated_in_the_details(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    db.save_client(_cliente(id="a", updated_at=1000), [], actor)
+    db.save_client(_cliente(id="a", notas="x" * 250, updated_at=1001), [], actor)
+
+    change = db.client_history("a")[-1]["details"]["fields"][0]
+    assert change["field"] == "notas"
+    assert change["new"] == "x" * 200
+    assert change["truncated"] is True
+
+
+def test_history_entries_written_before_details_stay_compatible(tmp_path):
+    db = _db(tmp_path)
+    conn = connect(str(tmp_path / "elisdb.db"))
+    conn.execute(
+        "INSERT INTO client_audit (cliente_id, key_id, action, ts) "
+        "VALUES ('a', 'k', 'create', 1000)"
+    )
+    conn.commit()
+    conn.close()
+
+    assert db.client_history("a")[0]["details"] is None

@@ -6,6 +6,7 @@ fotos table stores only the file path (caminho) referencing each photo file.
 """
 
 import hashlib
+import json
 import os
 import sqlite3
 import threading
@@ -50,7 +51,8 @@ CREATE TABLE IF NOT EXISTS client_audit (
     key_id TEXT NOT NULL,
     username TEXT,
     action TEXT NOT NULL CHECK(action IN ('create','edit')),
-    ts INTEGER NOT NULL
+    ts INTEGER NOT NULL,
+    details TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_client_audit_cliente ON client_audit (cliente_id);
 CREATE TABLE IF NOT EXISTS keys (
@@ -135,6 +137,19 @@ def _migrate_clients_nullable_coords(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys = ON")
 
 
+def _migrate_client_audit_details(conn: sqlite3.Connection) -> None:
+    """Idempotently add the client_audit.details column.
+
+    Entries written before change tracking keep NULL details and are presented
+    with the actor-only view.
+    """
+    columns = [
+        row["name"] for row in conn.execute("PRAGMA table_info(client_audit)").fetchall()
+    ]
+    if "details" not in columns:
+        conn.execute("ALTER TABLE client_audit ADD COLUMN details TEXT")
+
+
 def _migrate_timestamps_to_seconds(conn: sqlite3.Connection) -> None:
     """Idempotently convert legacy millisecond timestamps to epoch seconds.
 
@@ -153,6 +168,107 @@ def _migrate_timestamps_to_seconds(conn: sqlite3.Connection) -> None:
     conn.execute(
         "UPDATE client_audit SET ts = ts / 1000 WHERE ts > 100000000000"
     )
+
+
+# Audit details keep at most this many characters per changed text field, so a
+# long notes/contract body cannot bloat the history (the record itself keeps the
+# full value).
+AUDIT_TEXT_LIMIT = 200
+
+
+def _audit_text(value: str | None) -> tuple[str | None, bool]:
+    """Shortens an audit text value, reporting whether it was truncated."""
+    if value is None or len(value) <= AUDIT_TEXT_LIMIT:
+        return value, False
+    return value[:AUDIT_TEXT_LIMIT], True
+
+
+def _audit_coord(value: float | None) -> str | None:
+    """Formats a coordinate so sub-millimetre float noise is not a change."""
+    if value is None:
+        return None
+    return f"{value:.6f}"
+
+
+def _audit_location(latitude: str | None, longitude: str | None) -> str | None:
+    """Joins formatted coordinates into the single value shown for "Localização"."""
+    parts = [part for part in (latitude, longitude) if part is not None]
+    return ", ".join(parts) if parts else None
+
+
+def build_audit_details(
+    before: dict | None,
+    after: dict,
+    before_photos: list[str],
+    after_photos: list[str],
+) -> dict | None:
+    """Describe what an accepted write changed, or None when nothing did.
+
+    ``before`` is the stored client row (None on insert); the photo arguments are
+    the ordered ids of the canonical sets before and after the write. Text values
+    are shortened to ``AUDIT_TEXT_LIMIT`` and flagged; coordinates are compared
+    with six decimals and presented as a single "localizacao" field.
+    """
+    if before is None:
+        return (
+            {
+                "fields": [],
+                "photos": {"added": list(after_photos), "removed": [], "reordered": False},
+            }
+            if after_photos
+            else None
+        )
+
+    fields: list[dict] = []
+    for name in ("nome", "contrato", "notas"):
+        old = before.get(name)
+        new = after.get(name)
+        if name in ("contrato", "notas"):
+            # Empty text and NULL mean the same thing to the user.
+            old = old or None
+            new = new or None
+        if old == new:
+            continue
+        old_text, old_truncated = _audit_text(old)
+        new_text, new_truncated = _audit_text(new)
+        fields.append(
+            {
+                "field": name,
+                "old": old_text,
+                "new": new_text,
+                "truncated": old_truncated or new_truncated,
+            }
+        )
+
+    old_lat = _audit_coord(before.get("latitude"))
+    old_lon = _audit_coord(before.get("longitude"))
+    new_lat = _audit_coord(after.get("latitude"))
+    new_lon = _audit_coord(after.get("longitude"))
+    if (old_lat, old_lon) != (new_lat, new_lon):
+        fields.append(
+            {
+                "field": "localizacao",
+                "old": _audit_location(old_lat, old_lon),
+                "new": _audit_location(new_lat, new_lon),
+                "truncated": False,
+            }
+        )
+
+    added = [foto_id for foto_id in after_photos if foto_id not in before_photos]
+    removed = [foto_id for foto_id in before_photos if foto_id not in after_photos]
+    reordered = not added and not removed and before_photos != after_photos
+    photos = (
+        {"added": added, "removed": removed, "reordered": reordered}
+        if added or removed or reordered
+        else None
+    )
+
+    if not fields and photos is None:
+        return None
+    details: dict = {"fields": fields}
+    if photos is not None:
+        details["photos"] = photos
+    return details
 
 
 # Databases whose schema + migrations have already been applied in this process.
@@ -185,6 +301,7 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     _migrate_keys_provisioned(conn)
     _migrate_clients_created_at(conn)
     _migrate_clients_nullable_coords(conn)
+    _migrate_client_audit_details(conn)
     _migrate_timestamps_to_seconds(conn)
     conn.commit()
 
@@ -298,7 +415,9 @@ class Database:
             delivery_ts = max(cliente.updated_at, watermark + 1)
 
             existing = conn.execute(
-                "SELECT id, updated_at FROM clientes WHERE id = ?", (cliente.id,)
+                "SELECT id, updated_at, nome, contrato, latitude, longitude, notas "
+                "FROM clientes WHERE id = ?",
+                (cliente.id,),
             ).fetchone()
 
             if existing is not None:
@@ -311,6 +430,8 @@ class Database:
                 if other is not None:
                     canonical = self._canonical_from_conn(conn, other["id"])
                     return "duplicate", other["id"], canonical
+                before = dict(existing)
+                before_photos = self._photo_ids(conn, cliente.id)
                 conn.execute(
                     "UPDATE clientes SET nome=?, contrato=?, latitude=?, longitude=?, notas=?, updated_at=? WHERE id=?",
                     (
@@ -323,8 +444,25 @@ class Database:
                         cliente.id,
                     ),
                 )
-                self._replace_fotos(conn, cliente.id, fotos)
-                self._record_audit(conn, cliente.id, actor, "edit", cliente.updated_at)
+                after_photos = self._replace_fotos(conn, cliente.id, fotos)
+                details = build_audit_details(
+                    before,
+                    {
+                        "nome": nome,
+                        "contrato": cliente.contrato,
+                        "latitude": cliente.latitude,
+                        "longitude": cliente.longitude,
+                        "notas": cliente.notas,
+                    },
+                    before_photos,
+                    after_photos,
+                )
+                # A push that changes nothing records no entry: "edited" with no
+                # visible difference is noise in the history.
+                if details is not None:
+                    self._record_audit(
+                        conn, cliente.id, actor, "edit", cliente.updated_at, details
+                    )
                 conn.commit()
                 return "accepted", None, None
 
@@ -352,8 +490,22 @@ class Database:
                     return "duplicate", None, None
                 canonical = self._canonical_from_conn(conn, other["id"])
                 return "duplicate", other["id"], canonical
-            self._replace_fotos(conn, cliente.id, fotos)
-            self._record_audit(conn, cliente.id, actor, "create", cliente.updated_at)
+            after_photos = self._replace_fotos(conn, cliente.id, fotos)
+            details = build_audit_details(
+                None,
+                {
+                    "nome": nome,
+                    "contrato": cliente.contrato,
+                    "latitude": cliente.latitude,
+                    "longitude": cliente.longitude,
+                    "notas": cliente.notas,
+                },
+                [],
+                after_photos,
+            )
+            self._record_audit(
+                conn, cliente.id, actor, "create", cliente.updated_at, details
+            )
             conn.commit()
             return "accepted", None, None
         finally:
@@ -366,23 +518,45 @@ class Database:
         actor: dict | None,
         action: str,
         ts: int,
+        details: dict | None = None,
     ) -> None:
         """Append an audit entry for an accepted client persistence."""
         if actor is None:
             return
         conn.execute(
-            "INSERT INTO client_audit (cliente_id, key_id, username, action, ts) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (cliente_id, actor.get("id", ""), actor.get("comment") or None, action, ts),
+            "INSERT INTO client_audit (cliente_id, key_id, username, action, ts, details) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                cliente_id,
+                actor.get("id", ""),
+                actor.get("comment") or None,
+                action,
+                ts,
+                json.dumps(details, ensure_ascii=False) if details is not None else None,
+            ),
         )
 
-    def _replace_fotos(self, conn: sqlite3.Connection, cliente_id: str, fotos: list[FotoIn]):
+    def _photo_ids(self, conn: sqlite3.Connection, cliente_id: str) -> list[str]:
+        """Ordered photo ids currently stored for a client."""
+        return [
+            row["id"]
+            for row in conn.execute(
+                "SELECT id FROM fotos WHERE cliente_id = ? ORDER BY ordem", (cliente_id,)
+            ).fetchall()
+        ]
+
+    def _replace_fotos(
+        self, conn: sqlite3.Connection, cliente_id: str, fotos: list[FotoIn]
+    ) -> list[str]:
         """Merge a client's photos into the store.
 
         Photos are referenced by id and their binary content is uploaded to the
         photo endpoint separately; only rows pointing at an existing file are
         recorded. Photos owned by another client are rejected rather than
         reassigned. Stored photos the push no longer lists are removed as before.
+
+        Returns the kept photo ids in display order (the canonical set), which
+        the audit uses to describe what was added or removed.
         """
         incoming = sorted(fotos, key=lambda f: f.ordem)
         kept_ids: list[str] = []
@@ -431,6 +605,7 @@ class Database:
                 "cliente_id=excluded.cliente_id, mime=excluded.mime, caminho=excluded.caminho, ordem=excluded.ordem",
                 (foto.id, cliente_id, foto.mime, self._foto(foto.id), foto.ordem),
             )
+        return kept_ids
 
     def _foto(self, foto_id: str) -> str:
         candidate = os.path.abspath(os.path.join(self.fotos_dir, foto_id))
@@ -539,13 +714,20 @@ class Database:
         conn = self._conn()
         try:
             rows = conn.execute(
-                "SELECT action, username, key_id, ts FROM client_audit "
+                "SELECT action, username, key_id, ts, details FROM client_audit "
                 "WHERE cliente_id = ? ORDER BY ts, id",
                 (cliente_id,),
             ).fetchall()
-            return [dict(r) for r in rows]
         finally:
             conn.close()
+        history = []
+        for row in rows:
+            entry = dict(row)
+            raw = entry.get("details")
+            # Entries written before change tracking carry no details.
+            entry["details"] = json.loads(raw) if raw else None
+            history.append(entry)
+        return history
 
     def list_clients(self) -> list[dict]:
         conn = self._conn()

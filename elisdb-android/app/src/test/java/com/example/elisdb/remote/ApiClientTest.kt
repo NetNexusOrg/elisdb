@@ -385,4 +385,38 @@ class ApiClientTest {
     assertEquals(100_000_500L, store.offset)
     assertEquals(1_700_000_500L, clock.nowSeconds())
   }
+
+  @Test
+  fun historyParsesTheRecordedChanges() = runBlocking {
+    val engine = MockEngine {
+      okJson(
+        """
+        [{"action":"edit","username":"Joao","key_id":"k","ts":100,
+          "details":{"fields":[{"field":"nome","old":"JOAO","new":"JOAO SILVA","truncated":false}],
+                     "photos":{"added":["f1"],"removed":[],"reordered":false}}}]
+        """
+          .trimIndent()
+      )
+    }
+    val api = client(engine)
+
+    val entry = api.fetchClientHistory("5", timestamp = 100L).single()
+
+    assertEquals("nome", entry.details?.fields?.single()?.field)
+    assertEquals("JOAO SILVA", entry.details?.fields?.single()?.new)
+    assertEquals(listOf("f1"), entry.details?.photos?.added)
+  }
+
+  @Test
+  fun historyWithoutDetailsStillParses() = runBlocking {
+    val engine = MockEngine {
+      okJson("""[{"action":"create","username":"Joao","key_id":"k","ts":100}]""")
+    }
+    val api = client(engine)
+
+    val entry = api.fetchClientHistory("5", timestamp = 100L).single()
+
+    assertEquals("create", entry.action)
+    assertEquals(null, entry.details)
+  }
 }

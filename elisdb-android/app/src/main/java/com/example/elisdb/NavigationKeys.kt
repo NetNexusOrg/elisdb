@@ -9,6 +9,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data class ClientDetail(val clienteId: String) : NavKey
 
+@Serializable data class ClientLog(val clienteId: String) : NavKey
+
 @Serializable data class PhotoViewer(val clienteId: String, val indiceFoto: Int) : NavKey
 
 @Serializable data class MapFullscreen(val clienteId: String) : NavKey

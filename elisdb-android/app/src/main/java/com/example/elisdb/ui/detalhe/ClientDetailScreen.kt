@@ -57,10 +57,8 @@ import coil3.compose.AsyncImage
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
 import com.example.elisdb.data.local.Foto
-import com.example.elisdb.remote.AuditEntryDto
 import com.example.elisdb.ui.map.OsmMap
 import java.io.File
-import java.util.Date
 import org.osmdroid.util.GeoPoint
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,6 +67,7 @@ fun ClientDetailScreen(
   viewModel: ClientDetailViewModel,
   onBack: () -> Unit,
   onEdit: (String) -> Unit,
+  onViewLog: (String) -> Unit,
   onDeleted: () -> Unit,
   onPhotoClick: (Int) -> Unit,
   onOpenFullscreenMap: (String) -> Unit,
@@ -133,7 +132,7 @@ fun ClientDetailScreen(
                   leadingIcon = { Icon(Icons.Default.History, contentDescription = null) },
                   onClick = {
                     menuOpen = false
-                    viewModel.openLog()
+                    onViewLog(cliente.cliente.id)
                   },
                 )
                 DropdownMenuItem(
@@ -192,46 +191,6 @@ fun ClientDetailScreen(
         OutlinedButton(onClick = viewModel::dismissDeleteConfirmation) { Text("Cancelar") }
       },
     )
-  }
-
-  if (state.showLog) {
-    AlertDialog(
-      onDismissRequest = viewModel::dismissLog,
-      title = { Text("Log do cliente") },
-      text = {
-        when {
-          state.logLoading -> CircularProgressIndicator()
-          state.logError ->
-            Text("Não foi possível carregar o histórico do cliente.")
-          state.logEntries.isEmpty() && state.hasPending ->
-            Text("Este cliente tem alterações por sincronizar; o histórico aparecerá após a sincronização.")
-          state.logEntries.isEmpty() ->
-            Text("Não há histórico registado para este cliente.")
-          else -> LogEntries(state.logEntries)
-        }
-      },
-      confirmButton = {
-        Button(onClick = viewModel::dismissLog) { Text("Fechar") }
-      },
-    )
-  }
-}
-
-@Composable
-private fun LogEntries(entries: List<AuditEntryDto>) {
-  val formatter = remember { java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()) }
-  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    entries.forEach { entry ->
-      val actor = entry.username ?: "Utilizador desconhecido"
-      val action =
-        when (entry.action) {
-          "create" -> "Criado por $actor"
-          "edit" -> "Editado por $actor"
-          else -> entry.action
-        }
-      val whenText = formatter.format(Date(entry.ts * 1000))
-      Text("$action — $whenText", style = MaterialTheme.typography.bodyMedium)
-    }
   }
 }
 

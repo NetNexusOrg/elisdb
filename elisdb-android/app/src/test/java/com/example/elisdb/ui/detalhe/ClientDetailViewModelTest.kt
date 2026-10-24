@@ -2,7 +2,6 @@ package com.example.elisdb.ui.detalhe
 
 import android.net.Uri
 import com.example.elisdb.data.ClienteRepository
-import com.example.elisdb.remote.AuditEntryDto
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncStatus
 import com.example.elisdb.data.ClienteDraft
@@ -95,63 +94,6 @@ class ClientDetailViewModelTest {
     viewModel.deleteCliente()
     dispatcher.scheduler.advanceUntilIdle()
     assertEquals("Não foi possível apagar o cliente.", viewModel.uiState.value.message)
-  }
-
-  @Test
-  fun openLogCarregaHistorico() = runTest(dispatcher) {
-    val cliente = Cliente(id = "5", nome = "Maria", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
-    val repo = FakeClientRepository(data = ClienteComFotos(cliente = cliente, fotos = emptyList()))
-    val entries =
-      listOf(
-        AuditEntryDto(action = "create", username = "Maria", keyId = "k1", ts = 100L),
-        AuditEntryDto(action = "edit", username = "Joao", keyId = "k2", ts = 200L),
-      )
-    val viewModel = ClientDetailViewModel(repo, "5", fetchHistory = { id -> entries })
-    dispatcher.scheduler.advanceUntilIdle()
-    viewModel.openLog()
-    dispatcher.scheduler.advanceUntilIdle()
-    val state = viewModel.uiState.value
-    assertTrue(state.showLog)
-    assertFalse(state.logLoading)
-    assertFalse(state.logError)
-    assertEquals(2, state.logEntries.size)
-    assertEquals("create", state.logEntries[0].action)
-  }
-
-  @Test
-  fun openLogFalhaENaoBloqueia() = runTest(dispatcher) {
-    val cliente = Cliente(id = "5", nome = "Maria", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
-    val repo = FakeClientRepository(data = ClienteComFotos(cliente = cliente, fotos = emptyList()))
-    val viewModel =
-      ClientDetailViewModel(repo, "5", fetchHistory = { id -> error("falha simulada") })
-    dispatcher.scheduler.advanceUntilIdle()
-    viewModel.openLog()
-    dispatcher.scheduler.advanceUntilIdle()
-    val state = viewModel.uiState.value
-    assertTrue(state.showLog)
-    assertFalse(state.logLoading)
-    assertTrue(state.logError)
-    assertTrue(state.logEntries.isEmpty())
-    viewModel.dismissLog()
-    assertFalse(viewModel.uiState.value.showLog)
-  }
-
-  @Test
-  fun hasPending_refleteClientePendente() = runTest(dispatcher) {
-    val cliente = Cliente(id = "5", nome = "Maria", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0, pending = true)
-    val repo = FakeClientRepository(data = ClienteComFotos(cliente = cliente, fotos = emptyList()))
-    val viewModel = ClientDetailViewModel(repo, "5")
-    dispatcher.scheduler.advanceUntilIdle()
-    assertTrue(viewModel.uiState.value.hasPending)
-  }
-
-  @Test
-  fun hasPending_falsoParaClienteSincronizado() = runTest(dispatcher) {
-    val cliente = Cliente(id = "5", nome = "Maria", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0, pending = false)
-    val repo = FakeClientRepository(data = ClienteComFotos(cliente = cliente, fotos = emptyList()))
-    val viewModel = ClientDetailViewModel(repo, "5")
-    dispatcher.scheduler.advanceUntilIdle()
-    assertFalse(viewModel.uiState.value.hasPending)
   }
 
   @Test

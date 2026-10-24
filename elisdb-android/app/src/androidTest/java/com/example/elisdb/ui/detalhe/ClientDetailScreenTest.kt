@@ -13,7 +13,6 @@ import androidx.compose.ui.test.pinch
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.geometry.Offset
 import com.example.elisdb.data.ClienteRepository
-import com.example.elisdb.remote.AuditEntryDto
 import com.example.elisdb.sync.SyncStatus
 import com.example.elisdb.data.ClienteDraft
 import com.example.elisdb.data.local.Cliente
@@ -64,26 +63,18 @@ class ClientDetailScreenTest {
   }
 
   @Test
-  fun log_abreVistaComEntradasDeHistorico() {
+  fun log_acaoAbrePaginaDeLogComClienteId() {
     val cliente = Cliente(id = "4", nome = "Beatriz", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
     val repository = FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = emptyList()))
-    val viewModel =
-      ClientDetailViewModel(
-        repository,
-        cliente.id,
-        fetchHistory = {
-          listOf(
-            AuditEntryDto(action = "create", username = "Maria", keyId = "k1", ts = 100L),
-            AuditEntryDto(action = "edit", username = "Joao", keyId = "k2", ts = 200L),
-          )
-        },
-      )
+    val viewModel = ClientDetailViewModel(repository, cliente.id)
+    var openedId: String? = null
     composeTestRule.setContent {
       ElisdbTheme {
         ClientDetailScreen(
           viewModel = viewModel,
           onBack = {},
           onEdit = {},
+          onViewLog = { id -> openedId = id },
           onDeleted = {},
           onPhotoClick = {},
           onOpenFullscreenMap = {},
@@ -95,145 +86,9 @@ class ClientDetailScreenTest {
     composeTestRule.onNodeWithText("Log").performClick()
     composeTestRule.waitForIdle()
 
-    composeTestRule.onNodeWithText("Log do cliente").assertExists()
-    composeTestRule.onNodeWithText("Criado por Maria", substring = true).assertExists()
-    composeTestRule.onNodeWithText("Editado por Joao", substring = true).assertExists()
-  }
-
-  @Test
-  fun log_timestampsUsamFormato24h() {
-    val cliente = Cliente(id = "5", nome = "Carla", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
-    val repository = FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = emptyList()))
-    // 2026-08-16 14:30 UTC → epoch millis.
-    val ts = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
-      clear()
-      set(2026, java.util.Calendar.AUGUST, 16, 14, 30, 0)
-    }.timeInMillis
-    val viewModel =
-      ClientDetailViewModel(
-        repository,
-        cliente.id,
-        fetchHistory = {
-          listOf(AuditEntryDto(action = "create", username = "Maria", keyId = "k1", ts = ts))
-        },
-      )
-    composeTestRule.setContent {
-      ElisdbTheme {
-        ClientDetailScreen(
-          viewModel = viewModel,
-          onBack = {},
-          onEdit = {},
-          onDeleted = {},
-          onPhotoClick = {},
-          onOpenFullscreenMap = {},
-        )
-      }
-    }
-
-    composeTestRule.onNodeWithContentDescription("Mais opções").performClick()
-    composeTestRule.onNodeWithText("Log").performClick()
-    composeTestRule.waitForIdle()
-
-    // The formatted time must be 24-hour: no AM/PM marker anywhere in the entry.
-    val entryText =
-      composeTestRule.onNodeWithText("Criado por Maria", substring = true)
-        .fetchSemanticsNode()
-        .config[androidx.compose.ui.semantics.SemanticsProperties.Text]
-        .joinToString("") { it.text }
-    assertTrue("24h sem AM/PM: '$entryText'", !entryText.contains("AM") && !entryText.contains("PM"))
-  }
-
-  @Test
-  fun log_erroDeFetchMostraMensagemDeErro() {
-    val cliente = Cliente(id = "6", nome = "Diogo", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
-    val repository = FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = emptyList()))
-    val viewModel =
-      ClientDetailViewModel(
-        repository,
-        cliente.id,
-        fetchHistory = { id -> throw java.io.IOException("falha simulada") },
-      )
-    composeTestRule.setContent {
-      ElisdbTheme {
-        ClientDetailScreen(
-          viewModel = viewModel,
-          onBack = {},
-          onEdit = {},
-          onDeleted = {},
-          onPhotoClick = {},
-          onOpenFullscreenMap = {},
-        )
-      }
-    }
-
-    composeTestRule.onNodeWithContentDescription("Mais opções").performClick()
-    composeTestRule.onNodeWithText("Log").performClick()
-    composeTestRule.waitForIdle()
-
-    composeTestRule.onNodeWithText("Não foi possível carregar o histórico do cliente.").assertExists()
-    composeTestRule.onNodeWithText("Não há histórico registado para este cliente.").assertDoesNotExist()
-  }
-
-  @Test
-  fun log_historicoVazioComPendenteMostraNotaDeSincronizacao() {
-    val cliente = Cliente(id = "7", nome = "Eva", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0, pending = true)
-    val repository = FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = emptyList()))
-    val viewModel =
-      ClientDetailViewModel(
-        repository,
-        cliente.id,
-        fetchHistory = { emptyList() },
-      )
-    composeTestRule.setContent {
-      ElisdbTheme {
-        ClientDetailScreen(
-          viewModel = viewModel,
-          onBack = {},
-          onEdit = {},
-          onDeleted = {},
-          onPhotoClick = {},
-          onOpenFullscreenMap = {},
-        )
-      }
-    }
-
-    composeTestRule.onNodeWithContentDescription("Mais opções").performClick()
-    composeTestRule.onNodeWithText("Log").performClick()
-    composeTestRule.waitForIdle()
-
-    composeTestRule
-      .onNodeWithText("Este cliente tem alterações por sincronizar; o histórico aparecerá após a sincronização.")
-      .assertExists()
-  }
-
-  @Test
-  fun log_historicoVazioSemPendenteMostraSemHistorico() {
-    val cliente = Cliente(id = "8", nome = "Filipe", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0, pending = false)
-    val repository = FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = emptyList()))
-    val viewModel =
-      ClientDetailViewModel(
-        repository,
-        cliente.id,
-        fetchHistory = { emptyList() },
-      )
-    composeTestRule.setContent {
-      ElisdbTheme {
-        ClientDetailScreen(
-          viewModel = viewModel,
-          onBack = {},
-          onEdit = {},
-          onDeleted = {},
-          onPhotoClick = {},
-          onOpenFullscreenMap = {},
-        )
-      }
-    }
-
-    composeTestRule.onNodeWithContentDescription("Mais opções").performClick()
-    composeTestRule.onNodeWithText("Log").performClick()
-    composeTestRule.waitForIdle()
-
-    composeTestRule.onNodeWithText("Não há histórico registado para este cliente.").assertExists()
+    assertEquals("4", openedId)
+    // The log is a page now, not the old dialog.
+    composeTestRule.onNodeWithText("Fechar").assertDoesNotExist()
   }
 
   @Test
@@ -253,6 +108,7 @@ class ClientDetailScreenTest {
           viewModel = viewModel,
           onBack = {},
           onEdit = {},
+          onViewLog = {},
           onDeleted = {},
           onPhotoClick = { clickedIndex = it },
           onOpenFullscreenMap = {},
@@ -418,6 +274,7 @@ class ClientDetailScreenTest {
           viewModel = viewModel,
           onBack = {},
           onEdit = {},
+          onViewLog = {},
           onDeleted = {},
           onPhotoClick = {},
           onOpenFullscreenMap = {},

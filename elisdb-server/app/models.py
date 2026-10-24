@@ -77,11 +77,42 @@ class TombstoneOut(BaseModel):
     deleted_at: int
 
 
+class AuditFieldChange(BaseModel):
+    """One client field changed by an accepted edit.
+
+    ``old`` is null when the field was empty/missing before, ``new`` when it was
+    cleared. Text values are shortened and flagged with ``truncated`` so a long
+    notes body cannot bloat the audit trail.
+    """
+
+    field: str  # nome | contrato | notas | localizacao
+    old: str | None = None
+    new: str | None = None
+    truncated: bool = False
+
+
+class AuditPhotoChanges(BaseModel):
+    """Photos added to / removed from a client by an accepted edit."""
+
+    added: list[str] = []
+    removed: list[str] = []
+    reordered: bool = False
+
+
+class AuditDetails(BaseModel):
+    """What changed in an accepted write, as recorded next to the actor."""
+
+    fields: list[AuditFieldChange] = []
+    photos: AuditPhotoChanges | None = None
+
+
 class AuditEntryOut(BaseModel):
     action: str  # create | edit
     username: str | None = None
     key_id: str
     ts: int
+    # Older entries predate change tracking and carry no details.
+    details: AuditDetails | None = None
 
 
 class PushResult(BaseModel):

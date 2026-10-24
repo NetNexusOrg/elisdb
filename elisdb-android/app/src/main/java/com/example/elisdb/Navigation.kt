@@ -15,6 +15,8 @@ import com.example.elisdb.ui.cliente.ClientListScreen
 import com.example.elisdb.ui.cliente.ClientListViewModel
 import com.example.elisdb.ui.detalhe.ClientDetailScreen
 import com.example.elisdb.ui.detalhe.ClientDetailViewModel
+import com.example.elisdb.ui.detalhe.ClientLogScreen
+import com.example.elisdb.ui.detalhe.ClientLogViewModel
 import com.example.elisdb.ui.detalhe.MapFullscreenScreen
 import com.example.elisdb.ui.detalhe.PhotoViewerScreen
 import com.example.elisdb.ui.detalhe.PhotoViewerViewModel
@@ -104,21 +106,29 @@ fun MainNavigation() {
         entry<ClientDetail> { key ->
           val container = rememberAppContainer()
           ClientDetailScreen(
+            viewModel = viewModel { ClientDetailViewModel(container.repository, key.clienteId) },
+            onBack = { backStack.removeLastOrNull() },
+            onEdit = { id -> backStack.add(ClientForm(id)) },
+            onViewLog = { id -> backStack.add(ClientLog(id)) },
+            onDeleted = { backStack.removeLastOrNull() },
+            onPhotoClick = { index -> backStack.add(PhotoViewer(key.clienteId, index)) },
+            onOpenFullscreenMap = { id -> backStack.add(MapFullscreen(id)) },
+          )
+        }
+        entry<ClientLog> { key ->
+          val container = rememberAppContainer()
+          ClientLogScreen(
             viewModel =
               viewModel {
-                ClientDetailViewModel(
-                  container.repository,
-                  key.clienteId,
+                ClientLogViewModel(
+                  repository = container.repository,
+                  clienteId = key.clienteId,
                   fetchHistory = { id ->
                     container.createApiClient().fetchClientHistory(id, timestamp = container.normalizedEpochSeconds())
                   },
                 )
               },
             onBack = { backStack.removeLastOrNull() },
-            onEdit = { id -> backStack.add(ClientForm(id)) },
-            onDeleted = { backStack.removeLastOrNull() },
-            onPhotoClick = { index -> backStack.add(PhotoViewer(key.clienteId, index)) },
-            onOpenFullscreenMap = { id -> backStack.add(MapFullscreen(id)) },
           )
         }
         entry<PhotoViewer> { key ->

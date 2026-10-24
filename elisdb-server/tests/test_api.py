@@ -186,3 +186,18 @@ def test_rate_limit_returns_429(tmp_path, monkeypatch):
     assert client.get("/api/latest", timestamp=now).status_code == 200
     assert client.get("/api/latest", timestamp=now + 1).status_code == 200
     assert client.get("/api/latest", timestamp=now + 2).status_code == 429
+
+
+def test_client_history_carries_the_recorded_changes(server):
+    client, _db = server
+    client.post("/api/push", _body([_record(id="1", nome="Ana", updated_at=1000)]))
+    client.post("/api/push", _body([_record(id="1", nome="Ana Silva", updated_at=1001)]))
+
+    entries = client.get("/api/clients/1/history").json()
+    # The create carried no photos, so it has no change details.
+    assert entries[0]["action"] == "create"
+    assert entries[0]["details"] is None
+    assert entries[-1]["action"] == "edit"
+    assert entries[-1]["details"]["fields"] == [
+        {"field": "nome", "old": "ANA", "new": "ANA SILVA", "truncated": False}
+    ]

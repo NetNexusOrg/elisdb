@@ -91,11 +91,36 @@ data class KeyIdentityDto(
   val username: String? = null,
 )
 
-/** One entry of a client's edit history: who acted (and when). */
+/** One field changed by an edit, with the values before and after. */
+@Serializable
+data class AuditFieldDto(
+  val field: String,
+  val old: String? = null,
+  val new: String? = null,
+  val truncated: Boolean = false,
+)
+
+/** Photos added, removed or reordered by an edit. */
+@Serializable
+data class AuditPhotosDto(
+  val added: List<String> = emptyList(),
+  val removed: List<String> = emptyList(),
+  val reordered: Boolean = false,
+)
+
+/** What an edit changed; absent on entries recorded before change tracking. */
+@Serializable
+data class AuditDetailsDto(
+  val fields: List<AuditFieldDto> = emptyList(),
+  val photos: AuditPhotosDto? = null,
+)
+
+/** One entry of a client's edit history: who acted, when, and what changed. */
 @Serializable
 data class AuditEntryDto(
   val action: String,
   val username: String? = null,
   @SerialName("key_id") val keyId: String,
   val ts: Long,
+  val details: AuditDetailsDto? = null,
 )

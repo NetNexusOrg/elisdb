@@ -49,7 +49,66 @@ Para mudar estes caminhos, vê a referência em [Configuração](configuracao.md
 
 ## Publicar uma nova versão da app
 
-Semanalmente ou quando há correções, o APK novo é distribuído pela própria app.
+Criar a tag `v*` publica o APK no GitHub **e** copia-o para o servidor: o
+trabalho `release` do `android-release.yml` envia
+`elisdb-<versão>-<código>.apk` para a pasta de atualizações por `rsync` (só em
+tags, nunca em `main`). Não é preciso reiniciar o servidor — o ficheiro é
+descoberto no pedido seguinte.
+
+1. Sobe `app.versionCode` e `app.versionName` em `elisdb-android/gradle.properties`.
+2. Cria a tag (`git tag v1.6.0 && git push origin v1.6.0`).
+3. Em cada telemóvel: **Sobre** → **Procurar atualizações** → **Transferir** →
+   **Instalar**.
+
+### Configurar a publicação automática (uma vez)
+
+O CI autentica-se por chave SSH. Cria uma chave dedicada (nunca a pessoal) e
+regista a pública na VPS:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions@elisdb" -f ~/.ssh/elisdb_deploy -N ""
+ssh-copy-id -i ~/.ssh/elisdb_deploy.pub ubuntu@vps01   # ou acrescenta a .pub a authorized_keys
+gh secret set DEPLOY_SSH_KEY < ~/.ssh/elisdb_deploy
+# O runner não conhece aliases do teu ~/.ssh/config: usa o host ou o IP público.
+gh secret set DEPLOY_HOST --body "144.21.63.93"
+gh secret set DEPLOY_USER --body "ubuntu"
+# Opcional: porta (por omissão 22) e destino (por omissão
+# docker/elisdb-server/elisdb-data/apk/latest/, relativo à home do utilizador).
+gh secret set DEPLOY_PORT --body "22"
+# Recomendado: fixar a host key em vez de confiar no primeiro scan.
+ssh-keyscan -H 144.21.63.93 | gh secret set DEPLOY_KNOWN_HOSTS
+```
+
+Enquanto `DEPLOY_SSH_KEY`, `DEPLOY_HOST` e `DEPLOY_USER` não existirem, o passo
+é ignorado com um aviso e o release continua.
+
+Para endurecer, restringe a chave em `~/.ssh/authorized_keys` a essa pasta:
+
+```
+restrict,command="rrsync -wo /home/ubuntu/docker/elisdb-server/elisdb-data/apk/latest" ssh-ed25519 AAAA... github-actions@elisdb
+```
+
+Com a chave restrita por `rrsync`, o `rsync` já entrega sempre nessa pasta: o
+caminho que o cliente indica é **relativo** a ela e um caminho absoluto é
+concatenado (acaba em `latest/home/ubuntu/...`). Nesse caso define
+`DEPLOY_PATH` como `/`:
+
+```bash
+gh secret set DEPLOY_PATH --body "/"
+```
+
+A chave restrita também recusa abrir uma shell (`rrsync error:
+SSH_ORIGINAL_COMMAND does not run rsync`), o que é o comportamento desejado.
+Para testar a chave a partir da tua máquina é preciso ignorar o teu
+`~/.ssh/config` (`-F /dev/null`) e desligar as outras identidades
+(`-o IdentitiesOnly=yes`); caso contrário outra chave do config responde e o
+teste não prova nada:
+
+```bash
+ssh -F /dev/null -i ~/.ssh/elisdb_deploy -o IdentitiesOnly=yes ubuntu@144.21.63.93 true
+```
+
+### Publicar à mão (alternativa)
 
 1. No GitHub, descarrega o APK do release. Já vem com o nome versionado
    (`elisdb-<versão>-<código>.apk`, por exemplo `elisdb-1.6.0-11.apk`).

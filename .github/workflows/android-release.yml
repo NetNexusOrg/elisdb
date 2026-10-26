@@ -165,3 +165,48 @@ jobs:
         with:
           files: elisdb-android/app/build/outputs/apk/release/${{ env.APK_NAME }}
           generate_release_notes: true
+
+      # Publishes the build to the server, where the app picks it up from
+      # "Sobre -> Procurar atualizações". Nothing restarts: the server discovers
+      # the file by name on the next request.
+      #
+      # Skipped with a warning (instead of failing the release) until
+      # DEPLOY_SSH_KEY, DEPLOY_HOST and DEPLOY_USER are configured.
+      - name: Publish APK to the server
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DEPLOY_SSH_KEY" ] || [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ]; then
+            echo "::warning::DEPLOY_SSH_KEY/DEPLOY_HOST/DEPLOY_USER not set; skipping server publication"
+            exit 0
+          fi
+          port=${DEPLOY_PORT:-22}
+          # Directory inside the data volume, as seen from the deploy user's home.
+          target=${DEPLOY_PATH:-docker/elisdb-server/elisdb-data/apk/latest/}
+
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          # A pinned host key is the strict option (DEPLOY_KNOWN_HOSTS holds the
+          # line from `ssh-keyscan -H <host>`); the fallback trusts a fresh scan.
+          if [ -n "$DEPLOY_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          else
+            echo "::warning::DEPLOY_KNOWN_HOSTS not set; trusting a fresh ssh-keyscan of the host"
+            ssh-keyscan -p "$port" -H "$DEPLOY_HOST" > "$HOME/.ssh/known_hosts"
+          fi
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+          # rsync uploads to a temporary name and renames on completion, so a
+          # half-transferred file is never served.
+          rsync --archive --compress --chmod=F644 \
+            --rsh="ssh -i $HOME/.ssh/deploy_key -p $port -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            "elisdb-android/app/build/outputs/apk/release/$APK_NAME" \
+            "$DEPLOY_USER@$DEPLOY_HOST:$target"
+          echo "published $APK_NAME to $DEPLOY_USER@$DEPLOY_HOST:$target"

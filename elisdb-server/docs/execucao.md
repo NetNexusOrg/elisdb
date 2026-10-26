@@ -56,8 +56,11 @@ tags, nunca em `main`). Não é preciso reiniciar o servidor — o ficheiro é
 descoberto no pedido seguinte.
 
 1. Sobe `app.versionCode` e `app.versionName` em `elisdb-android/gradle.properties`.
-2. Cria a tag (`git tag v1.6.0 && git push origin v1.6.0`).
-3. Em cada telemóvel: **Sobre** → **Procurar atualizações** → **Transferir** →
+2. Escreve a secção da versão em `CHANGELOG.md` (`## [1.6.0]`, com **Novidades** e
+   **Correções**): é o texto que aparece como descrição do release no GitHub. Uma
+   tag sem secção correspondente falha o `release` antes de gerar o APK.
+3. Cria a tag (`git tag v1.6.0 && git push origin v1.6.0`).
+4. Em cada telemóvel: **Sobre** → **Procurar atualizações** → **Transferir** →
    **Instalar**.
 
 ### Configurar a publicação automática (uma vez)

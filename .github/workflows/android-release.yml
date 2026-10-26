@@ -115,6 +115,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # The release body is the hand-written section of CHANGELOG.md for this
+      # tag — what changed, for the people who use the app — instead of the
+      # generated "What's Changed"/"Full Changelog" text. Failing here, before
+      # the build, is better than publishing a release with no notes.
+      - name: Extract release notes
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          awk -v heading="## [${version}]" '
+            index($0, heading) == 1 { found = 1; next }
+            found && index($0, "## [") == 1 { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          if [ ! -s "$RUNNER_TEMP/release-notes.md" ]; then
+            echo "::error::CHANGELOG.md has no '## [${version}]' section; add the release notes before tagging"
+            exit 1
+          fi
+
       - name: Setup Java 17
         uses: actions/setup-java@v5
         with:
@@ -175,7 +193,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: elisdb-android/app/build/outputs/apk/release/${{ env.APK_NAME }}
-          generate_release_notes: true
+          # Notes written by hand in CHANGELOG.md (see "Extract release notes"),
+          # not the generated commit list with a "Full Changelog" link.
+          body_path: ${{ runner.temp }}/release-notes.md
 
       # Publishes the build to the server, where the app picks it up from
       # "Sobre -> Procurar atualizações". Nothing restarts: the server discovers

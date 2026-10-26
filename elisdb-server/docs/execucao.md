@@ -177,6 +177,42 @@ docker compose logs -f    # acompanhar os logs
 docker compose down       # parar (não apaga o volume de dados)
 ```
 
+## Atualizar o servidor em produção
+
+O código do servidor publicado tem de ser um commit que o **Server CI** já
+testou. Como o repositório é privado e o plano atual do GitHub não permite
+exigir checks verdes na `main` (*branch protection*), essa garantia vive no
+script de deploy, a partir da raiz do repositório:
+
+```bash
+./scripts/deploy-server.sh --check   # só verifica, não toca na VPS
+./scripts/deploy-server.sh           # copia e reconstrói o contentor
+```
+
+O script recusa publicar quando:
+
+- há alterações por commitar em `elisdb-server/` (o que é copiado é a árvore de
+  trabalho, não o último commit);
+- a `main` local não coincide com `origin/main`;
+- o último commit que mexeu em `elisdb-server/` não tem um run do **Server CI**
+  concluído com sucesso (em falta, a correr, ou vermelho).
+
+Depois copia `elisdb-server/` para a VPS por `rsync` (sem `compose.yaml`, que em
+produção é próprio — *bind mount*, `PUID/PGID` e utilizadores da VPS) e corre
+`docker compose up -d --build`. Não é preciso reiniciar para publicar uma versão
+da app: o pacote é descoberto pelo nome (ver
+[Publicar uma nova versão da app](#publicar-uma-nova-versão-da-app)).
+
+Variáveis opcionais:
+
+| Variável | Por omissão | Para quê |
+| --- | --- | --- |
+| `ELISDB_DEPLOY_HOST` | `vps01` | host SSH do servidor |
+| `ELISDB_DEPLOY_TARGET` | `docker/elisdb-server` | pasta de destino (relativa à home) |
+| `ELISDB_HEALTH_URL` | (vazio) | URL de `/health` a confirmar no fim |
+
+`-y` salta a confirmação interativa.
+
 ## Produção (considerações)
 
 - **HTTPS é responsabilidade do operador.** O servidor fala HTTP simples (porta

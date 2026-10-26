@@ -30,6 +30,20 @@ description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-relea
   then publishes the same file to the server with `rsync` (step "Publish APK to the server";
   skipped with a warning when the `DEPLOY_*` secrets are absent).
 
+## Deploy guard (no branch protection)
+
+`server-ci.yml` also has a `docker` job ("Docker image"): `docker build` plus an
+import of the runtime modules inside the image, so a missing `requirements.txt`
+entry or a broken Dockerfile fails on the push instead of on the VPS.
+
+The repository is private on a plan without branch protection (required status
+checks answer 403 "Upgrade to GitHub Pro or make this repository public"), so the
+production-side guard is `scripts/deploy-server.sh`: it refuses to deploy unless
+`elisdb-server/` is clean, local `main` equals `origin/main`, and the last commit
+touching `elisdb-server/` has a completed, successful **Server CI** run. It then
+rsyncs the code (never `compose.yaml`, which is host-specific) and runs
+`docker compose up -d --build` on the VPS. `--check` verifies without deploying.
+
 ## Toolchain
 
 - Java 17, Android SDK via `android-actions/setup-android` (AGP downloads the platform/build-tools it needs).

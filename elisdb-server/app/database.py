@@ -99,11 +99,55 @@ def _migrate_clients_created_at(conn: sqlite3.Connection) -> None:
         conn.execute("UPDATE clientes SET created_at = updated_at")
 
 
+def _migrate_delivery_ts(conn: sqlite3.Connection) -> None:
+    """Idempotently add the delivery clock used to hand changes to devices.
+
+    `updated_at`/`deleted_at` carry the device clock and decide last-write-wins.
+    They cannot also drive the pull cursor: the server has to be able to deliver
+    a write stamped *behind* the watermark (a slow device) without pretending it
+    happened later. `delivery_ts` is assigned by the server, strictly above
+    everything already delivered, and is the only cursor the pull uses.
+
+    Existing rows are backfilled from the timestamp they already had, so no
+    device loses sight of data it has not pulled yet.
+    """
+    columns = [
+        row["name"] for row in conn.execute("PRAGMA table_info(clientes)").fetchall()
+    ]
+    if "delivery_ts" not in columns:
+        conn.execute("ALTER TABLE clientes ADD COLUMN delivery_ts INTEGER NOT NULL DEFAULT 0")
+    conn.execute("UPDATE clientes SET delivery_ts = updated_at WHERE delivery_ts = 0")
+
+    columns = [
+        row["name"] for row in conn.execute("PRAGMA table_info(tombstones)").fetchall()
+    ]
+    if "delivery_ts" not in columns:
+        conn.execute(
+            "ALTER TABLE tombstones ADD COLUMN delivery_ts INTEGER NOT NULL DEFAULT 0"
+        )
+    conn.execute("UPDATE tombstones SET delivery_ts = deleted_at WHERE delivery_ts = 0")
+
+    # Created here (not in SCHEMA) because the columns only exist after the
+    # ALTERs above.
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_clientes_delivery ON clientes (delivery_ts, id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_tombstones_delivery ON tombstones (delivery_ts)"
+    )
+
+
 def _migrate_clients_nullable_coords(conn: sqlite3.Connection) -> None:
     """Idempotently make clientes.latitude/longitude nullable.
 
     SQLite cannot ALTER a column's nullability, so the table is rebuilt.
     Existing NOT NULL data is preserved; new rows may store NULL coordinates.
+
+    The rebuild drops `clientes`, and `fotos` references it with ON DELETE
+    CASCADE, so foreign-key enforcement has to be off for real. The PRAGMA is a
+    silent no-op inside a transaction, and an earlier migration may have left one
+    open; committing first and reading the pragma back turns that failure mode
+    into an explicit error instead of deleting every photo row.
     """
     columns = [
         dict(row) for row in conn.execute("PRAGMA table_info(clientes)").fetchall()
@@ -111,9 +155,18 @@ def _migrate_clients_nullable_coords(conn: sqlite3.Connection) -> None:
     latitude = next((c for c in columns if c["name"] == "latitude"), None)
     if latitude is None or latitude["notnull"] != 1:
         return
+
+    conn.commit()
     conn.execute("PRAGMA foreign_keys = OFF")
     try:
-        conn.executescript(
+        if conn.execute("PRAGMA foreign_keys").fetchone()[0] != 0:
+            raise RuntimeError(
+                "cannot disable foreign keys for the clientes rebuild; "
+                "refusing to risk the photos that cascade with it"
+            )
+        photos_before = conn.execute("SELECT COUNT(*) FROM fotos").fetchone()[0]
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
             """
             CREATE TABLE clientes_new (
                 id TEXT PRIMARY KEY,
@@ -123,16 +176,38 @@ def _migrate_clients_nullable_coords(conn: sqlite3.Connection) -> None:
                 longitude REAL,
                 notas TEXT,
                 updated_at INTEGER NOT NULL,
-                created_at INTEGER NOT NULL DEFAULT 0
-            );
-            INSERT INTO clientes_new (id, nome, contrato, latitude, longitude, notas, updated_at, created_at)
-                SELECT id, nome, contrato, latitude, longitude, notas, updated_at, created_at FROM clientes;
-            DROP TABLE clientes;
-            ALTER TABLE clientes_new RENAME TO clientes;
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_nome
-                ON clientes (nome COLLATE NOCASE);
+                created_at INTEGER NOT NULL DEFAULT 0,
+                delivery_ts INTEGER NOT NULL DEFAULT 0
+            )
             """
         )
+        conn.execute(
+            """
+            INSERT INTO clientes_new
+                (id, nome, contrato, latitude, longitude, notas, updated_at, created_at, delivery_ts)
+            SELECT id, nome, contrato, latitude, longitude, notas, updated_at, created_at, delivery_ts
+            FROM clientes
+            """
+        )
+        conn.execute("DROP TABLE clientes")
+        conn.execute("ALTER TABLE clientes_new RENAME TO clientes")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_nome "
+            "ON clientes (nome COLLATE NOCASE)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_clientes_delivery ON clientes (delivery_ts, id)"
+        )
+        photos_after = conn.execute("SELECT COUNT(*) FROM fotos").fetchone()[0]
+        if photos_after != photos_before:
+            raise RuntimeError(
+                "clientes rebuild would lose photo rows "
+                f"({photos_before} -> {photos_after}); aborting"
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.execute("PRAGMA foreign_keys = ON")
 
@@ -164,6 +239,14 @@ def _migrate_timestamps_to_seconds(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         "UPDATE clientes SET created_at = created_at / 1000 WHERE created_at > 100000000000"
+    )
+    # delivery_ts is backfilled from updated_at, so a legacy millisecond value
+    # would otherwise survive as a cursor far in the future.
+    conn.execute(
+        "UPDATE clientes SET delivery_ts = delivery_ts / 1000 WHERE delivery_ts > 100000000000"
+    )
+    conn.execute(
+        "UPDATE tombstones SET delivery_ts = delivery_ts / 1000 WHERE delivery_ts > 100000000000"
     )
     conn.execute(
         "UPDATE client_audit SET ts = ts / 1000 WHERE ts > 100000000000"
@@ -300,6 +383,8 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     _migrate_keys_comment(conn)
     _migrate_keys_provisioned(conn)
     _migrate_clients_created_at(conn)
+    # delivery_ts must exist before the coordinate rebuild, which copies it.
+    _migrate_delivery_ts(conn)
     _migrate_clients_nullable_coords(conn)
     _migrate_client_audit_details(conn)
     _migrate_timestamps_to_seconds(conn)
@@ -341,7 +426,9 @@ class Database:
         if fotos_dir is None:
             dirname = os.path.dirname(os.path.abspath(db_path))
             fotos_dir = os.path.join(dirname, "photos")
-        self.fotos_dir = fotos_dir
+        # Stored paths are absolute; normalising here keeps the orphan sweep
+        # comparing like with like when the caller passes a relative directory.
+        self.fotos_dir = os.path.abspath(fotos_dir)
 
     def _conn(self) -> sqlite3.Connection:
         return connect(self.db_path)
@@ -362,14 +449,14 @@ class Database:
 
     def save_client(
         self, cliente: ClienteIn, fotos: list[FotoIn], actor: dict | None = None
-    ) -> tuple[str, str | None, dict | None]:
+    ) -> tuple[str, str | None, dict | None, list[str]]:
         """Insert or update a client, applying last-write-wins.
 
         When `actor` (the authenticated key record: `id`, `comment`) is given and
         the record is accepted, an audit entry is appended to client_audit
         (`create` on insert, `edit` on update).
 
-        Returns (status, existing_id, canonical) where status is:
+        Returns (status, existing_id, canonical, missing_photos) where status is:
           - "accepted": the record (and photos) were persisted
           - "duplicate": a different client already holds this normalized name
           - "stale": the incoming updated_at is older than the stored value
@@ -377,6 +464,10 @@ class Database:
         On "duplicate", `canonical` carries the stored canonical record (client
         + photos) so the client can merge without a separate round-trip; it is
         None for any other status.
+
+        `missing_photos` lists the photo ids the push referenced but whose bytes
+        are not on the server. They are not stored, and the client is told so it
+        uploads them again instead of assuming they are safe.
         """
         nome = normalize_nome(cliente.nome)
         if not nome:
@@ -393,25 +484,24 @@ class Database:
             # two concurrent pushes cannot both pick the same bumped timestamp
             # and hide each other from devices pulling in between.
             conn.execute("BEGIN IMMEDIATE")
+            # Read the delivery clock before touching any row: a resurrection
+            # deletes the tombstone, and the new record still has to be handed
+            # out above everything already delivered.
+            watermark = self._delivery_watermark(conn)
             tombstone = conn.execute(
                 "SELECT deleted_at FROM tombstones WHERE id = ?", (cliente.id,)
             ).fetchone()
             if tombstone is not None and cliente.updated_at <= tombstone["deleted_at"]:
-                return "stale", None, None
+                return "stale", None, None, []
             if tombstone is not None:
                 # The pushed record is newer than the deletion: resurrect the
                 # client and clear the tombstone so it persists as a new record.
                 conn.execute("DELETE FROM tombstones WHERE id = ?", (cliente.id,))
 
-            # Pulls are timestamp-cursored: a device only receives records newer
-            # than its watermark. A push can be accepted while carrying an older
-            # updated_at (device clock behind, or an edit made days ago and only
-            # synced now); storing it as-is would leave it invisible to every
-            # device that already pulled past that timestamp. Give accepted
-            # writes the next watermark value instead, so they are delivered.
-            # The audit entry keeps the original timestamp: that is when the
-            # change was actually made.
-            watermark = self._delivery_watermark(conn)
+            # `updated_at` keeps the device timestamp (it is what last-write-wins
+            # compares) while `delivery_ts` is assigned here so the change is
+            # visible to every device pulling from a watermark at or behind it,
+            # even when the pushing device's clock is behind.
             delivery_ts = max(cliente.updated_at, watermark + 1)
 
             existing = conn.execute(
@@ -422,29 +512,30 @@ class Database:
 
             if existing is not None:
                 if cliente.updated_at < existing["updated_at"]:
-                    return "stale", None, None
+                    return "stale", None, None, []
                 other = conn.execute(
                     "SELECT id FROM clientes WHERE nome = ? COLLATE NOCASE AND id != ?",
                     (nome, cliente.id),
                 ).fetchone()
                 if other is not None:
                     canonical = self._canonical_from_conn(conn, other["id"])
-                    return "duplicate", other["id"], canonical
+                    return "duplicate", other["id"], canonical, []
                 before = dict(existing)
                 before_photos = self._photo_ids(conn, cliente.id)
                 conn.execute(
-                    "UPDATE clientes SET nome=?, contrato=?, latitude=?, longitude=?, notas=?, updated_at=? WHERE id=?",
+                    "UPDATE clientes SET nome=?, contrato=?, latitude=?, longitude=?, notas=?, updated_at=?, delivery_ts=? WHERE id=?",
                     (
                         nome,
                         cliente.contrato,
                         cliente.latitude,
                         cliente.longitude,
                         cliente.notas,
+                        cliente.updated_at,
                         delivery_ts,
                         cliente.id,
                     ),
                 )
-                after_photos = self._replace_fotos(conn, cliente.id, fotos)
+                kept_ids, missing_ids = self._replace_fotos(conn, cliente.id, fotos)
                 details = build_audit_details(
                     before,
                     {
@@ -455,7 +546,7 @@ class Database:
                         "notas": cliente.notas,
                     },
                     before_photos,
-                    after_photos,
+                    kept_ids,
                 )
                 # A push that changes nothing records no entry: "edited" with no
                 # visible difference is noise in the history.
@@ -464,12 +555,12 @@ class Database:
                         conn, cliente.id, actor, "edit", cliente.updated_at, details
                     )
                 conn.commit()
-                return "accepted", None, None
+                return "accepted", None, None, missing_ids
 
             try:
                 conn.execute(
-                    "INSERT INTO clientes (id, nome, contrato, latitude, longitude, notas, updated_at, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO clientes (id, nome, contrato, latitude, longitude, notas, updated_at, created_at, delivery_ts) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         cliente.id,
                         nome,
@@ -477,8 +568,9 @@ class Database:
                         cliente.latitude,
                         cliente.longitude,
                         cliente.notas,
-                        delivery_ts,
                         cliente.updated_at,
+                        cliente.updated_at,
+                        delivery_ts,
                     ),
                 )
             except sqlite3.IntegrityError:
@@ -487,10 +579,10 @@ class Database:
                     "SELECT id FROM clientes WHERE nome = ? COLLATE NOCASE", (nome,)
                 ).fetchone()
                 if other is None:
-                    return "duplicate", None, None
+                    return "duplicate", None, None, []
                 canonical = self._canonical_from_conn(conn, other["id"])
-                return "duplicate", other["id"], canonical
-            after_photos = self._replace_fotos(conn, cliente.id, fotos)
+                return "duplicate", other["id"], canonical, []
+            kept_ids, missing_ids = self._replace_fotos(conn, cliente.id, fotos)
             details = build_audit_details(
                 None,
                 {
@@ -501,13 +593,13 @@ class Database:
                     "notas": cliente.notas,
                 },
                 [],
-                after_photos,
+                kept_ids,
             )
             self._record_audit(
                 conn, cliente.id, actor, "create", cliente.updated_at, details
             )
             conn.commit()
-            return "accepted", None, None
+            return "accepted", None, None, missing_ids
         finally:
             conn.close()
 
@@ -547,7 +639,7 @@ class Database:
 
     def _replace_fotos(
         self, conn: sqlite3.Connection, cliente_id: str, fotos: list[FotoIn]
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str]]:
         """Merge a client's photos into the store.
 
         Photos are referenced by id and their binary content is uploaded to the
@@ -555,11 +647,15 @@ class Database:
         recorded. Photos owned by another client are rejected rather than
         reassigned. Stored photos the push no longer lists are removed as before.
 
-        Returns the kept photo ids in display order (the canonical set), which
-        the audit uses to describe what was added or removed.
+        Returns (kept_ids, missing_ids): the kept photo ids in display order (the
+        canonical set, which the audit uses to describe what was added or
+        removed) and the ids the push referenced whose file is absent. The
+        missing ones are reported back so the client uploads them again instead
+        of recording them as already pushed.
         """
         incoming = sorted(fotos, key=lambda f: f.ordem)
         kept_ids: list[str] = []
+        missing_ids: list[str] = []
         for foto in incoming:
             owner = conn.execute(
                 "SELECT cliente_id FROM fotos WHERE id = ?", (foto.id,)
@@ -570,6 +666,8 @@ class Database:
                 )
             if os.path.exists(self._foto(foto.id)):
                 kept_ids.append(foto.id)
+            else:
+                missing_ids.append(foto.id)
 
         # The client's canonical photo set is exactly what the push lists.
         # Remove rows no longer present, deleting their files from disk too so
@@ -605,7 +703,7 @@ class Database:
                 "cliente_id=excluded.cliente_id, mime=excluded.mime, caminho=excluded.caminho, ordem=excluded.ordem",
                 (foto.id, cliente_id, foto.mime, self._foto(foto.id), foto.ordem),
             )
-        return kept_ids
+        return kept_ids, missing_ids
 
     def _foto(self, foto_id: str) -> str:
         candidate = os.path.abspath(os.path.join(self.fotos_dir, foto_id))
@@ -667,7 +765,10 @@ class Database:
             return 0
         conn = self._conn()
         try:
-            stored = {row["caminho"] for row in conn.execute("SELECT caminho FROM fotos").fetchall()}
+            stored = {
+                os.path.abspath(row["caminho"])
+                for row in conn.execute("SELECT caminho FROM fotos").fetchall()
+            }
         finally:
             conn.close()
         removed = 0
@@ -675,6 +776,10 @@ class Database:
             if name.endswith(".tmp"):
                 continue
             path = os.path.join(self.fotos_dir, name)
+            # A subdirectory is not an orphaned photo; removing it would also
+            # mean deleting a whole tree, which this pass must never do.
+            if not os.path.isfile(path):
+                continue
             if path not in stored:
                 try:
                     os.remove(path)
@@ -685,17 +790,21 @@ class Database:
 
     @staticmethod
     def _delivery_watermark(conn: sqlite3.Connection) -> int:
-        """Newest timestamp a device may already hold (clients + tombstones)."""
+        """Highest delivery timestamp handed out so far (clients + tombstones).
+
+        Reads `delivery_ts`, not `updated_at`: the two clocks are independent and
+        only the delivery clock orders the pull cursor.
+        """
         max_clients = conn.execute(
-            "SELECT COALESCE(MAX(updated_at), 0) FROM clientes"
+            "SELECT COALESCE(MAX(delivery_ts), 0) FROM clientes"
         ).fetchone()[0]
         max_tombstones = conn.execute(
-            "SELECT COALESCE(MAX(deleted_at), 0) FROM tombstones"
+            "SELECT COALESCE(MAX(delivery_ts), 0) FROM tombstones"
         ).fetchone()[0]
         return max(max_clients, max_tombstones)
 
     def latest_updated_at(self) -> int:
-        """Largest `updated_at` over stored clients and `deleted_at` over tombstones (0 when empty)."""
+        """Largest delivery timestamp over clients and tombstones (0 when empty)."""
         conn = self._conn()
         try:
             return self._delivery_watermark(conn)
@@ -753,7 +862,7 @@ class Database:
         Returns None when the client does not exist.
         """
         row = conn.execute(
-            "SELECT id, nome, contrato, latitude, longitude, notas, updated_at, created_at "
+            "SELECT id, nome, contrato, latitude, longitude, notas, updated_at, created_at, delivery_ts "
             "FROM clientes WHERE id = ?",
             (cliente_id,),
         ).fetchone()
@@ -789,57 +898,62 @@ class Database:
     ) -> tuple[list[dict], list[dict], int | None, str | None]:
         """Returns (records, tombstones, next_since, next_since_id).
 
-        Filters records to `updated_at > since` when `since` is given. When
-        `since_id` is also given, the filter is a keyset over `(updated_at, id)`:
-        `updated_at > since OR (updated_at = since AND id > since_id)`, so records
-        sharing the same `updated_at` are never skipped at a page boundary.
+        The cursor is the *delivery* timestamp, not `updated_at`: the server
+        hands out delivery timestamps so a write stamped behind the current
+        watermark is still delivered, while `updated_at` alone decides
+        last-write-wins.
+
+        Filters records to `delivery_ts > since` when `since` is given. When
+        `since_id` is also given, the filter is a keyset over `(delivery_ts, id)`:
+        `delivery_ts > since OR (delivery_ts = since AND id > since_id)`, so
+        records sharing the same delivery timestamp are never skipped at a page
+        boundary.
 
         With `limit`, at most `limit` records are returned per call and the cursor
-        (`next_since`, `next_since_id`) is the `(updated_at, id)` of the last
+        (`next_since`, `next_since_id`) is the `(delivery_ts, id)` of the last
         record of the returned page, to be used as `(since, since_id)` for the
         next call (a next page exists only when `next_since` is not None).
-        Tombstones are filtered to `deleted_at > since` when `since` is given so
+        Tombstones are filtered to `delivery_ts > since` when `since` is given so
         incremental pulls carry only new deletions.
         """
         conn = self._conn()
         try:
-            sql = "SELECT id FROM clientes"
+            sql = "SELECT id, delivery_ts FROM clientes"
             params: list = []
             if since is not None:
                 if since_id is not None:
-                    sql += " WHERE updated_at > ? OR (updated_at = ? AND id > ?)"
+                    sql += " WHERE delivery_ts > ? OR (delivery_ts = ? AND id > ?)"
                     params += [since, since, since_id]
                 else:
-                    sql += " WHERE updated_at > ?"
+                    sql += " WHERE delivery_ts > ?"
                     params.append(since)
-            # Paginated pulls order by updated_at so the cursor is a monotonic
+            # Paginated pulls order by delivery_ts so the cursor is a monotonic
             # keyset; unrestricted pulls keep the historical name ordering.
             if limit is not None:
-                sql += " ORDER BY updated_at, id LIMIT ?"
+                sql += " ORDER BY delivery_ts, id LIMIT ?"
                 params.append(limit + 1)
             else:
                 sql += " ORDER BY nome COLLATE NOCASE"
             rows = conn.execute(sql, params).fetchall()
-            fetched = [r["id"] for r in rows]
+            fetched = [(r["id"], r["delivery_ts"]) for r in rows]
             has_more = limit is not None and len(fetched) > limit
-            cliente_ids = fetched[:limit] if has_more else fetched
+            page = fetched[:limit] if has_more else fetched
+            cliente_ids = [cliente_id for cliente_id, _ in page]
             next_since = None
             next_since_id = None
-            if has_more and cliente_ids:
-                last_id = cliente_ids[-1]
-                last = conn.execute(
-                    "SELECT updated_at FROM clientes WHERE id = ?",
-                    (last_id,),
-                ).fetchone()
-                if last is not None:
-                    next_since = last["updated_at"]
-                    next_since_id = last_id
+            if has_more and page:
+                # Taken from the row already read: re-querying could observe a
+                # newer timestamp written meanwhile and make the client skip
+                # everything between the two positions.
+                last_id, last_delivery = page[-1]
+                next_since, next_since_id = last_delivery, last_id
 
             if since is not None:
                 tombstones = [
                     dict(r)
                     for r in conn.execute(
-                        "SELECT id, deleted_at FROM tombstones WHERE deleted_at > ? ORDER BY deleted_at",
+                        "SELECT id, deleted_at, delivery_ts FROM tombstones "
+                        "WHERE delivery_ts > ? ORDER BY delivery_ts",
                         (since,),
                     ).fetchall()
                 ]
@@ -847,21 +961,30 @@ class Database:
                 tombstones = [
                     dict(r)
                     for r in conn.execute(
-                        "SELECT id, deleted_at FROM tombstones ORDER BY deleted_at"
+                        "SELECT id, deleted_at, delivery_ts FROM tombstones "
+                        "ORDER BY delivery_ts"
                     ).fetchall()
                 ]
         finally:
             conn.close()
-        return (
-            [self.get_client_with_photos(i) for i in cliente_ids],
-            tombstones,
-            next_since,
-            next_since_id,
-        )
+        records = [
+            record
+            for record in (self.get_client_with_photos(i) for i in cliente_ids)
+            # A record deleted between the page query and this read is simply not
+            # part of the page; returning None would break the response.
+            if record is not None
+        ]
+        return records, tombstones, next_since, next_since_id
 
     def delete_client(self, cliente_id: str, deleted_at: int | None = None) -> bool:
         conn = self._conn()
         try:
+            # Serialize with pushes and read the delivery clock before the row
+            # disappears, so the tombstone is handed out above everything already
+            # delivered — a deletion stamped behind a device's watermark would
+            # otherwise never reach it.
+            conn.execute("BEGIN IMMEDIATE")
+            watermark = self._delivery_watermark(conn)
             paths = [
                 r["caminho"]
                 for r in conn.execute(
@@ -872,11 +995,14 @@ class Database:
             if cur.rowcount > 0:
                 deleted_at = int(time.time()) if deleted_at is None else deleted_at
                 conn.execute(
-                    "INSERT OR REPLACE INTO tombstones (id, deleted_at) VALUES (?, ?)",
-                    (cliente_id, deleted_at),
+                    "INSERT OR REPLACE INTO tombstones (id, deleted_at, delivery_ts) "
+                    "VALUES (?, ?, ?)",
+                    (cliente_id, deleted_at, max(deleted_at, watermark + 1)),
                 )
             conn.commit()
             if cur.rowcount > 0:
+                # Files are removed only after the commit: a rollback must not
+                # leave rows pointing at content that no longer exists.
                 for path in paths:
                     self._remove_file(path)
             return cur.rowcount > 0

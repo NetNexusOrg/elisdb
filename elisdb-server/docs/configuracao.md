@@ -103,6 +103,29 @@ environment:
 > Usa sempre o mesmo valor de `ELISDB_DB` também nos comandos `app.keys` — as
 > chaves registadas vivem nesse mesmo ficheiro de dados.
 
+## Contrato de sincronização (referência)
+
+Cada registo tem dois relógios, com papéis diferentes:
+
+- **`updated_at`** (cliente) e **`deleted_at`** (eliminação) vêm do dispositivo e
+  **só decidem conflitos** (last-write-wins). O servidor guarda-os exatamente como
+  os recebe, mesmo que venham de um telemóvel com o relógio atrasado.
+- **`delivery_ts`** é atribuído pelo servidor (`max(timestamp do dispositivo,
+  watermark + 1)`, sob o *write lock*) e é **o cursor do pull**: `GET /api/pull`
+  filtra, ordena e pagina por `delivery_ts`, e cada registo e tombstone devolve o
+  seu. `next_since` vem da última linha lida.
+
+Consequências que valem a pena saber ao diagnosticar:
+
+- Uma eliminação feita com o relógio atrasado **chega na mesma** aos outros
+  dispositivos: o tombstone guarda `deleted_at` (para o LWW) mas é entregue pelo
+  `delivery_ts`, que é sempre maior do que tudo o que já saiu.
+- Um `push` com `updated_at` mais antigo do que o watermark **não é rejeitado**:
+  fica com o seu `updated_at` e recebe um `delivery_ts` novo.
+- A resposta do push traz `missing_photos`: fotos referenciadas cujo ficheiro não
+  existe no servidor. Não são gravadas e o cliente volta a enviá-las; nunca são
+  dadas como enviadas.
+
 ## Primeira execução
 
 Numa base de dados nova, **nenhuma chave é confiada**: até emitires a primeira

@@ -212,7 +212,9 @@ def create_app(database: Database | None = None) -> FastAPI:
         results: list[PushResult] = []
         for record in req.records:
             try:
-                status, existing_id, canonical = store.save_client(record.client, record.fotos, actor=actor)
+                status, existing_id, canonical, missing = store.save_client(
+                    record.client, record.fotos, actor=actor
+                )
             except ValueError as exc:
                 # One invalid record must not abort the whole batch: report it
                 # per-record and keep processing the rest.
@@ -226,6 +228,7 @@ def create_app(database: Database | None = None) -> FastAPI:
                     existing_id=existing_id,
                     client=canonical["client"] if canonical is not None else None,
                     fotos=canonical["fotos"] if canonical is not None else [],
+                    missing_photos=missing,
                 )
             )
         return results

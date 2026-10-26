@@ -93,6 +93,13 @@ Durante uma sincronização, as fotos que já existem no servidor **sem mudança
 não são reescritas, e um ficheiro novo só é gravado antes da sua linha na base
 de dados — se a sincronização falhar a meio, as fotos anteriores ficam intactas.
 
+Duas garantias que evitam surpresas:
+
+- Uma alteração feita **enquanto** a sincronização está a decorrer não é
+  substituída: fica pendente e é enviada na sincronização seguinte.
+- Um cliente eliminado noutro telemóvel desaparece também aqui, mesmo que o
+  relógio desse telemóvel estivesse atrasado.
+
 > **Registo duplicado:** se criares um cliente com um nome que já exista no
 > servidor (comparação por nome normalizado), o servidor responde `duplicate` e
 > a app **funde** o registo local com o existente: o teu registo é reatribuído

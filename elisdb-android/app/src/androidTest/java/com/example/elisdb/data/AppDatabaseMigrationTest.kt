@@ -71,6 +71,13 @@ class AppDatabaseMigrationTest {
     assertEquals("Maria", cliente?.nome)
     assertEquals(1.0, cliente?.latitude)
 
+    // The column is dropped by rebuilding the table; the rebuild must not
+    // cascade into the fotos rows (SQLite's DROP COLUMN does not exist before
+    // 3.35, i.e. on Android 14 and older releases).
+    val fotos = runBlocking { database.fotoDao().getByCliente("1") }
+    assertEquals(1, fotos.size)
+    assertEquals("/x.jpg", fotos[0].uriLocal)
+
     val columns =
       database.openHelper.writableDatabase.query("PRAGMA table_info(clientes)").use { cursor ->
         buildSet {
@@ -538,6 +545,7 @@ class AppDatabaseMigrationTest {
         "INSERT INTO clientes (nome, telefone, contrato, latitude, longitude, notas, dataCriacao) " +
           "VALUES ('Maria', NULL, 'CT-1', 1.0, 2.0, NULL, 1000)"
       )
+      db.execSQL("INSERT INTO fotos (clienteId, uriLocal) VALUES (1, '/x.jpg')")
     }
     helper.close()
   }

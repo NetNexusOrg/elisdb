@@ -63,6 +63,9 @@ class ClienteOut(BaseModel):
     notas: str | None = None
     updated_at: int
     created_at: int = 0
+    # Server-assigned cursor for incremental pulls; independent of updated_at,
+    # which stays the device timestamp that decides last-write-wins.
+    delivery_ts: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -75,6 +78,8 @@ class ClienteComFotosOut(BaseModel):
 class TombstoneOut(BaseModel):
     id: str
     deleted_at: int
+    # Delivery cursor of the deletion (see ClienteOut.delivery_ts).
+    delivery_ts: int = 0
 
 
 class AuditFieldChange(BaseModel):
@@ -123,6 +128,9 @@ class PushResult(BaseModel):
     # client can reconcile without a separate round-trip.
     client: ClienteOut | None = None
     fotos: list[FotoOut] = []
+    # Photo ids the push referenced whose content the server does not have; the
+    # client must upload them again instead of recording them as sent.
+    missing_photos: list[str] = []
 
 
 class AppReleaseOut(BaseModel):

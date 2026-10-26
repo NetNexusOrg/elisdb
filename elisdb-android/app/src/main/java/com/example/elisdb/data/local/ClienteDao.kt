@@ -56,6 +56,14 @@ interface ClienteDao {
   @Update
   suspend fun update(cliente: Cliente)
 
+  /**
+   * Clears [Cliente.pending] only while the row still holds the version that was
+   * pushed. Returns 1 when the ack applied, 0 when the record was edited while
+   * the push was in flight (the new edit must stay pending and be sent again).
+   */
+  @Query("UPDATE clientes SET pending = 0 WHERE id = :id AND updatedAt = :seenUpdatedAt")
+  suspend fun markSynced(id: String, seenUpdatedAt: Long): Int
+
   @Delete
   suspend fun delete(cliente: Cliente)
 }

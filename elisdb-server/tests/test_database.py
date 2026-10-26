@@ -47,9 +47,10 @@ def test_future_updated_at_rejected(tmp_path):
 def test_duplicate_name_returns_canonical(tmp_path):
     db = _db(tmp_path)
     db.save_client(_cliente(id="1", nome="Ana", updated_at=1000), [])
-    status, existing_id, canonical = db.save_client(
+    status, existing_id, canonical, missing = db.save_client(
         _cliente(id="2", nome="  ana ", updated_at=1000), []
     )
+    assert missing == []
     assert status == "duplicate"
     assert existing_id == "1"
     assert canonical["client"]["id"] == "1"
@@ -74,12 +75,15 @@ def test_pull_pagination_keyset(tmp_path):
     for i in ("a", "b", "c"):
         db.save_client(_cliente(id=i, nome=i.upper(), updated_at=100), [])
     db.save_client(_cliente(id="d", nome="D", updated_at=200), [])
-    # Accepted writes are bumped onto the next watermark value, so rewind the
-    # timestamps here to exercise the keyset over records sharing updated_at.
+    # Accepted writes get increasing delivery timestamps, so rewind both clocks
+    # here to exercise the keyset over records sharing one value.
     conn = connect(db.db_path)
     try:
-        conn.execute("UPDATE clientes SET updated_at = 100 WHERE id IN ('a', 'b', 'c')")
-        conn.execute("UPDATE clientes SET updated_at = 200 WHERE id = 'd'")
+        conn.execute(
+            "UPDATE clientes SET updated_at = 100, delivery_ts = 100 "
+            "WHERE id IN ('a', 'b', 'c')"
+        )
+        conn.execute("UPDATE clientes SET updated_at = 200, delivery_ts = 200 WHERE id = 'd'")
         conn.commit()
     finally:
         conn.close()
@@ -143,26 +147,31 @@ def test_migration_converts_milliseconds_and_is_idempotent(tmp_path):
     conn.close()
 
 
-def test_old_timestamp_is_bumped_so_the_write_is_deliverable(tmp_path):
+def test_old_timestamp_is_delivered_without_rewriting_updated_at(tmp_path):
     db = _db(tmp_path)
     assert db.save_client(_cliente(id="a", updated_at=2000), [])[0] == "accepted"
 
     # An edit made with a lagging clock (or synced days later) arrives after a
-    # newer record exists: storing its old timestamp verbatim would leave it
-    # invisible to every device that already pulled past that point.
+    # newer record exists. It still has to reach devices that already pulled
+    # past 1500 — without pretending the edit happened at 2001, which would let
+    # a server stamp win a conflict against a newer device edit.
     assert db.save_client(_cliente(id="b", nome="Bea", updated_at=1500), [])[0] == "accepted"
 
-    assert db.get_client_with_photos("b")["client"]["updated_at"] == 2001
+    stored = db.get_client_with_photos("b")["client"]
+    assert stored["updated_at"] == 1500
+    assert stored["delivery_ts"] == 2001
     records, _tombstones, _since, _since_id = db.pull_all(2000)
     assert [record["client"]["id"] for record in records] == ["b"]
 
 
-def test_equal_timestamp_is_also_bumped(tmp_path):
+def test_equal_timestamp_gets_the_next_delivery_value(tmp_path):
     db = _db(tmp_path)
     db.save_client(_cliente(id="a", updated_at=2000), [])
     db.save_client(_cliente(id="b", nome="Bea", updated_at=2000), [])
 
-    assert db.get_client_with_photos("b")["client"]["updated_at"] == 2001
+    stored = db.get_client_with_photos("b")["client"]
+    assert stored["updated_at"] == 2000
+    assert stored["delivery_ts"] == 2001
 
 
 def test_audit_entry_keeps_the_original_edit_time(tmp_path):
@@ -294,7 +303,7 @@ def test_unchanged_push_records_no_entry(tmp_path):
     actor = {"id": "key-1", "comment": "Joao"}
     db.save_client(_cliente(id="a", updated_at=1000), [], actor)
 
-    status, _existing, _canonical = db.save_client(
+    status, _existing, _canonical, _missing = db.save_client(
         _cliente(id="a", nome="  ana ", updated_at=1001), [], actor
     )
 

@@ -266,6 +266,7 @@ private class FakeAndroidClienteDao : com.example.elisdb.data.local.ClienteDao {
   override suspend fun insert(cliente: Cliente) = Unit
   override suspend fun upsert(cliente: Cliente) = Unit
   override suspend fun update(cliente: Cliente) = Unit
+  override suspend fun markSynced(id: String, seenUpdatedAt: Long): Int = 1
   override suspend fun delete(cliente: Cliente) = Unit
 }
 

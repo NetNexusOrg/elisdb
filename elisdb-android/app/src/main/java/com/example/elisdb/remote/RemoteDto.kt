@@ -50,6 +50,11 @@ data class ClienteOutDto(
   val notas: String? = null,
   @SerialName("updated_at") val updatedAt: Long,
   @SerialName("created_at") val createdAt: Long? = null,
+  /**
+   * Cursor the server assigned to this version (pull watermark). Independent of
+   * [updatedAt], which keeps deciding conflicts. Absent on older servers.
+   */
+  @SerialName("delivery_ts") val deliveryTs: Long? = null,
 )
 
 @Serializable
@@ -63,6 +68,8 @@ data class ClienteComFotosDto(
 data class TombstoneDto(
   val id: String,
   @SerialName("deleted_at") val deletedAt: Long,
+  /** Delivery cursor of the deletion; independent of [deletedAt]. */
+  @SerialName("delivery_ts") val deliveryTs: Long? = null,
 )
 
 /** Envelope returned by the pull endpoint (replaces the historical flat list). */
@@ -82,6 +89,11 @@ data class PushResultDto(
   /** Canonical record (client + photos) on a "duplicate" response; null otherwise. */
   val client: ClienteOutDto? = null,
   val fotos: List<FotoOutDto> = emptyList(),
+  /**
+   * Photos this push referenced that have no file on the server. They were not
+   * stored, so the client must upload them again on the next push.
+   */
+  @SerialName("missing_photos") val missingPhotos: List<String> = emptyList(),
 )
 
 /** Identity lookup response for `GET /api/keys/me`: the key holder's allowlist record. */

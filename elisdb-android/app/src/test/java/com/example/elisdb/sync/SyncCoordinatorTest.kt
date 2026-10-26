@@ -871,4 +871,149 @@ class SyncCoordinatorTest {
     assertEquals("f1", pushed.fotos.single().id)
     assertTrue("unchanged photo not re-uploaded", "f1" !in api.uploaded)
   }
+
+  @Test
+  fun `ack does not overwrite an edit made while the push is in flight`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, updatedAt = 100, nome = "Antigo")))
+    val api =
+      FakeSyncApi().apply {
+        pushResult = { records ->
+          // The user saves the same client while the request is on the wire.
+          val i = dao.data.indexOfFirst { it.id == "1" }
+          dao.data[i] = dao.data[i].copy(nome = "Editado", updatedAt = 200, pending = true)
+          records.map { PushResultDto(it.client.id, "accepted") }
+        }
+      }
+    val c = coord(clienteDao = dao, api = api)
+
+    c.sync()
+
+    val local = dao.data.single { it.id == "1" }
+    assertEquals("concurrent edit kept", "Editado", local.nome)
+    assertTrue("concurrent edit stays pending", local.pending)
+  }
+
+  @Test
+  fun `stale ack does not discard an edit made while the push is in flight`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, updatedAt = 100, nome = "Antigo")))
+    val api =
+      FakeSyncApi().apply {
+        pushResult = { records ->
+          val i = dao.data.indexOfFirst { it.id == "1" }
+          dao.data[i] = dao.data[i].copy(nome = "Editado", updatedAt = 200, pending = true)
+          records.map { PushResultDto(it.client.id, "stale") }
+        }
+      }
+    val c = coord(clienteDao = dao, api = api)
+
+    val outcome = c.sync()
+
+    val local = dao.data.single { it.id == "1" }
+    assertEquals("concurrent edit kept", "Editado", local.nome)
+    assertTrue("concurrent edit stays pending", local.pending)
+    assertTrue(
+      "no edit reported as lost",
+      outcome !is SyncOutcome.SuccessWithStatuses || outcome.stale.isEmpty(),
+    )
+  }
+
+  @Test
+  fun `photos the server could not find are not recorded as uploaded`() = runBlocking {
+    val store = FakePhotoStore().apply { stage("file:/p1.webp", "cGhvdG8=") }
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, updatedAt = 100)))
+    val fotoDao = FakeFotoDao(listOf(Foto(id = "p1", clienteId = "1", uriLocal = "file:/p1.webp")))
+    val state = FakePhotoPushState()
+    val api =
+      FakeSyncApi().apply {
+        pushResult = { records ->
+          records.map { PushResultDto(it.client.id, "accepted", missingPhotos = listOf("p1")) }
+        }
+      }
+    val c =
+      coord(clienteDao = dao, fotoDao = fotoDao, api = api, photoStore = store, photoPushState = state)
+
+    c.sync()
+
+    assertEquals(
+      "photo the server never stored must be uploaded again",
+      emptyMap<String, String>(),
+      state.getHashes("1"),
+    )
+  }
+
+  @Test
+  fun `pull watermark follows the delivery cursor instead of the device clock`() = runBlocking {
+    val dao = FakeClienteDao()
+    val api =
+      FakeSyncApi().apply {
+        pullResponse = pullResponseOf(serverItem(id = "1", updatedAt = 1_000, deliveryTs = 60))
+      }
+    val watermark = FakePullWatermark(value = 50L)
+    val c = coord(clienteDao = dao, api = api, pullWatermark = watermark, incrementalPullEnabled = true)
+
+    c.sync()
+
+    assertEquals("watermark follows delivery_ts", 60L, watermark.value)
+  }
+
+  @Test
+  fun `skipped record holds the watermark back`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("2", pending = true, updatedAt = 200)))
+    val api =
+      FakeSyncApi().apply {
+        // The server rejects the pending record, so it stays pending into the pull.
+        pushResult = { records -> records.map { PushResultDto(it.client.id, "error") } }
+        pullResponse =
+          pullResponseOf(
+            serverItem(id = "1", updatedAt = 100, deliveryTs = 100),
+            serverItem(id = "2", updatedAt = 200, deliveryTs = 200),
+          )
+      }
+    val watermark = FakePullWatermark(value = 50L)
+    val c = coord(clienteDao = dao, api = api, pullWatermark = watermark, incrementalPullEnabled = true)
+
+    c.sync()
+
+    assertEquals("watermark stops below the skipped record", 199L, watermark.value)
+  }
+
+  @Test
+  fun `deletion from a device with an older clock is still applied`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("1", updatedAt = 100)))
+    val api =
+      FakeSyncApi().apply {
+        pullResponse =
+          pullResponseOf(
+            tombstones = listOf(TombstoneDto(id = "1", deletedAt = 100, deliveryTs = 900))
+          )
+      }
+    val watermark = FakePullWatermark(value = 500L)
+    val c = coord(clienteDao = dao, api = api, pullWatermark = watermark, incrementalPullEnabled = true)
+
+    c.sync()
+
+    assertTrue("tombstone delivered by its delivery timestamp", dao.data.none { it.id == "1" })
+    assertEquals(900L, watermark.value)
+  }
+
+  @Test
+  fun `skipped tombstone holds the watermark back`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, updatedAt = 100)))
+    val api =
+      FakeSyncApi().apply {
+        pushResult = { records -> records.map { PushResultDto(it.client.id, "error") } }
+        pullResponse =
+          pullResponseOf(
+            serverItem(id = "9", updatedAt = 200, deliveryTs = 200),
+            tombstones = listOf(TombstoneDto(id = "1", deletedAt = 50, deliveryTs = 150)),
+          )
+      }
+    val watermark = FakePullWatermark(value = 100L)
+    val c = coord(clienteDao = dao, api = api, pullWatermark = watermark, incrementalPullEnabled = true)
+
+    c.sync()
+
+    assertTrue("pending record kept so its edit can be pushed", dao.data.any { it.id == "1" && it.pending })
+    assertEquals("watermark stops below the skipped tombstone", 149L, watermark.value)
+  }
 }

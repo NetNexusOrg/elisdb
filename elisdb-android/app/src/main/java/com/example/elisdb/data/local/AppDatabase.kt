@@ -28,7 +28,30 @@ abstract class AppDatabase : RoomDatabase() {
     val MIGRATION_2_3: Migration =
       object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
-          db.execSQL("ALTER TABLE clientes DROP COLUMN telefone")
+          // `ALTER TABLE ... DROP COLUMN` needs SQLite 3.35 (Android 14) and the
+          // app supports API 24, so rebuild the table instead (same pattern as
+          // 3→4). The supported SQLite versions only see create + copy + rename.
+          db.execSQL(
+            """
+            CREATE TABLE clientes_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+              nome TEXT NOT NULL,
+              contrato TEXT,
+              latitude REAL NOT NULL,
+              longitude REAL NOT NULL,
+              notas TEXT,
+              dataCriacao INTEGER NOT NULL
+            )
+            """
+          )
+          db.execSQL(
+            """
+            INSERT INTO clientes_new (id, nome, contrato, latitude, longitude, notas, dataCriacao)
+            SELECT id, nome, contrato, latitude, longitude, notas, dataCriacao FROM clientes
+            """
+          )
+          db.execSQL("DROP TABLE clientes")
+          db.execSQL("ALTER TABLE clientes_new RENAME TO clientes")
         }
       }
 

@@ -52,6 +52,14 @@ class FakeClienteDao(initial: List<Cliente> = emptyList()) : ClienteDao {  val d
     if (i >= 0) data[i] = cliente else data.add(cliente)
   }
 
+  override suspend fun markSynced(id: String, seenUpdatedAt: Long): Int {
+    val i = data.indexOfFirst { it.id == id }
+    if (i < 0) return 0
+    if (data[i].updatedAt != seenUpdatedAt) return 0
+    data[i] = data[i].copy(pending = false)
+    return 1
+  }
+
   override suspend fun delete(cliente: Cliente) {
     data.removeAll { it.id == cliente.id }
   }
@@ -261,9 +269,19 @@ fun serverItem(
   latitude: Double? = 0.0,
   longitude: Double? = 0.0,
   fotos: List<FotoOutDto> = emptyList(),
+  deliveryTs: Long? = null,
 ): ClienteComFotosDto =
   ClienteComFotosDto(
-    client = ClienteOutDto(id = id, nome = nome, latitude = latitude, longitude = longitude, updatedAt = updatedAt, createdAt = createdAt),
+    client =
+      ClienteOutDto(
+        id = id,
+        nome = nome,
+        latitude = latitude,
+        longitude = longitude,
+        updatedAt = updatedAt,
+        createdAt = createdAt,
+        deliveryTs = deliveryTs,
+      ),
     fotos = fotos,
   )
 /** Base64-decodes [dataB64] into bytes. */

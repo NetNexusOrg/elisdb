@@ -154,19 +154,35 @@ class SyncCoordinator(
           filesToDelete += mergeDuplicate(cliente, result)
           mergedNome = cliente.nome
         } else if (status == "stale") {
-          // The server has a newer version; it wins. Clear pending so the pull
-          // reconciles, but report the lost edit to the user.
-          staleNames += cliente.nome
-          clienteDao.update(cliente.copy(pending = false))
+          // The server has a newer version, so the edit that was sent loses.
+          // Clear pending only while the row still holds exactly that edit: a
+          // save made while the push was in flight must stay pending and be sent
+          // on the next sync instead of being silently dropped.
+          if (clienteDao.markSynced(cliente.id, cliente.updatedAt) == 1) {
+            staleNames += cliente.nome
+          } else {
+            onWarning(
+              "O cliente ${cliente.nome} mudou durante a sincronização; a alteração será reenviada"
+            )
+          }
         } else if (status == "error") {
           // The server rejected this record (e.g. blank name, future timestamp).
           // Keep it pending so the user's data is not lost, and surface a warning.
           onWarning("Servidor rejeitou o registo ${cliente.id}; mantido pendente")
         } else if (status != null) {
           // Any other server response (accepted) is an ack: the server owns
-          // conflict resolution, so clear pending and let pull reconcile.
-          clienteDao.update(cliente.copy(pending = false))
-          recordPushedHashes(cliente.id, hashesByCliente[cliente.id].orEmpty())
+          // conflict resolution, so clear pending and let pull reconcile. Only
+          // clear it while the row is still the version that was sent; an edit
+          // made during the push stays pending for the next sync.
+          if (clienteDao.markSynced(cliente.id, cliente.updatedAt) == 1) {
+            // Photos the server reported as missing were not stored, so they
+            // must not be recorded as uploaded or they would never be retried.
+            val missing = result.missingPhotos.toSet()
+            recordPushedHashes(
+              cliente.id,
+              hashesByCliente[cliente.id].orEmpty().filterKeys { it !in missing },
+            )
+          }
         }
       }
     }
@@ -322,11 +338,11 @@ class SyncCoordinator(
       // materializes its photo files before its own Room transaction, so a file
       // is always committed before the row that references it (and old files are
       // only removed after the row commit succeeds).
+      // Delivery timestamps of records that were NOT applied: the watermark may
+      // not move past them, or the next delta pull would never return them.
+      val skippedDelivery = mutableListOf<Long>()
       allServerClients.forEach { serverItem ->
-        val local = clienteDao.getById(serverItem.client.id)
-        if (local == null || (!local.pending && !local.deletePending)) {
-          applyServerItem(serverItem)
-        }
+        if (!applyServerItem(serverItem)) skippedDelivery += deliveryOf(serverItem)
       }
 
       val filesToDelete = mutableSetOf<String>()
@@ -337,6 +353,10 @@ class SyncCoordinator(
           val local = clienteDao.getById(tombstone.id)
           if (local != null && !local.pending && !local.deletePending) {
             filesToDelete += finalizeDeletion(tombstone.id)
+          } else if (local != null) {
+            // Skipped: the pending local edit still has to be pushed, and the
+            // deletion has to come back on the next pull.
+            skippedDelivery += deliveryOf(tombstone)
           }
         }
 
@@ -353,18 +373,22 @@ class SyncCoordinator(
           }
         }
 
-        // Advance the watermark to the largest updated_at / deleted_at seen on
-        // this pull so later pulls are incremental (and do not re-apply or
-        // re-discover already-seen tombstones).
-        val maxUpdatedAt =
+        // Advance the watermark to the largest delivery timestamp seen on this
+        // pull (the server's cursor, not the device clocks), holding it below the
+        // oldest record that was skipped because of a pending local edit.
+        var maxDelivery =
           maxOf(
-            allServerClients.maxOfOrNull { it.client.updatedAt } ?: 0L,
-            allTombstones.maxOfOrNull { it.deletedAt } ?: 0L,
+            allServerClients.maxOfOrNull { deliveryOf(it) } ?: 0L,
+            allTombstones.maxOfOrNull { deliveryOf(it) } ?: 0L,
           )
-        if (maxUpdatedAt > 0 && pullWatermark != null) {
+        val oldestSkipped = skippedDelivery.minOrNull()
+        if (oldestSkipped != null && maxDelivery >= oldestSkipped) {
+          maxDelivery = oldestSkipped - 1
+        }
+        if (maxDelivery > 0 && pullWatermark != null) {
           val previous = pullWatermark.get()
-          if (previous == null || maxUpdatedAt > previous) {
-            pullWatermark.set(maxUpdatedAt)
+          if (previous == null || maxDelivery > previous) {
+            pullWatermark.set(maxDelivery)
           }
         }
       }
@@ -380,13 +404,21 @@ class SyncCoordinator(
   }
 
   /**
-   * Applies one authoritative server item. Photo files for changed photos are
-   * written first (two-phase), then rows are committed in a per-item
-   * transaction; replaced/removed old files are deleted only after the commit.
+   * Applies one authoritative server item and reports whether it was applied.
+   * Photo files for changed photos are written first (two-phase), then rows are
+   * committed in a per-item transaction; replaced/removed old files are deleted
+   * only after the commit.
+   *
+   * Returns false when the record has pending local work (or gained it while its
+   * photos were downloading), in which case the server version is left for a
+   * later pull and must not be skipped by the watermark.
    */
-  private suspend fun applyServerItem(serverItem: ClienteComFotosDto) {
+  private suspend fun applyServerItem(serverItem: ClienteComFotosDto): Boolean {
     val server = serverItem.client
     val existingLocal = clienteDao.getById(server.id)
+    if (existingLocal != null && (existingLocal.pending || existingLocal.deletePending)) {
+      return false
+    }
     val createdAt =
       server.createdAt
         ?: existingLocal?.dataCriacao
@@ -439,18 +471,38 @@ class SyncCoordinator(
     val removedRows = existingFotos.filter { it.id !in keptIds }
     removedRows.forEach { filesToDeleteAfterCommit += it.uriLocal }
 
+    var applied = true
     runInTransaction {
-      // Use upsert (not REPLACE): REPLACE deletes the existing client row and
-      // the fotos FK CASCADE would wipe every photo of a client that already
-      // exists locally, even ones the server still carries.
-      clienteDao.upsert(cliente)
-      upserts.forEach { fotoDao.insert(it) }
-      if (removedRows.isNotEmpty()) fotoDao.deleteByIds(removedRows.map { it.id })
+      // Re-read inside the transaction: a save during the photo downloads above
+      // must win over the server version, not be overwritten by it.
+      val current = clienteDao.getById(cliente.id)
+      if (current != null && (current.pending || current.deletePending)) {
+        applied = false
+      } else {
+        // Use upsert (not REPLACE): REPLACE deletes the existing client row and
+        // the fotos FK CASCADE would wipe every photo of a client that already
+        // exists locally, even ones the server still carries.
+        clienteDao.upsert(cliente)
+        upserts.forEach { fotoDao.insert(it) }
+        if (removedRows.isNotEmpty()) fotoDao.deleteByIds(removedRows.map { it.id })
+      }
     }
 
-    // Old files are safe to delete only after the new rows are committed.
-    filesToDeleteAfterCommit.forEach { photoStore.delete(it) }
+    // Old files are safe to delete only after the new rows are committed, and
+    // only when they were replaced: on a skipped item the current rows still
+    // point at them. Files materialized for a skipped item are left to the
+    // orphan sweep.
+    if (applied) filesToDeleteAfterCommit.forEach { photoStore.delete(it) }
+    return applied
   }
+
+  /** Delivery cursor of a pulled record (servers without it fall back to `updated_at`). */
+  private fun deliveryOf(item: ClienteComFotosDto): Long =
+    item.client.deliveryTs ?: item.client.updatedAt
+
+  /** Delivery cursor of a tombstone (servers without it fall back to `deleted_at`). */
+  private fun deliveryOf(tombstone: TombstoneDto): Long =
+    tombstone.deliveryTs ?: tombstone.deletedAt
 
   private companion object {
     /** Pause before retrying a failed photo download. */

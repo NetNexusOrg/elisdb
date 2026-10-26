@@ -249,3 +249,49 @@ def test_app_release_requires_a_signature(server, monkeypatch, tmp_path):
 
     assert client.client.get("/api/app/latest").status_code == 401
     assert client.client.get("/api/app/download").status_code == 401
+
+
+def test_push_reports_photos_missing_on_the_server(server):
+    client, _db = server
+    response = client.post(
+        "/api/push",
+        _body(
+            [
+                _record(
+                    id="1",
+                    fotos=[{"id": "never-uploaded", "mime": "image/jpeg", "ordem": 0}],
+                )
+            ]
+        ),
+    )
+
+    assert response.status_code == 200
+    result = response.json()[0]
+    assert result["status"] == "accepted"
+    assert result["missing_photos"] == ["never-uploaded"]
+    assert result["fotos"] == []
+
+    pulled = client.get("/api/pull").json()["records"]
+    assert pulled[0]["fotos"] == []
+
+
+def test_pull_carries_the_delivery_timestamp(server):
+    client, _db = server
+    client.post("/api/push", _body([_record(id="1", updated_at=1000)]))
+    client.post("/api/push", _body([_record(id="2", nome="Bea", updated_at=2000)]))
+
+    # A deletion stamped behind the watermark must still be delivered: the
+    # tombstone keeps deleted_at=500 (LWW) and gets a later delivery value.
+    now = int(time.time())
+    deleted = client.delete("/api/clients/2?deleted_at=500", timestamp=now)
+    assert deleted.status_code == 204
+
+    payload = client.get("/api/pull").json()
+    client_row = payload["records"][0]["client"]
+    assert client_row["updated_at"] == 1000
+    assert client_row["delivery_ts"] >= 1000
+
+    tombstone = payload["tombstones"][0]
+    assert tombstone["id"] == "2"
+    assert tombstone["deleted_at"] == 500
+    assert tombstone["delivery_ts"] > client_row["delivery_ts"]

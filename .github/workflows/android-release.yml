@@ -160,11 +160,16 @@ jobs:
              "app/build/outputs/apk/release/elisdb-${version_name}-${version_code}.apk"
           echo "APK_NAME=elisdb-${version_name}-${version_code}.apk" >> "$GITHUB_ENV"
 
+      # Best effort only: the APK that matters is the GitHub Release asset below
+      # (and the copy published to the server). This workflow artifact is a
+      # convenience, so a full artifact-storage quota must never block a release.
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: elisdb-android/app/build/outputs/apk/release/${{ env.APK_NAME }}
+          retention-days: 7
+        continue-on-error: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

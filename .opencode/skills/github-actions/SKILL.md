@@ -20,7 +20,9 @@ description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-relea
   → uploads `app-debug` APK + test reports.
 - `release` (only on `v*` tags, `needs: test`): decodes keystore from secret, `:app:assembleRelease`,
   renames the APK to `elisdb-<versionName>-<versionCode>.apk` (`APK_NAME` in `$GITHUB_ENV`),
-  uploads `app-release` APK, creates the GitHub Release via `softprops/action-gh-release`,
+  uploads `app-release` APK (best effort — `continue-on-error`, because the real
+  APK is the GitHub Release asset and a full artifact quota must not block a release),
+  creates the GitHub Release via `softprops/action-gh-release`,
   then publishes the same file to the server with `rsync` (step "Publish APK to the server";
   skipped with a warning when the `DEPLOY_*` secrets are absent).
 

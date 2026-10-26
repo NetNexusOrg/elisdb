@@ -13,8 +13,10 @@ PGID="${PGID:-1000}"
 db_dir="$(dirname "${ELISDB_DB:-data/elisdb.db}")"
 photos_dir="${ELISDB_PHOTOS:-data/photos}"
 configs_dir="${ELISDB_CONFIGS_DIR:-$db_dir/configs}"
+# Pacote Android publicado para atualizações na app (elisdb-<versao>-<codigo>.apk).
+apk_dir="${ELISDB_APK_DIR:-$db_dir/apk/latest}"
 
-for dir in "$db_dir" "$photos_dir" "$configs_dir"; do
+for dir in "$db_dir" "$photos_dir" "$configs_dir" "$apk_dir"; do
   mkdir -p "$dir"
   chown -R "${PUID}:${PGID}" "$dir"
 done

@@ -18,6 +18,9 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import java.nio.file.Files
+import java.security.MessageDigest
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -418,5 +421,62 @@ class ApiClientTest {
 
     assertEquals("create", entry.action)
     assertEquals(null, entry.details)
+  }
+
+  @Test
+  fun latestReleaseParsesThePublishedMetadata() = runBlocking {
+    val engine = MockEngine {
+      okJson(
+        """{"version_name":"1.6.0","version_code":11,"size":1234,"sha256":"deadbeef","filename":"elisdb-1.6.0-11.apk"}"""
+      )
+    }
+    val api = client(engine)
+
+    val release = api.fetchLatestRelease(timestamp = 100L)
+
+    assertEquals("1.6.0", release?.versionName)
+    assertEquals(11, release?.versionCode)
+    assertEquals(1234L, release?.size)
+    assertEquals("elisdb-1.6.0-11.apk", release?.filename)
+  }
+
+  @Test
+  fun latestReleaseIsNullWhenNothingIsPublished() = runBlocking {
+    val engine =
+      MockEngine { respond("""{"detail":"no release available"}""", HttpStatusCode.NotFound) }
+    val api = client(engine)
+
+    assertEquals(null, api.fetchLatestRelease(timestamp = 100L))
+  }
+
+  @Test
+  fun downloadReleaseVerifiesThePublishedChecksum() = runBlocking {
+    val bytes = "apk-bytes".toByteArray()
+    val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+    val release = AppReleaseDto("1.6.0", 11, bytes.size.toLong(), sha, "elisdb-1.6.0-11.apk")
+    val engine = MockEngine { respond(bytes, HttpStatusCode.OK) }
+    val api = client(engine)
+    val dir = Files.createTempDirectory("release").toFile()
+
+    val file = api.downloadRelease(release, dir, timestamp = 100L)
+
+    assertArrayEquals(bytes, file.readBytes())
+  }
+
+  @Test
+  fun downloadReleaseDeletesACorruptedPackage() = runBlocking {
+    val bytes = "apk-bytes".toByteArray()
+    val release = AppReleaseDto("1.6.0", 11, bytes.size.toLong(), "not-the-sha", "elisdb-1.6.0-11.apk")
+    val engine = MockEngine { respond(bytes, HttpStatusCode.OK) }
+    val api = client(engine)
+    val dir = Files.createTempDirectory("release").toFile()
+
+    try {
+      api.downloadRelease(release, dir, timestamp = 100L)
+      fail("expected ReleaseVerificationException")
+    } catch (e: ReleaseVerificationException) {
+      assertEquals("downloaded package does not match the published checksum", e.message)
+    }
+    assertEquals(0, dir.listFiles()?.size ?: 0)
   }
 }

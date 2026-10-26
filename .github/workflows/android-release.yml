@@ -139,14 +139,29 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew :app:assembleRelease
 
+      # The server publishes the APK by file name (elisdb-<version>-<code>.apk),
+      # so the release asset must already carry the version the app reports.
+      - name: Name the APK after its version
+        working-directory: elisdb-android
+        run: |
+          version_name=$(sed -n 's/^app\.versionName=//p' gradle.properties)
+          version_code=$(sed -n 's/^app\.versionCode=//p' gradle.properties)
+          if [ -z "$version_name" ] || [ -z "$version_code" ]; then
+            echo "app.versionName / app.versionCode missing from gradle.properties" >&2
+            exit 1
+          fi
+          mv app/build/outputs/apk/release/app-release.apk \
+             "app/build/outputs/apk/release/elisdb-${version_name}-${version_code}.apk"
+          echo "APK_NAME=elisdb-${version_name}-${version_code}.apk" >> "$GITHUB_ENV"
+
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: elisdb-android/app/build/outputs/apk/release/app-release.apk
+          path: elisdb-android/app/build/outputs/apk/release/${{ env.APK_NAME }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: elisdb-android/app/build/outputs/apk/release/app-release.apk
+          files: elisdb-android/app/build/outputs/apk/release/${{ env.APK_NAME }}
           generate_release_notes: true

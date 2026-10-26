@@ -18,18 +18,24 @@ import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsBytes
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.utils.io.jvm.javaio.toInputStream
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
+import java.io.File
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Reason the server rejected an authenticated request. */
 enum class AuthCause {
@@ -209,6 +215,71 @@ class ApiClient(
     return response.body()
   }
 
+  /** Latest published APK, or null when the server has nothing published (404). */
+  suspend fun fetchLatestRelease(timestamp: Long): AppReleaseDto? {
+    val path = "/api/app/latest"
+    val response = execute(timestamp) { ts ->
+      client.get("$baseUrl$path") {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
+      }
+    }
+    if (response.status == HttpStatusCode.NotFound) return null
+    if (response.status != HttpStatusCode.OK) {
+      throw ServerException("release fetch failed HTTP ${response.status}", response.status.value)
+    }
+    return response.body()
+  }
+
+  /**
+   * Downloads the published package into [targetDir], reporting progress, and
+   * only returns the file when its size and SHA-256 match the published
+   * metadata. A corrupted transfer is deleted instead of being offered for
+   * installation.
+   */
+  suspend fun downloadRelease(
+    release: AppReleaseDto,
+    targetDir: File,
+    timestamp: Long,
+    onProgress: (received: Long, total: Long?) -> Unit = { _, _ -> },
+  ): File {
+    val path = "/api/app/download"
+    val response = execute(timestamp) { ts ->
+      client.get("$baseUrl$path") {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
+      }
+    }
+    if (response.status != HttpStatusCode.OK) {
+      throw ServerException("release download failed HTTP ${response.status}", response.status.value)
+    }
+    targetDir.mkdirs()
+    val target = File(targetDir, release.filename)
+    val digest = MessageDigest.getInstance("SHA-256")
+    withContext(Dispatchers.IO) {
+      response.bodyAsChannel().toInputStream().use { input ->
+        target.outputStream().use { output ->
+          val buffer = ByteArray(64 * 1024)
+          var received = 0L
+          while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            output.write(buffer, 0, read)
+            digest.update(buffer, 0, read)
+            received += read
+            onProgress(received, release.size)
+          }
+        }
+      }
+    }
+    val sha = digest.digest().joinToString("") { "%02x".format(it) }
+    if (target.length() != release.size || !sha.equals(release.sha256, ignoreCase = true)) {
+      target.delete()
+      throw ReleaseVerificationException("downloaded package does not match the published checksum")
+    }
+    return target
+  }
+
   @kotlinx.serialization.Serializable
   private data class TimeDto(val time: Long)
 
@@ -323,3 +394,5 @@ class ApiClient(
     client.close()
   }
 }
+/** The downloaded package does not match the size/checksum the server published. */
+class ReleaseVerificationException(message: String) : Exception(message)

@@ -47,6 +47,30 @@ Para mudar estes caminhos, vê a referência em [Configuração](configuracao.md
 > mount* do host, define `PUID`/`PGID` no `compose.yaml` com o id do teu
 > utilizador (`id -u` / `id -g`) para que o servidor consiga escrever.
 
+## Publicar uma nova versão da app
+
+Semanalmente ou quando há correções, o APK novo é distribuído pela própria app.
+
+1. No GitHub, descarrega o APK do release. Já vem com o nome versionado
+   (`elisdb-<versão>-<código>.apk`, por exemplo `elisdb-1.6.0-11.apk`).
+2. Copia-o para a pasta de atualizações, mantendo o nome:
+
+   ```bash
+   scp elisdb-1.6.0-11.apk ubuntu@vps01:~/docker/elisdb-server/elisdb-data/apk/latest/
+   ```
+
+3. Em cada telemóvel: **Sobre** → **Procurar atualizações** → **Transferir** →
+   **Instalar**.
+
+O servidor publica o ficheiro com o maior `versionCode` que encontrar na pasta;
+nomes fora do padrão são ignorados (podes deixar o build seguinte ao lado). Os
+endpoints são autenticados e o download serve sempre o ficheiro descoberto —
+não aceita nome de ficheiro. Para retirar a atualização, apaga o ficheiro.
+
+Dentro do contentor a pasta é `/app/data/apk/latest` (volume `elisdb-data`);
+com *bind mount* corresponde a `elisdb-data/apk/latest` no host. O caminho pode
+ser mudado com `ELISDB_APK_DIR`.
+
 ## Provisionar utilizadores automaticamente
 
 Podes declarar os utilizadores no `compose.yaml` e o contentor cria as chaves

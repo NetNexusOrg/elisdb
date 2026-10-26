@@ -4,25 +4,37 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.elisdb.BuildConfig
 import com.example.elisdb.ui.components.InfoCard
 import com.example.elisdb.ui.components.InfoRow
+import java.util.Locale
 
 private const val APP_NAME = "ElisDB"
 private const val APP_DESCRIPTION =
@@ -35,9 +47,11 @@ private const val DEVELOPER_EMAIL = "kadu247@protonmail.com"
 @Composable
 fun AboutScreen(
   onBack: () -> Unit,
+  updateViewModel: UpdateViewModel,
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
+  val phase by updateViewModel.phase.collectAsState()
   Scaffold(
     modifier = modifier.fillMaxSize(),
     topBar = {
@@ -68,6 +82,21 @@ fun AboutScreen(
         )
         InfoRow(label = "Descrição", value = APP_DESCRIPTION)
       }
+      InfoCard(title = "Atualizações") {
+        UpdateSection(
+          phase = phase,
+          onCheck = updateViewModel::check,
+          onDownload = updateViewModel::download,
+          onRetry = updateViewModel::retry,
+          onInstall = { file ->
+            if (ApkInstaller.canInstall(context)) {
+              ApkInstaller.install(context, file)
+            } else {
+              ApkInstaller.requestPermission(context)
+            }
+          },
+        )
+      }
       InfoCard(title = "Desenvolvedor") {
         InfoRow(label = "Nome", value = DEVELOPER_NAME)
         InfoRow(
@@ -82,3 +111,74 @@ fun AboutScreen(
     }
   }
 }
+
+/** The body of the "Atualizações" card, one branch per phase of the update flow. */
+@Composable
+private fun UpdateSection(
+  phase: UpdatePhase,
+  onCheck: () -> Unit,
+  onDownload: () -> Unit,
+  onRetry: () -> Unit,
+  onInstall: (java.io.File) -> Unit,
+) {
+  val body = MaterialTheme.typography.bodyMedium
+  when (phase) {
+    UpdatePhase.Idle ->
+      Button(onClick = onCheck, modifier = Modifier.fillMaxWidth()) {
+        Text("Procurar atualizações")
+      }
+    UpdatePhase.Checking ->
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        Text("A procurar atualizações…", style = body)
+      }
+    UpdatePhase.UpToDate ->
+      Text("A app está atualizada (${BuildConfig.VERSION_NAME}).", style = body)
+    UpdatePhase.NoRelease -> Text("Não há nenhuma versão publicada no servidor.", style = body)
+    UpdatePhase.NotConfigured ->
+      Text("Configura o servidor para procurar atualizações.", style = body)
+    is UpdatePhase.Available -> {
+      Text(
+        "Versão ${phase.release.versionName} (${phase.release.versionCode}) · " +
+          formatSize(phase.release.size),
+        style = body,
+      )
+      Button(onClick = onDownload, modifier = Modifier.fillMaxWidth()) { Text("Transferir") }
+    }
+    is UpdatePhase.Downloading -> {
+      Text("A transferir a versão ${phase.release.versionName}…", style = body)
+      LinearProgressIndicator(
+        progress = { phase.progress ?: 0f },
+        modifier = Modifier.fillMaxWidth(),
+      )
+    }
+    is UpdatePhase.Ready -> {
+      Text("Versão ${phase.release.versionName} transferida e verificada.", style = body)
+      Button(onClick = { onInstall(phase.file) }, modifier = Modifier.fillMaxWidth()) {
+        Text("Instalar")
+      }
+    }
+    is UpdatePhase.Failed -> {
+      Text(
+        when (phase.kind) {
+          FailureKind.CHECK -> "Não foi possível procurar atualizações. Verifica a ligação."
+          FailureKind.DOWNLOAD -> "Não foi possível transferir a atualização. Verifica a ligação."
+          FailureKind.CHECKSUM ->
+            "O ficheiro transferido não corresponde ao publicado. Tenta novamente."
+        },
+        style = body,
+        color = MaterialTheme.colorScheme.error,
+      )
+      OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+        Text("Tentar novamente")
+      }
+    }
+  }
+}
+
+/** Human-readable package size, e.g. `17,6 MB`. */
+private fun formatSize(bytes: Long): String =
+  String.format(Locale.getDefault(), "%.1f MB", bytes / 1_048_576.0)

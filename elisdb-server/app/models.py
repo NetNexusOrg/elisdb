@@ -123,3 +123,13 @@ class PushResult(BaseModel):
     # client can reconcile without a separate round-trip.
     client: ClienteOut | None = None
     fotos: list[FotoOut] = []
+
+
+class AppReleaseOut(BaseModel):
+    """Metadata for the Android package published on the server."""
+
+    version_name: str
+    version_code: int
+    size: int
+    sha256: str
+    filename: str

@@ -1,6 +1,7 @@
 package com.example.elisdb
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -10,7 +11,10 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.example.elisdb.BuildConfig
 import com.example.elisdb.ui.about.AboutScreen
+import com.example.elisdb.ui.about.UpdateViewModel
+import java.io.File
 import com.example.elisdb.ui.cliente.ClientListScreen
 import com.example.elisdb.ui.cliente.ClientListViewModel
 import com.example.elisdb.ui.detalhe.ClientDetailScreen
@@ -85,7 +89,30 @@ fun MainNavigation() {
           )
         }
         entry<About> {
-          AboutScreen(onBack = { backStack.removeLastOrNull() })
+          val container = rememberAppContainer()
+          val context = LocalContext.current
+          val updateViewModel =
+            viewModel {
+              UpdateViewModel(
+                installedVersionCode = BuildConfig.VERSION_CODE,
+                isConfigured = { container.settingsStore.settings().signingKey.isNotBlank() },
+                fetchRelease = {
+                  container.createApiClient().fetchLatestRelease(container.normalizedEpochSeconds())
+                },
+                downloadRelease = { release, onProgress ->
+                  container.createApiClient().downloadRelease(
+                    release = release,
+                    targetDir = File(context.cacheDir, "updates"),
+                    timestamp = container.normalizedEpochSeconds(),
+                    onProgress = onProgress,
+                  )
+                },
+              )
+            }
+          AboutScreen(
+            onBack = { backStack.removeLastOrNull() },
+            updateViewModel = updateViewModel,
+          )
         }
         entry<ClientForm> { key ->
           val container = rememberAppContainer()

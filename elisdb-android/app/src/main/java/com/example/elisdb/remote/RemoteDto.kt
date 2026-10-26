@@ -124,3 +124,12 @@ data class AuditEntryDto(
   val ts: Long,
   val details: AuditDetailsDto? = null,
 )
+/** The Android package published by the server (`GET /api/app/latest`). */
+@Serializable
+data class AppReleaseDto(
+  @SerialName("version_name") val versionName: String,
+  @SerialName("version_code") val versionCode: Int,
+  val size: Long,
+  val sha256: String,
+  val filename: String,
+)

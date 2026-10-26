@@ -1,6 +1,7 @@
 """End-to-end tests over the FastAPI app: auth, push/pull, validation,
 photos, deletion, history and rate limiting."""
 
+import hashlib
 import json
 import time
 
@@ -201,3 +202,50 @@ def test_client_history_carries_the_recorded_changes(server):
     assert entries[-1]["details"]["fields"] == [
         {"field": "nome", "old": "ANA", "new": "ANA SILVA", "truncated": False}
     ]
+
+
+def test_app_release_without_a_package_is_a_404(server, monkeypatch, tmp_path):
+    client, _db = server
+    monkeypatch.setenv("ELISDB_APK_DIR", str(tmp_path / "empty"))
+
+    assert client.get("/api/app/latest").status_code == 404
+    assert client.get("/api/app/download").status_code == 404
+
+
+def test_app_release_metadata_matches_the_package(server, monkeypatch, tmp_path):
+    client, _db = server
+    monkeypatch.setenv("ELISDB_APK_DIR", str(tmp_path))
+    (tmp_path / "elisdb-1.6.0-11.apk").write_bytes(b"release-bytes")
+
+    response = client.get("/api/app/latest")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["version_name"] == "1.6.0"
+    assert payload["version_code"] == 11
+    assert payload["size"] == len(b"release-bytes")
+    assert payload["sha256"] == hashlib.sha256(b"release-bytes").hexdigest()
+    assert payload["filename"] == "elisdb-1.6.0-11.apk"
+
+
+def test_app_release_download_serves_the_published_package(server, monkeypatch, tmp_path):
+    client, _db = server
+    monkeypatch.setenv("ELISDB_APK_DIR", str(tmp_path))
+    (tmp_path / "elisdb-1.6.0-11.apk").write_bytes(b"release-bytes")
+
+    response = client.get("/api/app/download")
+
+    assert response.status_code == 200
+    assert response.content == b"release-bytes"
+    assert response.headers["content-type"].startswith(
+        "application/vnd.android.package-archive"
+    )
+
+
+def test_app_release_requires_a_signature(server, monkeypatch, tmp_path):
+    client, _db = server
+    monkeypatch.setenv("ELISDB_APK_DIR", str(tmp_path))
+    (tmp_path / "elisdb-1.6.0-11.apk").write_bytes(b"x")
+
+    assert client.client.get("/api/app/latest").status_code == 401
+    assert client.client.get("/api/app/download").status_code == 401

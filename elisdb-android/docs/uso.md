@@ -76,7 +76,18 @@ Fluxos principais:
   miniaturas das fotos adicionadas aparecem quando ainda existem neste
   dispositivo.
 - **Configuração** — o ecrã único de sincronização e servidor: estado, resumo do que falta sincronizar, totais de clientes na app e no servidor e o botão **Sincronizar** (envia e recebe os dados); abaixo, o cartão **Servidor** com o URL, a chave mascarada e o utilizador associado; sem configuração mostra **Importar configuração do servidor**, e depois de configurado mostra apenas **Remover configuração**. O estado pendente é verificado automaticamente ao abrir o ecrã.
-- **Sobre** — informação sobre a app (nome, versão, descrição) e o desenvolvedor.
+- **Sobre** — informação sobre a app (nome, versão, descrição), o cartão
+  **Atualizações** e o desenvolvedor.
+
+### Atualizar a app
+
+No ecrã **Sobre**, o botão **Procurar atualizações** pergunta ao servidor se há
+uma versão mais recente. Se houver, **Transferir** descarrega o pacote com
+progresso e **Instalar** abre o instalador do Android, onde confirmas a
+instalação. O ficheiro é verificado (tamanho e SHA-256) antes de ser oferecido;
+se não houver nenhuma versão publicada, a app di-lo e não há nada a instalar.
+As versões são publicadas pelo administrador do servidor (ver
+`elisdb-server/docs/execucao.md`).
 
 Durante uma sincronização, as fotos que já existem no servidor **sem mudanças**
 não são reescritas, e um ficheiro novo só é gravado antes da sua linha na base

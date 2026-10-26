@@ -11,11 +11,13 @@ from pathlib import Path
 import time
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse
 
-from . import auth
+from . import auth, updates
 from .database import Database, MAX_FUTURE_SKEW_SECONDS
 from .ratelimit import RateLimiter
 from .models import (
+    AppReleaseOut,
     AuditEntryOut,
     ClienteComFotosOut,
     ClienteOut,
@@ -301,6 +303,36 @@ def create_app(database: Database | None = None) -> FastAPI:
         if key is None:
             raise HTTPException(status_code=401, detail="not authenticated")
         return {"key_id": key["id"], "username": key["comment"] or None}
+
+    def _release_or_404() -> updates.Release:
+        release = updates.find_release()
+        if release is None:
+            raise HTTPException(status_code=404, detail="no release available")
+        return release
+
+    @app.get(
+        "/api/app/latest",
+        response_model=AppReleaseOut,
+        dependencies=[auth_dep],
+    )
+    def latest_app_release() -> AppReleaseOut:
+        release = _release_or_404()
+        return AppReleaseOut(
+            version_name=release.version_name,
+            version_code=release.version_code,
+            size=release.size,
+            sha256=release.sha256,
+            filename=release.filename,
+        )
+
+    @app.get("/api/app/download", dependencies=[auth_dep])
+    def download_app_release() -> FileResponse:
+        release = _release_or_404()
+        return FileResponse(
+            updates.apk_dir() / release.filename,
+            media_type=updates.APK_MEDIA_TYPE,
+            filename=release.filename,
+        )
 
     return app
 

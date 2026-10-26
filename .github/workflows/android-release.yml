@@ -51,6 +51,10 @@ jobs:
         with:
           name: app-debug
           path: elisdb-android/app/build/outputs/apk/debug/app-debug.apk
+          # Diagnostics only: keep them for a week and never fail a green build
+          # just because the account's artifact storage is full.
+          retention-days: 7
+        continue-on-error: true
 
       - name: Upload test reports
         if: always()
@@ -60,6 +64,8 @@ jobs:
           path: |
             elisdb-android/app/build/reports/tests/
             elisdb-android/app/build/reports/lint-results-debug.html
+          retention-days: 7
+        continue-on-error: true
 
   instrumented:
     name: Instrumented tests (Room migrations)

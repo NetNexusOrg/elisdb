@@ -18,7 +18,8 @@ permissions:
 
 jobs:
   test:
-    name: Test
+    # Named so the check is unambiguous next to the Android "Test" job.
+    name: Server tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,3 +39,30 @@ jobs:
       - name: Run tests
         working-directory: elisdb-server
         run: python -m pytest
+
+  docker:
+    # The server only reaches production as a container, so a dependency missing
+    # from requirements.txt — or a broken Dockerfile/entrypoint — would first
+    # show up on `docker compose up -d --build` on the VPS. Building the image
+    # here, and importing the app inside it, catches that on the push instead.
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        working-directory: elisdb-server
+        run: docker build --tag elisdb-server:ci .
+
+      - name: Import the app inside the image
+        # The entrypoint is bypassed on purpose: it provisions users and drops
+        # privileges to PUID/PGID, which needs a mounted data directory. This
+        # only needs to prove that the image can import every runtime module.
+        run: |
+          docker run --rm \
+            --entrypoint python \
+            --env ELISDB_DB=/tmp/ci.db \
+            --env ELISDB_PHOTOS=/tmp/ci-photos \
+            elisdb-server:ci \
+            -c "import app.main, app.auth, app.database, app.ratelimit, app.updates; print('imports ok')"

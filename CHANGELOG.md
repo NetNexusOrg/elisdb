@@ -8,6 +8,31 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [1.6.1] - 2026-10-26
+
+### Novidades
+
+- **Aviso quando um registo muda durante a sincronização.** Se editares um
+  cliente enquanto a sincronização está a decorrer, a app mantém a alteração
+  pendente e avisa que vai ser reenviada, em vez de a substituir pela versão
+  antiga.
+
+### Correções
+
+- **Clientes eliminados noutro telemóvel desaparecem de facto.** As eliminações
+  passam a ser entregues segundo o relógio do servidor, por isso um apagar feito
+  num telemóvel com o relógio atrasado já chega aos restantes.
+- **Edições de telemóveis com o relógio atrasado deixam de ser rejeitadas** como
+  desatualizadas e passam a ser guardadas com o seu próprio horário.
+- **Atualizar a app em Android 7 a 13 já não falha ao abrir.** A migração da base
+  de dados deixou de depender de uma instrução de SQLite que só existe em
+  Android 14.
+- **Fotos que o servidor não tem voltam a ser enviadas**, em vez de ficarem
+  dadas como sincronizadas.
+- **Servidor: atualizar uma base de dados antiga já não apaga as fotos**, e a
+  limpeza de ficheiros órfãos deixou de poder apagar fotos válidas quando a
+  pasta está configurada com um caminho relativo.
+
 ## [1.6.0] - 2026-10-26
 
 ### Novidades

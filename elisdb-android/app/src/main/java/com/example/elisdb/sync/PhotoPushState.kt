@@ -17,6 +17,9 @@ interface PhotoPushState {
 
   /** Drops any persisted hashes for a client (e.g. when it is permanently deleted). */
   fun clear(clienteId: String)
+
+  /** Drops every stored hash, e.g. when the app switches to another server. */
+  fun clearAll()
 }
 
 /** SharedPreferences-backed [PhotoPushState]. */
@@ -42,6 +45,10 @@ class PrefsPhotoPushState(context: Context) : PhotoPushState {
 
   override fun clear(clienteId: String) {
     prefs.edit { remove(key(clienteId)) }
+  }
+
+  override fun clearAll() {
+    prefs.edit { clear() }
   }
 
   private fun key(clienteId: String) = "push_hashes_$clienteId"

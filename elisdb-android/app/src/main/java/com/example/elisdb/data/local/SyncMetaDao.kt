@@ -13,4 +13,12 @@ interface SyncMetaDao {
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun put(meta: SyncMeta)
+
+  /**
+   * Drops every stored value (cursor, watermark). Called when the app starts
+   * talking to a different server, whose timestamps are unrelated to the ones
+   * the stored cursor was derived from.
+   */
+  @Query("DELETE FROM sync_meta")
+  suspend fun clear()
 }

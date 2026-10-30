@@ -80,6 +80,7 @@ fun MainNavigation() {
                     null
                   }
                 },
+                resetSyncState = { container.resetSyncState() },
               )
             }
           ConfigScreen(

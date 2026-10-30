@@ -5,6 +5,9 @@ interface PullWatermark {
   suspend fun get(): Long?
 
   suspend fun set(value: Long)
+
+  /** Forgets the cursor, e.g. when the app switches to another server. */
+  suspend fun clear()
 }
 
 /** Default uppercase key used by the watermark store. */

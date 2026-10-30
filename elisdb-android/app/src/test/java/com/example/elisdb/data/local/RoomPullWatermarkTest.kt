@@ -14,6 +14,10 @@ class RoomPullWatermarkTest {
     override suspend fun put(meta: SyncMeta) {
       store[meta.key] = meta.value
     }
+
+    override suspend fun clear() {
+      store.clear()
+    }
   }
 
   @Test

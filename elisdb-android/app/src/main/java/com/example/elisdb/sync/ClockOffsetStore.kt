@@ -15,6 +15,9 @@ interface ClockOffsetStore {
 
   /** Persists a newly measured offset (seconds). */
   fun setOffsetSeconds(offsetSeconds: Long)
+
+  /** Forgets the measured offset, e.g. when the app switches to another server. */
+  fun clear()
 }
 
 /** SharedPreferences-backed [ClockOffsetStore]. */
@@ -27,6 +30,10 @@ class PrefsClockOffsetStore(context: Context) : ClockOffsetStore {
 
   override fun setOffsetSeconds(offsetSeconds: Long) {
     prefs.edit { putLong(KEY_OFFSET, offsetSeconds) }
+  }
+
+  override fun clear() {
+    prefs.edit { remove(KEY_OFFSET) }
   }
 
   private companion object {

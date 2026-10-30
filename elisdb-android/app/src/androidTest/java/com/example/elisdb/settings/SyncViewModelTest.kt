@@ -266,7 +266,7 @@ private class FakeAndroidClienteDao : com.example.elisdb.data.local.ClienteDao {
   override suspend fun insert(cliente: Cliente) = Unit
   override suspend fun upsert(cliente: Cliente) = Unit
   override suspend fun update(cliente: Cliente) = Unit
-  override suspend fun markSynced(id: String, seenUpdatedAt: Long): Int = 1
+  override suspend fun markSynced(id: String, seenRevision: Long): Int = 1
   override suspend fun delete(cliente: Cliente) = Unit
 }
 
@@ -274,6 +274,10 @@ private class FakeAndroidPullWatermark(var value: Long?) : com.example.elisdb.sy
   override suspend fun get(): Long? = value
   override suspend fun set(value: Long) {
     this.value = value
+  }
+
+  override suspend fun clear() {
+    value = null
   }
 }
 
@@ -284,5 +288,9 @@ private class FakeAndroidLastSyncStore(
 
   override fun setLastSuccessAt(epochSeconds: Long) {
     value = epochSeconds
+  }
+
+  override fun clear() {
+    value = null
   }
 }

@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -198,6 +199,66 @@ class ServerConfigViewModelTest {
     assertEquals(false, state.hasKey)
     assertEquals(KeyIdentity.Unresolved, state.keyIdentity)
     assertEquals(ServerSettings("", ""), store.current)
+  }
+
+  @Test
+  fun `importar configuracao limpa estado de sync antes de sincronizar`() = runTest(dispatcher) {
+    val store = FakeSettingsStore(ServerSettings("", ""))
+    val manager = syncManager(backgroundScope)
+    var resets = 0
+    var lastResultAtReset: String? = null
+    var statusAtReset: SyncStatus? = null
+    val viewModel =
+      ServerConfigViewModel(
+        store,
+        manager,
+        fetchKeyIdentity = { null },
+        resetSyncState = {
+          resets++
+          lastResultAtReset = manager.lastResult.value
+          statusAtReset = manager.status.value
+        },
+      )
+    viewModel.importKey(
+      """{"server_url":"https://s","private_seed":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","user_name":"carlos"}""",
+    )
+    advanceUntilIdle()
+    assertEquals(1, resets)
+    // The reset ran before the sync, so nothing from the previous server had
+    // been recorded yet when it executed and the sync did happen afterwards.
+    assertNull(lastResultAtReset)
+    assertEquals(SyncStatus.IDLE, statusAtReset)
+    // The sync was triggered after the reset (the status left IDLE).
+    assertTrue(manager.status.value != SyncStatus.IDLE)
+  }
+
+  @Test
+  fun `clearConfig limpa estado de sync sem apagar registos locais`() = runTest(dispatcher) {
+    val store = FakeSettingsStore(ServerSettings("https://s", "seed"))
+    val records = mutableListOf("1", "2")
+    var watermark: Long? = 1234L
+    var photoHashes = 5
+    var clockOffset: Long? = 3600L
+    val viewModel =
+      ServerConfigViewModel(
+        store,
+        syncManager(backgroundScope),
+        fetchKeyIdentity = { KeyIdentityDto("k1", "maria") },
+        resetSyncState = {
+          watermark = null
+          photoHashes = 0
+          clockOffset = null
+        },
+      )
+    advanceUntilIdle()
+
+    viewModel.clearConfig()
+    advanceUntilIdle()
+
+    assertNull(watermark)
+    assertEquals(0, photoHashes)
+    assertNull(clockOffset)
+    assertEquals(listOf("1", "2"), records)
   }
 }
 

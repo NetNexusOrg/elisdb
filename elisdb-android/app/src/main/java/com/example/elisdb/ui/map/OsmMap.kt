@@ -21,6 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.elisdb.R
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -151,9 +154,28 @@ private fun rememberMapViewWithLifecycle(context: Context, interactive: Boolean)
       view.setTileSource(TileSourceFactory.MAPNIK)
       view
     }
-  DisposableEffect(mapView) {
-    mapView.onResume()
+  val lifecycleOwner = LocalLifecycleOwner.current
+  DisposableEffect(lifecycleOwner, mapView) {
+    // Follow the owning lifecycle instead of resuming once at composition: the
+    // map must stop drawing (and reload tiles) when the app goes to the
+    // background, not only when the composable leaves the tree.
+    val observer =
+      LifecycleEventObserver { _, event ->
+        when (event) {
+          Lifecycle.Event.ON_RESUME -> mapView.onResume()
+          Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+          Lifecycle.Event.ON_DESTROY -> mapView.onDetach()
+          else -> Unit
+        }
+      }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    // The owner may already be resumed when the map is composed (navigating to a
+    // screen does not re-emit ON_RESUME), so resume it immediately in that case.
+    if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+      mapView.onResume()
+    }
     onDispose {
+      lifecycleOwner.lifecycle.removeObserver(observer)
       mapView.onPause()
       mapView.onDetach()
     }

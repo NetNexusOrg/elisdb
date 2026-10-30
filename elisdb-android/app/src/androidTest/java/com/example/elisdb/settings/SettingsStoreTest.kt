@@ -104,4 +104,40 @@ class SettingsStoreTest {
     val after = context.getSharedPreferences("elisdb_settings", Context.MODE_PRIVATE)
     assertEquals(null, after.getString("signing_key_override", null))
   }
+
+  @Test
+  fun legacyMigrationKeepsPlainValuesWhenEncryptedStoreFails() {
+    val plain = context.getSharedPreferences("elisdb_settings", Context.MODE_PRIVATE)
+    plain.edit().putString("server_base_url_override", "https://legacy.example.com")
+      .putString("signing_key_override", "LEGACYSEED")
+      .putString("user_name_override", "maria")
+      .commit()
+
+    // A device with a broken Keystore fails to open the encrypted store. The
+    // migration must not lose a working configuration: it falls back to the
+    // plain file and leaves it untouched.
+    val store =
+      PrefsSettingsStore(context, openEncrypted = { throw IllegalStateException("keystore unavailable") })
+
+    val settings = store.settings()
+    assertEquals("https://legacy.example.com", settings.baseUrl)
+    assertEquals("LEGACYSEED", settings.signingKey)
+    assertEquals("maria", settings.userName)
+
+    val after = context.getSharedPreferences("elisdb_settings", Context.MODE_PRIVATE)
+    assertEquals("https://legacy.example.com", after.getString("server_base_url_override", null))
+    assertEquals("LEGACYSEED", after.getString("signing_key_override", null))
+    assertEquals("maria", after.getString("user_name_override", null))
+  }
+
+  @Test
+  fun savesGoToThePlainFallbackWhenEncryptedStoreFails() {
+    val store =
+      PrefsSettingsStore(context, openEncrypted = { throw IllegalStateException("keystore unavailable") })
+    store.save("https://fallback.example.com", "SEED", "maria")
+
+    assertEquals("https://fallback.example.com", store.settings().baseUrl)
+    val plain = context.getSharedPreferences("elisdb_settings", Context.MODE_PRIVATE)
+    assertEquals("https://fallback.example.com", plain.getString("server_base_url_override", null))
+  }
 }

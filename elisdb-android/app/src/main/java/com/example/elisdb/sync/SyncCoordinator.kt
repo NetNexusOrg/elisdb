@@ -158,7 +158,7 @@ class SyncCoordinator(
           // Clear pending only while the row still holds exactly that edit: a
           // save made while the push was in flight must stay pending and be sent
           // on the next sync instead of being silently dropped.
-          if (clienteDao.markSynced(cliente.id, cliente.updatedAt) == 1) {
+          if (clienteDao.markSynced(cliente.id, cliente.revision) == 1) {
             staleNames += cliente.nome
           } else {
             onWarning(
@@ -174,7 +174,7 @@ class SyncCoordinator(
           // conflict resolution, so clear pending and let pull reconcile. Only
           // clear it while the row is still the version that was sent; an edit
           // made during the push stays pending for the next sync.
-          if (clienteDao.markSynced(cliente.id, cliente.updatedAt) == 1) {
+          if (clienteDao.markSynced(cliente.id, cliente.revision) == 1) {
             // Photos the server reported as missing were not stored, so they
             // must not be recorded as uploaded or they would never be retried.
             val missing = result.missingPhotos.toSet()
@@ -342,7 +342,14 @@ class SyncCoordinator(
       // not move past them, or the next delta pull would never return them.
       val skippedDelivery = mutableListOf<Long>()
       allServerClients.forEach { serverItem ->
-        if (!applyServerItem(serverItem)) skippedDelivery += deliveryOf(serverItem)
+        when (applyServerItem(serverItem)) {
+          ApplyOutcome.APPLIED -> Unit
+          ApplyOutcome.SKIPPED_HOLDS_WATERMARK -> skippedDelivery += deliveryOf(serverItem)
+          // The pending record is too old to block the rest of the sync: it stays
+          // pending and is retried, but the watermark may move past the version
+          // the server holds (see `holdsWatermark`).
+          ApplyOutcome.SKIPPED_RELEASES_WATERMARK -> Unit
+        }
       }
 
       val filesToDelete = mutableSetOf<String>()
@@ -353,7 +360,7 @@ class SyncCoordinator(
           val local = clienteDao.getById(tombstone.id)
           if (local != null && !local.pending && !local.deletePending) {
             filesToDelete += finalizeDeletion(tombstone.id)
-          } else if (local != null) {
+          } else if (local != null && holdsWatermark(local)) {
             // Skipped: the pending local edit still has to be pushed, and the
             // deletion has to come back on the next pull.
             skippedDelivery += deliveryOf(tombstone)
@@ -409,15 +416,18 @@ class SyncCoordinator(
    * committed in a per-item transaction; replaced/removed old files are deleted
    * only after the commit.
    *
-   * Returns false when the record has pending local work (or gained it while its
-   * photos were downloading), in which case the server version is left for a
-   * later pull and must not be skipped by the watermark.
+   * Returns [ApplyOutcome.SKIPPED_HOLDS_WATERMARK] when the record has pending
+   * local work that is recent enough to block the pull cursor, so the server
+   * version is left for a later pull and must not be skipped by the watermark.
+   * A pending record older than [WATERMARK_HOLD_SECONDS] is reported as
+   * [ApplyOutcome.SKIPPED_RELEASES_WATERMARK]: it still has to be pushed, but it
+   * is treated as broken and no longer holds the rest of the synchronization.
    */
-  private suspend fun applyServerItem(serverItem: ClienteComFotosDto): Boolean {
+  private suspend fun applyServerItem(serverItem: ClienteComFotosDto): ApplyOutcome {
     val server = serverItem.client
     val existingLocal = clienteDao.getById(server.id)
     if (existingLocal != null && (existingLocal.pending || existingLocal.deletePending)) {
-      return false
+      return skipOutcome(existingLocal)
     }
     val createdAt =
       server.createdAt
@@ -472,12 +482,14 @@ class SyncCoordinator(
     removedRows.forEach { filesToDeleteAfterCommit += it.uriLocal }
 
     var applied = true
+    var holdsCursor = false
     runInTransaction {
       // Re-read inside the transaction: a save during the photo downloads above
       // must win over the server version, not be overwritten by it.
       val current = clienteDao.getById(cliente.id)
       if (current != null && (current.pending || current.deletePending)) {
         applied = false
+        holdsCursor = holdsWatermark(current)
       } else {
         // Use upsert (not REPLACE): REPLACE deletes the existing client row and
         // the fotos FK CASCADE would wipe every photo of a client that already
@@ -493,8 +505,29 @@ class SyncCoordinator(
     // point at them. Files materialized for a skipped item are left to the
     // orphan sweep.
     if (applied) filesToDeleteAfterCommit.forEach { photoStore.delete(it) }
-    return applied
+    return when {
+      applied -> ApplyOutcome.APPLIED
+      holdsCursor -> ApplyOutcome.SKIPPED_HOLDS_WATERMARK
+      else -> ApplyOutcome.SKIPPED_RELEASES_WATERMARK
+    }
   }
+
+  /**
+   * Whether a pending record is recent enough to keep holding the pull
+   * watermark. A record the server keeps rejecting (blank name, persistent
+   * error) used to block the cursor forever, so every pull re-downloaded
+   * everything after it. After [WATERMARK_HOLD_SECONDS] the record stays
+   * pending and is retried, but it no longer blocks the rest of the sync.
+   */
+  private fun holdsWatermark(record: Cliente): Boolean =
+    normalizedEpochSeconds() - record.updatedAt <= WATERMARK_HOLD_SECONDS
+
+  private fun skipOutcome(record: Cliente): ApplyOutcome =
+    if (holdsWatermark(record)) ApplyOutcome.SKIPPED_HOLDS_WATERMARK
+    else ApplyOutcome.SKIPPED_RELEASES_WATERMARK
+
+  /** How a server item affected the local state, including the effect on the pull cursor. */
+  private enum class ApplyOutcome { APPLIED, SKIPPED_HOLDS_WATERMARK, SKIPPED_RELEASES_WATERMARK }
 
   /** Delivery cursor of a pulled record (servers without it fall back to `updated_at`). */
   private fun deliveryOf(item: ClienteComFotosDto): Long =
@@ -507,5 +540,12 @@ class SyncCoordinator(
   private companion object {
     /** Pause before retrying a failed photo download. */
     const val PHOTO_RETRY_DELAY_MS = 500L
+
+    /**
+     * How long a pending record may hold the pull watermark. Past this age the
+     * record is assumed to be stuck (the server keeps rejecting it) and is
+     * skipped by the cursor instead of re-downloading everything after it.
+     */
+    const val WATERMARK_HOLD_SECONDS = 7L * 24 * 60 * 60
   }
 }

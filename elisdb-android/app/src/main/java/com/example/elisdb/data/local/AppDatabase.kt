@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
   entities = [Cliente::class, Foto::class, SyncMeta::class],
-  version = 8,
+  version = 9,
   exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -180,6 +180,16 @@ abstract class AppDatabase : RoomDatabase() {
           db.execSQL(
             "UPDATE sync_meta SET value = value / 1000 WHERE `key` = 'last_pull_watermark' AND value > 100000000000"
           )
+        }
+      }
+
+    val MIGRATION_8_9: Migration =
+      object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+          // Local write counter used by the push acknowledgement: `updatedAt` has
+          // second resolution, so an edit made in the same second as the push
+          // looked identical to the snapshot that was sent.
+          db.execSQL("ALTER TABLE clientes ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
         }
       }
   }

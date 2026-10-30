@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -79,7 +80,9 @@ fun PhotoViewerScreen(
 
     IconButton(
       onClick = onBack,
-      modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+      // The viewer is edge-to-edge (black background under the system bars), so
+      // the controls are inset from the status bar instead of the whole screen.
+      modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp),
     ) {
       Icon(
         Icons.AutoMirrored.Filled.ArrowBack,

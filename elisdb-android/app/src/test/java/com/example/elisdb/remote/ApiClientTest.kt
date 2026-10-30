@@ -47,6 +47,10 @@ class ApiClientTest {
     override fun setOffsetSeconds(offsetSeconds: Long) {
       offset = offsetSeconds
     }
+
+    override fun clear() {
+      offset = null
+    }
   }
 
   private fun io.ktor.client.engine.mock.MockRequestHandleScope.okJson(body: String): io.ktor.client.request.HttpResponseData =

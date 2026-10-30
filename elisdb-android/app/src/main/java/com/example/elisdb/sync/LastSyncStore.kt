@@ -14,6 +14,9 @@ interface LastSyncStore {
 
   /** Persists the epoch seconds of a just-completed successful sync. */
   fun setLastSuccessAt(epochSeconds: Long)
+
+  /** Forgets the last successful sync, e.g. when the app switches to another server. */
+  fun clear()
 }
 
 /** SharedPreferences-backed [LastSyncStore]. */
@@ -26,6 +29,10 @@ class PrefsLastSyncStore(context: Context) : LastSyncStore {
 
   override fun setLastSuccessAt(epochSeconds: Long) {
     prefs.edit { putLong(KEY_LAST_SUCCESS, epochSeconds) }
+  }
+
+  override fun clear() {
+    prefs.edit { remove(KEY_LAST_SUCCESS) }
   }
 
   private companion object {

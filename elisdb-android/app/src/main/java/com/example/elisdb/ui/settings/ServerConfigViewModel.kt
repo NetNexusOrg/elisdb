@@ -41,6 +41,12 @@ class ServerConfigViewModel(
   private val settingsStore: SettingsStore,
   private val syncManager: SyncManager,
   private val fetchKeyIdentity: suspend () -> KeyIdentityDto? = { null },
+  /**
+   * Drops the synchronization state that belongs to the previous server
+   * (watermark, photo hashes, clock offset, last sync) before talking to the
+   * new one. Records are kept: the full pull that follows reconciles them.
+   */
+  private val resetSyncState: suspend () -> Unit = {},
 ) : ViewModel() {
   private val _uiState = MutableStateFlow(ServerConfigUiState())
   val uiState: StateFlow<ServerConfigUiState> = _uiState.asStateFlow()
@@ -92,7 +98,13 @@ class ServerConfigViewModel(
       )
     }
     if (userName.isBlank()) lookupKeyIdentity()
-    viewModelScope.launch { syncManager.syncNow() }
+    viewModelScope.launch {
+      resetSyncState()
+      // Only start the full pull after the previous server's cursor is gone, so
+      // the new server returns its whole dataset instead of a delta it thinks
+      // the app already has.
+      syncManager.syncNow()
+    }
   }
 
   fun clearConfig() {
@@ -106,6 +118,7 @@ class ServerConfigViewModel(
         keyIdentity = KeyIdentity.Unresolved,
       )
     }
+    viewModelScope.launch { resetSyncState() }
   }
 
   /** The user name stored with the configuration, resolved without a server round trip. */

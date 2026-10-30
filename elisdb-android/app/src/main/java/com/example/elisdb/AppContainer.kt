@@ -13,6 +13,7 @@ import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_4_5
 import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_5_6
 import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_6_7
 import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_7_8
+import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_8_9
 import com.example.elisdb.data.local.RoomPullWatermark
 import com.example.elisdb.location.LocationService
 import com.example.elisdb.remote.ApiClient
@@ -40,7 +41,7 @@ class AppContainer(context: Context) {
   val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
   val database: AppDatabase =
     Room.databaseBuilder(context, AppDatabase::class.java, "elisdb.db")
-      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
       .build()
 
   val locationService: LocationService = LocationService(context)
@@ -142,5 +143,27 @@ class AppContainer(context: Context) {
     )
 
   val repository: ClienteRepositoryImpl =
-    ClienteRepositoryImpl(context, database, database.clienteDao(), database.fotoDao(), syncManager)
+    ClienteRepositoryImpl(
+      context,
+      database,
+      database.clienteDao(),
+      database.fotoDao(),
+      syncManager,
+      clockOffsetStore,
+    )
+
+  /**
+   * Drops everything tied to the previous server before the app starts using a
+   * new one: the pull cursor (its timestamps are meaningless elsewhere), the
+   * photo content hashes recorded as uploaded, the measured clock offset and
+   * the last sync display. Local records are kept on purpose — the full pull
+   * that follows reconciles them.
+   */
+  suspend fun resetSyncState() {
+    watermark.clear()
+    photoPushState.clearAll()
+    clockOffsetStore.clear()
+    lastSyncStore.clear()
+    syncManager.resetState()
+  }
 }

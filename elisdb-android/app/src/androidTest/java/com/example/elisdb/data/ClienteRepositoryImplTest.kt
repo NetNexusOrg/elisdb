@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.elisdb.data.local.AppDatabase
+import com.example.elisdb.sync.ClockOffsetStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -119,4 +120,45 @@ class ClienteRepositoryImplTest {
     assertFalse(database.clienteDao().getPendingDeletions().isEmpty())
     assertTrue(database.clienteDao().observeAll().first { true }.none { it.id == id })
   }
+
+  @Test
+  fun saveDeClienteInexistenteLancaClienteRemovido() = runBlocking {
+    try {
+      repository.save(ClienteDraft(id = "apagado-entretanto", nome = "Ana", latitude = 1.0, longitude = 2.0))
+      org.junit.Assert.fail("save devia falhar para um cliente eliminado")
+    } catch (e: ClienteRemovidoException) {
+      assertEquals("apagado-entretanto", e.clienteId)
+    }
+  }
+
+  @Test
+  fun updatedAtUsaOffsetDoRelogioDoServidor() = runBlocking {
+    val offsetSeconds = 3600L
+    val repositoryWithOffset =
+      ClienteRepositoryImpl(
+        context,
+        database,
+        database.clienteDao(),
+        database.fotoDao(),
+        clockOffsetStore = FakeOffsetStore(offsetSeconds),
+      )
+
+    val before = System.currentTimeMillis() / 1000 + offsetSeconds
+    val id = repositoryWithOffset.save(ClienteDraft(nome = "Ana", latitude = 1.0, longitude = 2.0))
+    val after = System.currentTimeMillis() / 1000 + offsetSeconds
+
+    val stored = database.clienteDao().getById(id)!!
+    assertTrue(
+      "updatedAt=${stored.updatedAt} devia estar entre $before e $after",
+      stored.updatedAt in before..after,
+    )
+  }
+}
+
+private class FakeOffsetStore(private val offsetSeconds: Long?) : ClockOffsetStore {
+  override fun getOffsetSeconds(): Long? = offsetSeconds
+
+  override fun setOffsetSeconds(offsetSeconds: Long) = Unit
+
+  override fun clear() = Unit
 }

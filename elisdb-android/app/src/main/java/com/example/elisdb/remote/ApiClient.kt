@@ -10,6 +10,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -70,6 +71,14 @@ class ApiClient(
 
     /** Detail text the server returns when the signed timestamp is outside its window. */
     private const val STALE_CLOCK_DETAIL = "stale or future timestamp"
+
+    /**
+     * Per-request allowances for transfers that legitimately exceed the global
+     * 30 s request timeout: a release package or a photo on a slow link.
+     */
+    private const val RELEASE_DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000L
+    private const val PHOTO_TRANSFER_TIMEOUT_MS = 2 * 60 * 1000L
+    private const val TRANSFER_SOCKET_TIMEOUT_MS = 30 * 1000L
 
     fun create(
       baseUrl: String,
@@ -246,6 +255,12 @@ class ApiClient(
     val path = "/api/app/download"
     val response = execute(timestamp) { ts ->
       client.get("$baseUrl$path") {
+        // A 20 MB package does not fit in the global 30 s request timeout: allow
+        // ten minutes for the transfer while keeping the stall detection short.
+        timeout {
+          requestTimeoutMillis = RELEASE_DOWNLOAD_TIMEOUT_MS
+          socketTimeoutMillis = TRANSFER_SOCKET_TIMEOUT_MS
+        }
         header(AuthHeaders.TIMESTAMP, ts.toString())
         header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
       }
@@ -364,6 +379,12 @@ class ApiClient(
     val path = "/api/photos/$id"
     val response = execute(timestamp) { ts ->
       client.get("$baseUrl$path") {
+        // Photos are routinely megabytes and the global 30 s request timeout is
+        // too tight for a slow link; the socket timeout still catches a stall.
+        timeout {
+          requestTimeoutMillis = PHOTO_TRANSFER_TIMEOUT_MS
+          socketTimeoutMillis = TRANSFER_SOCKET_TIMEOUT_MS
+        }
         header(AuthHeaders.TIMESTAMP, ts.toString())
         header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
       }
@@ -379,6 +400,12 @@ class ApiClient(
     val path = "/api/photos/$id"
     val response = execute(timestamp) { ts ->
       client.put("$baseUrl$path") {
+        // Same allowance as the download: the global 30 s limit is too tight for
+        // a multi-megabyte upload on a mobile connection.
+        timeout {
+          requestTimeoutMillis = PHOTO_TRANSFER_TIMEOUT_MS
+          socketTimeoutMillis = TRANSFER_SOCKET_TIMEOUT_MS
+        }
         header(AuthHeaders.TIMESTAMP, ts.toString())
         header(AuthHeaders.SIGNATURE, signer.signRequest("PUT", path, bytes, ts))
         setBody(bytes)

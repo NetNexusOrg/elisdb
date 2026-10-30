@@ -5,6 +5,7 @@ import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncStatus
 import com.example.elisdb.data.ClienteDraft
+import com.example.elisdb.data.ClienteRemovidoException
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
 import com.example.elisdb.data.local.Foto
@@ -150,6 +151,50 @@ class ClientFormViewModelTest {
   }
 
   @Test
+  fun save_clienteRemovidoMostraMensagemEspecificaSemEmitirSaved() = runTest(dispatcher) {
+    val repo =
+      FakeClientRepository(
+        existing = ClienteComFotos(cliente = Cliente(id = "6", nome = "Maria", dataCriacao = 0, updatedAt = 0), fotos = emptyList()),
+        saveError = ClienteRemovidoException("6"),
+      )
+    val viewModel = ClientFormViewModel(repo, { null }, "6")
+    dispatcher.scheduler.advanceUntilIdle()
+    var savedId: String? = null
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+      viewModel.saved.collect { savedId = it }
+    }
+    viewModel.save()
+    dispatcher.scheduler.advanceUntilIdle()
+    val state = viewModel.uiState.value
+    assertFalse(state.saving)
+    assertEquals(
+      "Este cliente foi eliminado entretanto. As alterações não foram guardadas.",
+      state.message,
+    )
+    assertNull(savedId)
+  }
+
+  @Test
+  fun save_semCollectorNaoSuspendeNemBloqueia() = runTest(dispatcher) {
+    val repo = FakeClientRepository(savedId = "77")
+    val viewModel = ClientFormViewModel(repo, { null }, null)
+    viewModel.onNomeChange("Maria")
+    // No collector yet: the save completes instead of suspending on the emit.
+    viewModel.save()
+    dispatcher.scheduler.advanceUntilIdle()
+    assertTrue(repo.saved)
+    assertNull(viewModel.uiState.value.message)
+
+    var savedId: String? = null
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+      viewModel.saved.collect { savedId = it }
+    }
+    viewModel.save()
+    dispatcher.scheduler.advanceUntilIdle()
+    assertEquals("77", savedId)
+  }
+
+  @Test
   fun save_validoPersisteEEmiteId() = runTest(dispatcher) {
     val repo = FakeClientRepository(savedId = "42")
     val viewModel = ClientFormViewModel(repo, { null }, null)
@@ -214,6 +259,7 @@ private class FakeClientRepository(
   private val existing: ClienteComFotos? = null,
   private val savedId: String = "",
   private val throwOnSave: Boolean = false,
+  private val saveError: Throwable? = null,
 ) : ClienteRepository {
   var saved = false
     private set
@@ -235,6 +281,7 @@ private class FakeClientRepository(
   override suspend fun deletePhotoFile(foto: Foto) = Unit
 
   override suspend fun save(draft: ClienteDraft): String {
+    saveError?.let { throw it }
     if (throwOnSave) error("Falha simulada")
     saved = true
     savedDraft = draft

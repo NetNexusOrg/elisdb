@@ -16,4 +16,11 @@ data class Cliente(
   val createdAt: Long = 0,
   val pending: Boolean = false,
   val deletePending: Boolean = false,
+  /**
+   * Monotonic local revision, bumped on every local write. The push
+   * acknowledgement compares it instead of [updatedAt], which only has
+   * one-second resolution: an edit made in the same second as the pushed
+   * snapshot would otherwise be cleared as if it had already been sent.
+   */
+  val revision: Long = 0,
 )

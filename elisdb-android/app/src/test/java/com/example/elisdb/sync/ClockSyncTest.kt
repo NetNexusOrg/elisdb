@@ -10,6 +10,10 @@ class ClockSyncTest {
     override fun setOffsetSeconds(offsetSeconds: Long) {
       offset = offsetSeconds
     }
+
+    override fun clear() {
+      offset = null
+    }
   }
 
   @Test

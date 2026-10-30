@@ -3,6 +3,7 @@ package com.example.elisdb.ui.detalhe
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -86,7 +87,9 @@ fun MapFullscreenScreen(
 
     IconButton(
       onClick = onBack,
-      modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+      // The map fills the screen behind the system bars, so only the control is
+      // inset from the status bar.
+      modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp),
     ) {
       Icon(
         Icons.AutoMirrored.Filled.ArrowBack,

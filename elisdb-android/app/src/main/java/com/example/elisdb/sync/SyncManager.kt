@@ -117,6 +117,21 @@ class SyncManager(
       if (current == null) info.latestUpdatedAt > 0 else info.latestUpdatedAt > current
   }
 
+  /**
+   * Forgets the observations tied to the previous server: the last status,
+   * fault, result and last-success time. The stored settings are not touched
+   * here; the caller also clears the persisted watermark, photo hashes and
+   * clock offset.
+   */
+  fun resetState() {
+    _status.value = SyncStatus.IDLE
+    _fault.value = null
+    _lastResult.value = null
+    _lastSuccessAt.value = null
+    _serverClienteCount.value = null
+    _hasPendingDownloads.value = false
+  }
+
   fun schedulePeriodic() {
     val wm = workManager ?: return
     val constraints =

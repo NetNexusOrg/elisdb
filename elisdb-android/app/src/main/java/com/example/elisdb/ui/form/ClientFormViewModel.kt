@@ -3,6 +3,7 @@ package com.example.elisdb.ui.form
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.elisdb.data.ClienteRemovidoException
 import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.ClienteDraft
 import com.example.elisdb.data.local.Foto
@@ -46,7 +47,9 @@ class ClientFormViewModel(
     MutableStateFlow(ClientFormUiState(isNew = clienteId == null, clienteId = clienteId))
   val uiState: StateFlow<ClientFormUiState> = _uiState.asStateFlow()
 
-  private val _saved = MutableSharedFlow<String>()
+  // Buffered so an event emitted while the screen is being composed is not lost
+  // (a suspending emit with no collector left `saving` stuck at true).
+  private val _saved = MutableSharedFlow<String>(extraBufferCapacity = 1)
   val saved: SharedFlow<String> = _saved.asSharedFlow()
 
   private var wasSaved = false
@@ -153,11 +156,19 @@ class ClientFormViewModel(
       }
         .onSuccess { id ->
           wasSaved = true
-          _saved.emit(id)
+          _saved.tryEmit(id)
         }
-        .onFailure {
+        .onFailure { error ->
           _uiState.update {
-            it.copy(saving = false, message = "Não foi possível guardar o cliente.")
+            it.copy(
+              saving = false,
+              message =
+                if (error is ClienteRemovidoException) {
+                  "Este cliente foi eliminado entretanto. As alterações não foram guardadas."
+                } else {
+                  "Não foi possível guardar o cliente."
+                },
+            )
           }
         }
     }

@@ -10,4 +10,9 @@ class RoomPullWatermark(private val dao: SyncMetaDao) : PullWatermark {
   override suspend fun set(value: Long) {
     dao.put(SyncMeta(PULL_WATERMARK_KEY, value))
   }
+
+  /** Drops every sync_meta row: the cursor is meaningless on another server. */
+  override suspend fun clear() {
+    dao.clear()
+  }
 }

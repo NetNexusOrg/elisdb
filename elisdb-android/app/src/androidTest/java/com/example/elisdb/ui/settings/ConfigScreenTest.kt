@@ -57,6 +57,8 @@ class ConfigScreenTest {
           override suspend fun get(): Long = 100L
 
           override suspend fun set(value: Long) = Unit
+
+          override suspend fun clear() = Unit
         },
       fetchServerInfo = { ServerInfo(latest, clientCount) },
     )

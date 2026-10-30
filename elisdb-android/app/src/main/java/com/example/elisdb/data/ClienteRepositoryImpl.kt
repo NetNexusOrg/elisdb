@@ -17,6 +17,7 @@ import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 data class ClienteDraft(
@@ -48,7 +49,8 @@ class ClienteRepositoryImpl(
 
   override val clientes: Flow<List<Cliente>> = clienteDao.observeAll()
 
-  override val clientesComFotos: Flow<List<ClienteComFotos>> = clienteDao.observeAllComFotos()
+  override val clientesComFotos: Flow<List<ClienteComFotos>> =
+    clienteDao.observeAllComFotos().map { list -> list.map { it.withOrderedPhotos() } }
 
   override val syncStatus: Flow<SyncStatus> =
     syncManager?.status ?: kotlinx.coroutines.flow.flowOf(SyncStatus.IDLE)
@@ -56,9 +58,11 @@ class ClienteRepositoryImpl(
   override val syncFault: Flow<SyncFault?> =
     syncManager?.fault ?: kotlinx.coroutines.flow.flowOf(null)
 
-  override fun observeCliente(id: String): Flow<ClienteComFotos?> = clienteDao.observeClienteComFotos(id)
+  override fun observeCliente(id: String): Flow<ClienteComFotos?> =
+    clienteDao.observeClienteComFotos(id).map { it?.withOrderedPhotos() }
 
-  override suspend fun getCliente(id: String): ClienteComFotos? = clienteDao.getClienteComFotos(id)
+  override suspend fun getCliente(id: String): ClienteComFotos? =
+    clienteDao.getClienteComFotos(id)?.withOrderedPhotos()
 
   override suspend fun stagePhoto(source: Uri): Foto = withContext(Dispatchers.IO) {
     val dest = photoEncoder.encodeToWebp(source, photosDir)
@@ -94,11 +98,13 @@ class ClienteRepositoryImpl(
                 updatedAt = now,
                 createdAt = now,
                 pending = true,
+                revision = 1,
               )
             )
             newId
           } else {
-            val existing = clienteDao.getById(draft.id) ?: return@withTransaction draft.id
+            val existing =
+              clienteDao.getById(draft.id) ?: throw ClienteRemovidoException(draft.id)
             clienteDao.update(
               existing.copy(
                 nome = draft.nome.trim().uppercase(Locale.ROOT),
@@ -108,6 +114,7 @@ class ClienteRepositoryImpl(
                 notas = draft.notas?.takeIf { it.isNotBlank() },
                 updatedAt = now,
                 pending = true,
+                revision = existing.revision + 1,
               )
             )
             draft.id
@@ -138,7 +145,7 @@ class ClienteRepositoryImpl(
 
   override suspend fun deleteCliente(id: String) {
     clienteDao.getById(id)?.let { existing ->
-      clienteDao.update(existing.copy(deletePending = true))
+      clienteDao.update(existing.copy(deletePending = true, revision = existing.revision + 1))
     }
   }
 
@@ -148,4 +155,19 @@ class ClienteRepositoryImpl(
   private fun deleteFile(foto: Foto) {
     runCatching { File(foto.uriLocal).delete() }
   }
+
+  /**
+   * Room's `@Relation` query has no `ORDER BY`, so the photo list comes back in
+   * rowid order. Sort it here once, so the list thumbnail, the detail grid and
+   * the viewer all show the order the user chose when saving.
+   */
+  private fun ClienteComFotos.withOrderedPhotos(): ClienteComFotos =
+    copy(fotos = fotos.sortedWith(compareBy({ it.ordem }, { it.id })))
 }
+
+/**
+ * The client being saved no longer exists locally: a pull removed it while the
+ * form was open. Reported to the user instead of pretending the save worked.
+ */
+class ClienteRemovidoException(val clienteId: String) :
+  Exception("client $clienteId was removed by a sync")

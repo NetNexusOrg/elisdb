@@ -2,6 +2,7 @@ package com.example.elisdb.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -33,9 +34,13 @@ interface SettingsStore {
  * Absent a saved value, [settings] reflects the build-time defaults from
  * `BuildConfig`, so existing builds keep working unchanged.
  */
-class PrefsSettingsStore(context: Context) : SettingsStore {
+class PrefsSettingsStore(
+  context: Context,
+  /** Seam for tests: opens the encrypted store (which may be unavailable). */
+  openEncrypted: (Context) -> SharedPreferences = ::createEncryptedStore,
+) : SettingsStore {
   private val appContext = context.applicationContext
-  private val prefs: SharedPreferences = createEncryptedPrefs(appContext)
+  private val prefs: SharedPreferences = openSettings(appContext, openEncrypted)
 
   override fun settings(): ServerSettings =
     ServerSettings(
@@ -57,54 +62,90 @@ class PrefsSettingsStore(context: Context) : SettingsStore {
   }
 
   private companion object {
+    const val TAG = "ElisdbSettings"
     const val PREFS_NAME = "elisdb_settings"
     const val KEY_BASE_URL = "server_base_url_override"
     const val KEY_SIGNING_KEY = "signing_key_override"
     const val KEY_USER_NAME = "user_name_override"
 
     /**
-     * Creates the encrypted preferences, migrating any values stored in plain
-     * text by older versions of the app. The plain file is read first, then
-     * cleared, so the encrypted store never has to decode raw plaintext.
+     * Opens the effective settings store, migrating any values written in plain
+     * text by older versions of the app.
      *
-     * `EncryptedSharedPreferences`/`MasterKey` are deprecated in
-     * security-crypto 1.1.0 (Jetpack Security is being retired), but the API is
-     * stable and functional. Migrating the seed storage to the Android Keystore
-     * or Tink directly is tracked as a separate, deliberate change.
+     * The migration is fail-safe: the legacy values are copied out first, the
+     * encrypted store is written and read back to prove the master key works,
+     * and only then is the plain-text file cleared. If anything fails — a
+     * Keystore that cannot be opened, a write that does not persist — the plain
+     * values are restored and the plain store is used, so a broken Keystore
+     * keeps the app working instead of losing the signing key or crashing
+     * `Application.onCreate`.
      */
-    @Suppress("DEPRECATION")
-    fun createEncryptedPrefs(context: Context): SharedPreferences {
-      val plainPrefs =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-      val legacyBaseUrl = plainPrefs.getString(KEY_BASE_URL, null)
-      val legacySigningKey = plainPrefs.getString(KEY_SIGNING_KEY, null)
-      val legacyUserName = plainPrefs.getString(KEY_USER_NAME, null)
-      if (legacyBaseUrl != null || legacySigningKey != null || legacyUserName != null) {
-        // Commit synchronously so the plaintext file is cleared before returning.
-        plainPrefs.edit(commit = true) { clear() }
+    fun openSettings(
+      context: Context,
+      openEncrypted: (Context) -> SharedPreferences,
+    ): SharedPreferences {
+      val plain = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+      val legacyBaseUrl = plain.getString(KEY_BASE_URL, null)
+      val legacySigningKey = plain.getString(KEY_SIGNING_KEY, null)
+      val legacyUserName = plain.getString(KEY_USER_NAME, null)
+      val hasLegacy = legacyBaseUrl != null || legacySigningKey != null || legacyUserName != null
+      if (!hasLegacy) {
+        return runCatching { openEncrypted(context) }.getOrElse { error ->
+          Log.w(TAG, "Encrypted settings unavailable; using the plain-text store", error)
+          plain
+        }
       }
 
-      val masterKey =
-        MasterKey.Builder(context, MasterKey.DEFAULT_MASTER_KEY_ALIAS)
-          .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-          .build()
-      val encrypted =
-        EncryptedSharedPreferences.create(
-          context,
-          PREFS_NAME,
-          masterKey,
-          EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-          EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
-      if (legacyBaseUrl != null || legacySigningKey != null || legacyUserName != null) {
-        // Commit synchronously so the migrated secrets are persisted before returning.
+      // The encrypted store and the legacy one share a file, so the plaintext
+      // entries have to go before EncryptedSharedPreferences opens it. The
+      // values above are restored if the migration does not complete.
+      plain.edit(commit = true) { clear() }
+      return try {
+        val encrypted = openEncrypted(context)
+        // Commit synchronously so the migrated secrets are persisted before the
+        // read-back verification.
         encrypted.edit(commit = true) {
           putString(KEY_BASE_URL, legacyBaseUrl ?: "")
           putString(KEY_SIGNING_KEY, legacySigningKey ?: "")
           putString(KEY_USER_NAME, legacyUserName ?: "")
         }
+        val migrated =
+          encrypted.getString(KEY_BASE_URL, null) == (legacyBaseUrl ?: "") &&
+            encrypted.getString(KEY_SIGNING_KEY, null) == (legacySigningKey ?: "") &&
+            encrypted.getString(KEY_USER_NAME, null) == (legacyUserName ?: "")
+        if (!migrated) error("encrypted settings could not be read back")
+        encrypted
+      } catch (e: Exception) {
+        Log.w(TAG, "Settings migration failed; keeping the plain-text values", e)
+        plain.edit(commit = true) {
+          legacyBaseUrl?.let { putString(KEY_BASE_URL, it) }
+          legacySigningKey?.let { putString(KEY_SIGNING_KEY, it) }
+          legacyUserName?.let { putString(KEY_USER_NAME, it) }
+        }
+        plain
       }
-      return encrypted
+    }
+
+    /**
+     * Creates the encrypted preferences. `EncryptedSharedPreferences`/`MasterKey`
+     * are deprecated in security-crypto 1.1.0 (Jetpack Security is being
+     * retired), but the API is stable and functional. Migrating the seed storage
+     * to the Android Keystore or Tink directly is tracked as a separate,
+     * deliberate change.
+     */
+    @Suppress("DEPRECATION")
+    fun createEncryptedStore(context: Context): SharedPreferences {
+      val masterKey =
+        MasterKey.Builder(context, MasterKey.DEFAULT_MASTER_KEY_ALIAS)
+          .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+          .build()
+      return EncryptedSharedPreferences.create(
+        context,
+        PREFS_NAME,
+        masterKey,
+        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+      )
     }
   }
 }

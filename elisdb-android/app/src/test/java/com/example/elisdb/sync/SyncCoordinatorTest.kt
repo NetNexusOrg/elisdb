@@ -880,7 +880,14 @@ class SyncCoordinatorTest {
         pushResult = { records ->
           // The user saves the same client while the request is on the wire.
           val i = dao.data.indexOfFirst { it.id == "1" }
-          dao.data[i] = dao.data[i].copy(nome = "Editado", updatedAt = 200, pending = true)
+          dao.data[i] =
+            dao.data[i].copy(
+              nome = "Editado",
+              updatedAt = 200,
+              pending = true,
+              // The repository bumps the revision on every local write.
+              revision = dao.data[i].revision + 1,
+            )
           records.map { PushResultDto(it.client.id, "accepted") }
         }
       }
@@ -900,7 +907,14 @@ class SyncCoordinatorTest {
       FakeSyncApi().apply {
         pushResult = { records ->
           val i = dao.data.indexOfFirst { it.id == "1" }
-          dao.data[i] = dao.data[i].copy(nome = "Editado", updatedAt = 200, pending = true)
+          dao.data[i] =
+            dao.data[i].copy(
+              nome = "Editado",
+              updatedAt = 200,
+              pending = true,
+              // The repository bumps the revision on every local write.
+              revision = dao.data[i].revision + 1,
+            )
           records.map { PushResultDto(it.client.id, "stale") }
         }
       }
@@ -958,7 +972,10 @@ class SyncCoordinatorTest {
 
   @Test
   fun `skipped record holds the watermark back`() = runBlocking {
-    val dao = FakeClienteDao(listOf(cliente("2", pending = true, updatedAt = 200)))
+    // A recent pending edit still blocks the cursor: the server version cannot be
+    // applied until the local edit is pushed.
+    val recent = System.currentTimeMillis() / 1000 - 60
+    val dao = FakeClienteDao(listOf(cliente("2", pending = true, updatedAt = recent)))
     val api =
       FakeSyncApi().apply {
         // The server rejects the pending record, so it stays pending into the pull.
@@ -998,7 +1015,8 @@ class SyncCoordinatorTest {
 
   @Test
   fun `skipped tombstone holds the watermark back`() = runBlocking {
-    val dao = FakeClienteDao(listOf(cliente("1", pending = true, updatedAt = 100)))
+    val recent = System.currentTimeMillis() / 1000 - 60
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, updatedAt = recent)))
     val api =
       FakeSyncApi().apply {
         pushResult = { records -> records.map { PushResultDto(it.client.id, "error") } }
@@ -1015,5 +1033,52 @@ class SyncCoordinatorTest {
 
     assertTrue("pending record kept so its edit can be pushed", dao.data.any { it.id == "1" && it.pending })
     assertEquals("watermark stops below the skipped tombstone", 149L, watermark.value)
+  }
+
+  @Test
+  fun `pending record older than a week no longer holds the watermark`() = runBlocking {
+    // A record the server keeps rejecting (status=error) used to block the cursor
+    // forever, so every pull re-downloaded everything after it. After a week it is
+    // treated as stuck: the cursor moves on, the record stays pending and is retried.
+    val eightDaysAgo = System.currentTimeMillis() / 1000 - 8L * 24 * 60 * 60
+    val dao = FakeClienteDao(listOf(cliente("2", pending = true, updatedAt = eightDaysAgo)))
+    val api =
+      FakeSyncApi().apply {
+        pushResult = { records -> records.map { PushResultDto(it.client.id, "error") } }
+        pullResponse =
+          pullResponseOf(
+            serverItem(id = "1", updatedAt = 100, deliveryTs = 100),
+            serverItem(id = "2", updatedAt = 200, deliveryTs = 200),
+          )
+      }
+    val watermark = FakePullWatermark(value = 50L)
+    val c = coord(clienteDao = dao, api = api, pullWatermark = watermark, incrementalPullEnabled = true)
+
+    c.sync()
+
+    assertEquals("watermark moves past the stuck record", 200L, watermark.value)
+    assertTrue("the record stays pending for a later retry", dao.data.any { it.id == "2" && it.pending })
+  }
+
+  @Test
+  fun `stuck record does not hold the watermark for a skipped tombstone`() = runBlocking {
+    val eightDaysAgo = System.currentTimeMillis() / 1000 - 8L * 24 * 60 * 60
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, updatedAt = eightDaysAgo)))
+    val api =
+      FakeSyncApi().apply {
+        pushResult = { records -> records.map { PushResultDto(it.client.id, "error") } }
+        pullResponse =
+          pullResponseOf(
+            serverItem(id = "9", updatedAt = 200, deliveryTs = 200),
+            tombstones = listOf(TombstoneDto(id = "1", deletedAt = 50, deliveryTs = 150)),
+          )
+      }
+    val watermark = FakePullWatermark(value = 100L)
+    val c = coord(clienteDao = dao, api = api, pullWatermark = watermark, incrementalPullEnabled = true)
+
+    c.sync()
+
+    assertEquals("watermark moves past the stuck record", 200L, watermark.value)
+    assertTrue("the pending record is kept", dao.data.any { it.id == "1" && it.pending })
   }
 }

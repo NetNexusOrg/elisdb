@@ -52,10 +52,10 @@ class FakeClienteDao(initial: List<Cliente> = emptyList()) : ClienteDao {  val d
     if (i >= 0) data[i] = cliente else data.add(cliente)
   }
 
-  override suspend fun markSynced(id: String, seenUpdatedAt: Long): Int {
+  override suspend fun markSynced(id: String, seenRevision: Long): Int {
     val i = data.indexOfFirst { it.id == id }
     if (i < 0) return 0
-    if (data[i].updatedAt != seenUpdatedAt) return 0
+    if (data[i].revision != seenRevision) return 0
     data[i] = data[i].copy(pending = false)
     return 1
   }
@@ -142,6 +142,10 @@ class FakePullWatermark(var value: Long? = null) : PullWatermark {
   override suspend fun set(value: Long) {
     this.value = value
   }
+
+  override suspend fun clear() {
+    value = null
+  }
 }
 
 /** In-memory [ClockOffsetStore]. */
@@ -149,6 +153,10 @@ class FakeClockOffsetStore(var offset: Long? = null) : ClockOffsetStore {
   override fun getOffsetSeconds(): Long? = offset
   override fun setOffsetSeconds(offsetSeconds: Long) {
     offset = offsetSeconds
+  }
+
+  override fun clear() {
+    offset = null
   }
 }
 
@@ -162,6 +170,10 @@ class FakePhotoPushState : PhotoPushState {
 
   override fun clear(clienteId: String) {
     hashes.remove(clienteId)
+  }
+
+  override fun clearAll() {
+    hashes.clear()
   }
 }
 
@@ -296,5 +308,9 @@ class FakeLastSyncStore(var value: Long? = null) : LastSyncStore {
 
   override fun setLastSuccessAt(epochSeconds: Long) {
     value = epochSeconds
+  }
+
+  override fun clear() {
+    value = null
   }
 }

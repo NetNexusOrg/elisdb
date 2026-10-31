@@ -270,6 +270,50 @@ class ClientFormViewModelTest {
     dispatcher.scheduler.advanceUntilIdle()
     assertFalse(repo.savedDraft?.ativo ?: true)
   }
+
+  @Test
+  fun save_validoDisparaSincronizacao() = runTest(dispatcher) {
+    val repo = FakeClientRepository(savedId = "46")
+    val viewModel = ClientFormViewModel(repo, { null }, null)
+    viewModel.onNomeChange("Maria")
+    viewModel.save()
+    dispatcher.scheduler.advanceUntilIdle()
+    assertEquals(1, repo.syncCalls)
+  }
+
+  @Test
+  fun save_falhadoNaoDisparaSincronizacao() = runTest(dispatcher) {
+    val repo = FakeClientRepository(saveError = IllegalStateException("falha"))
+    val viewModel = ClientFormViewModel(repo, { null }, null)
+    viewModel.onNomeChange("Maria")
+    viewModel.save()
+    dispatcher.scheduler.advanceUntilIdle()
+    assertEquals(0, repo.syncCalls)
+  }
+
+  @Test
+  fun save_semNomeNaoDisparaSincronizacao() = runTest(dispatcher) {
+    val repo = FakeClientRepository(savedId = "47")
+    val viewModel = ClientFormViewModel(repo, { null }, null)
+    viewModel.save()
+    dispatcher.scheduler.advanceUntilIdle()
+    assertEquals(0, repo.syncCalls)
+  }
+
+  @Test
+  fun falhaDeSyncNaoImpedeASaidaDoFormulario() = runTest(dispatcher) {
+    val repo = FakeClientRepository(savedId = "48", syncError = IllegalStateException("offline"))
+    val viewModel = ClientFormViewModel(repo, { null }, null)
+    var savedId: String? = null
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+      viewModel.saved.collect { savedId = it }
+    }
+    viewModel.onNomeChange("Maria")
+    viewModel.save()
+    dispatcher.scheduler.advanceUntilIdle()
+    assertEquals("48", savedId)
+    assertEquals(1, repo.syncCalls)
+  }
 }
 
 private class FakeClientRepository(
@@ -277,10 +321,13 @@ private class FakeClientRepository(
   private val savedId: String = "",
   private val throwOnSave: Boolean = false,
   private val saveError: Throwable? = null,
+  private val syncError: Throwable? = null,
 ) : ClienteRepository {
   var saved = false
     private set
   var savedDraft: ClienteDraft? = null
+    private set
+  var syncCalls = 0
     private set
 
   override val clientes: Flow<List<Cliente>> = flowOf(emptyList())
@@ -311,5 +358,9 @@ private class FakeClientRepository(
 
   override val syncFault = flowOf<SyncFault?>(null)
 
-  override suspend fun syncNow(): SyncStatus = SyncStatus.IDLE
+  override suspend fun syncNow(): SyncStatus {
+    syncCalls++
+    syncError?.let { throw it }
+    return SyncStatus.IDLE
+  }
 }

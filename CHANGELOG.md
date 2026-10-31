@@ -12,6 +12,10 @@ e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
 ### Novidades
 
+- **Guardar sincroniza logo.** Ao guardar um cliente novo ou uma edição, a app
+  começa a sincronizar em segundo plano, sem teres de abrir a Configuração. A
+  navegação continua imediata e, se não houver rede, o cliente fica guardado e
+  pendente como antes.
 - **Clientes ativos e inativos.** Cada cliente tem agora um interruptor
   **Cliente ativo** no formulário. Os inativos continuam guardados e
   sincronizados, mas aparecem com a etiqueta **Inativo** na lista e no detalhe,

@@ -54,8 +54,10 @@ resultado aparece nesse mesmo ecrã:
 
 A app trabalha **offline-first**: podes criar e editar clientes, tirar e remover
 fotos, e marcar a localização no mapa mesmo sem servidor. A sincronização é
-acionada no ecrã **Configuração** (menu ⋮ → **Configuração**); o estado
-aparece nesse mesmo ecrã — ícone + mensagem curta.
+acionada no ecrã **Configuração** (menu ⋮ → **Configuração**) e também
+automaticamente **sempre que guardas um cliente** — o envio segue em segundo
+plano, sem atrasar a volta ao ecrã anterior. O estado aparece no ecrã
+**Configuração** e na lista — ícone + mensagem curta.
 
 Se o relógio do dispositivo estiver mais de 2 minutos diferente do servidor,
 o ecrã **Configuração** mostra um aviso a dizer quanto está atrasado ou

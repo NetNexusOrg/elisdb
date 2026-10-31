@@ -161,6 +161,12 @@ class ClientFormViewModel(
       }
         .onSuccess { id ->
           wasSaved = true
+          // Saving is a user-triggered sync point: send the changes in the
+          // background while the form closes. SyncManager runs the transfer in
+          // its own scope, so navigation (and this view model's clear) does not
+          // cancel it, and a failure surfaces through the list screen's sync
+          // state instead of a snackbar on a form that is already gone.
+          viewModelScope.launch { runCatching { repository.syncNow() } }
           _saved.tryEmit(id)
         }
         .onFailure { error ->

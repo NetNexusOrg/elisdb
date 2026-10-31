@@ -211,13 +211,23 @@ The system SHALL NOT convert a history fetch failure into an empty result; a fai
 - **THEN** the app SHALL surface the failure (not an empty list)
 - **AND** the UI SHALL present it as a load error
 
-### Requirement: Sync is manual only
+### Requirement: Sync happens on launch, save and manual trigger
 
-The system SHALL NOT synchronize automatically on a schedule; data transfers (push/pull) SHALL happen only in response to a user action, either an explicit manual sync or saving a client.
+The system SHALL NOT synchronize on a timer: transfers SHALL happen only when the app starts, when the user saves a client, or when the user triggers a sync manually.
 
 #### Scenario: No automatic sync runs
-- **WHEN** the app is running and time passes without the user triggering a sync
-- **THEN** the app SHALL NOT transfer data to or from the server automatically
+- **WHEN** the app stays open or in the background without a launch, a save or a manual trigger
+- **THEN** the app SHALL NOT transfer data to or from the server on a timer
+
+#### Scenario: Initial sync on app start
+- **WHEN** the app process starts and a server configuration exists
+- **THEN** the app SHALL start a synchronisation in the background
+- **AND** the app SHALL be usable without waiting for it to finish
+
+#### Scenario: Start without a server configuration
+- **WHEN** the app starts and no signing key is configured
+- **THEN** the app SHALL NOT attempt a synchronisation
+- **AND** no synchronisation error SHALL be shown
 
 #### Scenario: Manual trigger transfers
 - **WHEN** the user triggers a sync manually

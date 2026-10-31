@@ -5,12 +5,21 @@ Stores client records and their associated photos locally on the device so the a
 ## Requirements
 ### Requirement: Client record schema
 
-The system SHALL store client records containing a stable identifier, a mandatory name, an optional contract reference, optional latitude and longitude coordinates, optional free-text notes, a creation timestamp, and a modification timestamp, where the identifier and timestamps are compatible with the server so records can be synchronized by identifier and last-write-wins.
+The system SHALL store client records containing a stable identifier, a mandatory name, an optional contract reference, optional latitude and longitude coordinates, optional free-text notes, an active/inactive status, a creation timestamp, and a modification timestamp, where the identifier and timestamps are compatible with the server so records can be synchronized by identifier and last-write-wins.
 
 #### Scenario: A client record has all required fields
 - **WHEN** a client is created
 - **THEN** the record MUST contain a name and a creation timestamp
 - **AND** the contract reference, coordinates, and notes MAY be empty
+
+#### Scenario: Status defaults to active
+- **WHEN** a client is created without an explicit status
+- **THEN** the record SHALL be stored as active
+
+#### Scenario: Existing clients survive the status migration
+- **WHEN** the local database is migrated to include the status
+- **THEN** every previously stored client SHALL remain active
+- **AND** no client data SHALL be lost
 
 #### Scenario: Unique client identifiers
 - **WHEN** multiple clients exist
@@ -44,7 +53,7 @@ The system SHALL store photo records linked to exactly one client, where each ph
 
 ### Requirement: Create client
 
-The system SHALL allow creating a client with a name, contract reference, coordinates, notes and photos.
+The system SHALL allow creating a client with a name, contract reference, coordinates, notes, photos and an active/inactive status.
 
 #### Scenario: Create client with all fields
 - **WHEN** the user saves a new client with a name, contract reference, coordinates, notes and photos
@@ -60,6 +69,10 @@ The system SHALL allow creating a client with a name, contract reference, coordi
 - **WHEN** the user saves a new client with a name but without coordinates
 - **THEN** the client SHALL be persisted without coordinates
 
+#### Scenario: Create an inactive client
+- **WHEN** the user saves a new client with the active switch turned off
+- **THEN** the client SHALL be persisted as inactive
+
 ### Requirement: Read clients
 
 The system SHALL allow listing all stored clients and reading a single client by its identifier, including its photos.
@@ -74,7 +87,7 @@ The system SHALL allow listing all stored clients and reading a single client by
 
 ### Requirement: Update client
 
-The system SHALL allow editing a client's name, contract reference, coordinates, notes and photos, preserving the client's identifier and refreshing its modification timestamp.
+The system SHALL allow editing a client's name, contract reference, coordinates, notes, photos and active/inactive status, preserving the client's identifier and refreshing its modification timestamp.
 
 #### Scenario: Edit client fields
 - **WHEN** the user saves changes to an existing client
@@ -86,6 +99,11 @@ The system SHALL allow editing a client's name, contract reference, coordinates,
 - **THEN** the updated values SHALL be persisted
 - **AND** the client's identifier SHALL remain unchanged
 - **AND** the modification timestamp SHALL be refreshed
+
+#### Scenario: Deactivate a client
+- **WHEN** the user turns the active switch off and saves an existing client
+- **THEN** the client SHALL be stored as inactive
+- **AND** the client's photos and history SHALL be preserved
 
 ### Requirement: Delete client
 

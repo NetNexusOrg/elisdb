@@ -33,13 +33,22 @@ The server SHALL accept a push of client and photo changes from a client and per
 - **THEN** the server SHALL process the remaining records normally
 - **AND** SHALL return a per-record result marking the invalid record as rejected
 
+#### Scenario: Status is persisted with the record
+- **WHEN** a client pushes a client record marked inactive
+- **THEN** the server SHALL store it as inactive
+- **AND** a payload without a status SHALL be stored as active
+
 ### Requirement: Pull changes
 
-The server SHALL allow a client to pull all stored client records with their photos.
+The server SHALL allow a client to pull all stored client records with their photos, including each client's active/inactive status.
 
 #### Scenario: Client pulls all data
 - **WHEN** a client requests a pull
 - **THEN** the server SHALL return all stored clients with their photos
+
+#### Scenario: Pull returns the client status
+- **WHEN** a client pulls records and a stored client is inactive
+- **THEN** the pulled record SHALL indicate that the client is inactive
 
 ### Requirement: Duplicate detection
 
@@ -83,7 +92,7 @@ When a push is acknowledged as `duplicate`, the server SHALL include the canonic
 
 ### Requirement: Record identity
 
-Each client record SHALL carry a stable client identifier and a modification timestamp used for conflict resolution. Photos SHALL belong to exactly one client, and a photo identifier owned by one client SHALL NOT be silently reassigned to another client. Coordinates SHALL be optional.
+Each client record SHALL carry a stable client identifier and a modification timestamp used for conflict resolution. Photos SHALL belong to exactly one client, and a photo identifier owned by one client SHALL NOT be silently reassigned to another client. Coordinates SHALL be optional. The active/inactive status SHALL be optional in the payload and default to active.
 
 #### Scenario: Record has identity and timestamp
 - **WHEN** a client record is received
@@ -343,3 +352,15 @@ The server's latest-data response SHALL include the number of client records it 
 - **WHEN** a client is deleted from the server
 - **THEN** the reported client count SHALL decrease
 - **AND** the tombstone left by the deletion SHALL NOT be counted as a client
+
+### Requirement: Client status changes appear in the edit history
+
+The server SHALL record a status change in the client's edit history when a push changes a client between active and inactive, identifying the change as an activation or a deactivation.
+
+#### Scenario: Deactivation appears in the history
+- **WHEN** a push updates a client from active to inactive
+- **THEN** the stored history entry SHALL identify the status change as a deactivation
+
+#### Scenario: Activation appears in the history
+- **WHEN** a push updates a client from inactive to active
+- **THEN** the stored history entry SHALL identify the status change as an activation

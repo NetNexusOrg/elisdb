@@ -5,16 +5,26 @@ Provides the user-facing Compose screens for managing clients: a list of clients
 ## Requirements
 ### Requirement: Client list screen
 
-The system SHALL show a list of all clients, each row displaying the client's name and a thumbnail: the client's first photo when present, otherwise a generic profile image. The system SHALL allow filtering the list by a search term. The screen SHALL have a top bar that shows a title for the screen and SHALL host a menu containing the create-client action, the synchronization action, the server action, and the about action.
+The system SHALL show a list of all clients, each row displaying the client's name, the contract reference when present, and a thumbnail: the client's first photo when present, otherwise a generic profile image. Inactive clients SHALL be labelled. The system SHALL allow filtering the list by a search term and by status. The screen SHALL have a top bar with a title and a menu holding the create-client, synchronization, server and about actions.
 
 #### Scenario: List shows clients with thumbnails
 - **WHEN** the client list screen is shown and clients exist
 - **THEN** each row SHALL display the client's name
 - **AND** rows for clients with photos SHALL display the first photo as a thumbnail
 
+#### Scenario: Contract reference under the name
+- **WHEN** a listed client has a contract reference
+- **THEN** the row SHALL display the contract reference below the client's name
+- **AND** rows for clients without a contract SHALL NOT leave an empty line
+
 #### Scenario: Generic image for clients without a photo
 - **WHEN** the client list screen is shown and a client has no photo
 - **THEN** the row SHALL display a generic profile image in place of the photo thumbnail
+
+#### Scenario: Inactive clients are identifiable in the list
+- **WHEN** the client list screen shows a client whose status is inactive
+- **THEN** the row SHALL carry a visible "inactive" label
+- **AND** the row SHALL be visually dimmed compared with active clients
 
 #### Scenario: Open a client from the list
 - **WHEN** the user taps a client row
@@ -28,6 +38,12 @@ The system SHALL show a list of all clients, each row displaying the client's na
 - **WHEN** the user types a search term in the search field
 - **THEN** the list SHALL show only clients whose name, contract or notes contain the term
 - **AND** the comparison SHALL ignore letter case and diacritics
+
+#### Scenario: Filter the list by status
+- **WHEN** the user opens the status filter from the search field and chooses active or inactive
+- **THEN** the list SHALL show only clients with that status
+- **AND** the filter control SHALL indicate that a filter is applied
+- **AND** the default selection SHALL show every client regardless of status
 
 #### Scenario: Search matches no client
 - **WHEN** the search term does not match any client
@@ -66,7 +82,7 @@ The system SHALL provide an entry point to create a new client from the menu in 
 
 ### Requirement: Create/edit client form
 
-The system SHALL provide a form to create a new client or edit an existing one, with fields for name (required), contract (optional), location selection (optional), notes, and a photo management section, plus a save action. A form opened in create mode SHALL start with all fields empty and no location selected. A form opened in edit mode SHALL load the data of the selected client only, regardless of which forms were opened previously.
+The system SHALL provide a form to create a new client or edit an existing one, with fields for name (required), contract (optional), location selection (optional), notes, an active switch, and a photo management section, plus a save action. A form opened in create mode SHALL start with all fields empty, no location selected, and the active switch on. A form opened in edit mode SHALL load the data of the selected client only, regardless of which forms were opened previously.
 
 #### Scenario: Required name validation
 - **WHEN** the user tries to save with an empty name
@@ -96,14 +112,20 @@ The system SHALL provide a form to create a new client or edit an existing one, 
 - **WHEN** the user opens a create/edit form, leaves it, and opens the create form again
 - **THEN** every field SHALL be empty
 - **AND** no location SHALL be selected
+- **AND** the active switch SHALL be on
 
 #### Scenario: Edit form loads only the selected client
 - **WHEN** the user opens the edit form for a client after having previously opened a form for a different client
-- **THEN** the form SHALL show the name, contract, notes and location of the selected client only
+- **THEN** the form SHALL show the name, contract, notes, location and status of the selected client only
+
+#### Scenario: Toggle the client status
+- **WHEN** the user turns the active switch off and saves
+- **THEN** the client SHALL be stored as inactive
+- **AND** when the switch is on the client SHALL be stored as active
 
 ### Requirement: Client detail screen
 
-The system SHALL show a client's name, notes, a map with the client's location when one exists, a photo gallery, and actions to navigate to the location, edit the client, and delete the client. When the client has a contract reference, the top bar SHALL display it next to the back button; the body SHALL NOT show a contract line above the name. The body sections SHALL be presented in the following order: name, map (when the location exists), notes, photo gallery. When the client has no location, the map and the navigate action SHALL NOT be shown. The edit and delete actions SHALL be offered through an overflow menu in the top bar, and the top bar SHALL NOT repeat the client's name.
+The system SHALL show a client's name, notes, a map with the client's location when one exists, a photo gallery, an "inactive" label when the client is inactive, and actions to navigate to the location, edit the client, and delete the client. When the client has a contract reference, the top bar SHALL display it next to the back button; the body SHALL NOT show a contract line above the name. The body sections SHALL be presented in the following order: name, map (when the location exists), notes, photo gallery. When the client has no location, the map and the navigate action SHALL NOT be shown. The edit and delete actions SHALL be offered through an overflow menu in the top bar, and the top bar SHALL NOT repeat the client's name.
 
 #### Scenario: Show full client information
 - **WHEN** the user opens a client detail screen
@@ -126,6 +148,10 @@ The system SHALL show a client's name, notes, a map with the client's location w
 #### Scenario: No contract on the client
 - **WHEN** a client without a contract reference is viewed
 - **THEN** the top bar SHALL NOT display a contract reference
+
+#### Scenario: Inactive client is labelled
+- **WHEN** the user opens the detail screen of an inactive client
+- **THEN** the screen SHALL show an "inactive" label next to the client's name
 
 #### Scenario: Sections are presented in order
 - **WHEN** a client detail screen is shown for a client with coordinates
@@ -227,3 +253,16 @@ The system SHALL offer a "Log" action on the client detail screen that shows who
 #### Scenario: Pending client notes history after sync
 - **WHEN** a client has local pending changes (created or edited but not yet acknowledged by the server) and the log has no server entries
 - **THEN** the log view SHALL indicate that the history will appear after synchronization, rather than only saying no history is available
+
+### Requirement: Client status changes appear in the log
+
+The system SHALL show an entry in the client's log when a client is activated or deactivated, so the change of status is explained alongside the other edits.
+
+#### Scenario: Deactivation is logged
+- **WHEN** a client with recorded history is saved as inactive
+- **THEN** the log view SHALL show that the client was deactivated
+- **AND** the entry SHALL show the actor and the timestamp like the other edits
+
+#### Scenario: Activation is logged
+- **WHEN** a client with recorded history is saved as active after having been inactive
+- **THEN** the log view SHALL show that the client was activated

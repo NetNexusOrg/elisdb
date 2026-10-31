@@ -8,7 +8,7 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
-## [Não publicado]
+## [1.6.2] - 2026-10-31
 
 ### Novidades
 

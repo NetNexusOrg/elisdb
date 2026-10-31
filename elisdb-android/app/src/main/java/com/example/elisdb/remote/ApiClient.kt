@@ -137,12 +137,16 @@ class ApiClient(
     timestamp: Long,
     since: Long?,
     sinceId: String?,
+    limit: Int?,
   ): PullResponseDto {
     val path = "/api/pull"
     val query =
       buildString {
         if (since != null) append("?since=$since")
         if (sinceId != null) append(if (since != null) "&" else "?").append("since_id=$sinceId")
+        if (limit != null) {
+          append(if (since != null || sinceId != null) "&" else "?").append("limit=$limit")
+        }
       }
     val url = "$baseUrl$path$query"
     val response = execute(timestamp) { ts ->

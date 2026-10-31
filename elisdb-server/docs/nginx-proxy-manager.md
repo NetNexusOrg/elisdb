@@ -146,6 +146,6 @@ sincroniza (menu ⋮ → **Sincronização**).
   não seja `/health`.
 - **Nunca exposes fora da tua infraestrutura** o ficheiro `ELISDB_DB`, a pasta
   `ELISDB_PHOTOS`, nem as chaves privadas (o seed dentro do config ou no
-  ecrã Servidor da app).
+  ecrã Configuração da app).
 - Para exposição pública considera restringir o acesso no NPM com *Access Lists*
   (limitar IPs) — é configurável em cada Proxy Host e fora do âmbito deste guia.

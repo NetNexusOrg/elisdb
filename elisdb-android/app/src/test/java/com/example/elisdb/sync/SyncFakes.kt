@@ -138,12 +138,16 @@ class FakePhotoStore : PhotoStore {
 
 /** In-memory [PullWatermark]. */
 class FakePullWatermark(var value: Long? = null) : PullWatermark {
+  /** Number of times the watermark was cleared, for assertions. */
+  var clears = 0
+
   override suspend fun get(): Long? = value
   override suspend fun set(value: Long) {
     this.value = value
   }
 
   override suspend fun clear() {
+    clears++
     value = null
   }
 }
@@ -204,15 +208,19 @@ class FakeSyncApi : SyncApi {
     return pushResult(records)
   }
 
-  override suspend fun pull(timestamp: Long, since: Long?, sinceId: String?): PullResponseDto {
+  override suspend fun pull(timestamp: Long, since: Long?, sinceId: String?, limit: Int?): PullResponseDto {
     failWith?.let { throw it }
     pulledSinces.add(since)
+    pulledLimits.add(limit)
     pullStarted?.complete(Unit)
     pullGate?.await()
     return if (pullQueue.isNotEmpty()) pullQueue.removeFirst() else pullResponse
   }
 
   val pulledSinces = mutableListOf<Long?>()
+
+  /** Page size requested on each pull (null when the caller left it unset). */
+  val pulledLimits = mutableListOf<Int?>()
 
   override suspend fun delete(id: String, timestamp: Long, deletedAt: Long?): Boolean {
     failWith?.let { throw it }
@@ -222,8 +230,12 @@ class FakeSyncApi : SyncApi {
 
   override suspend fun fetchServerTime(): Long = serverTime
 
-  /** Latest data timestamp returned by [fetchServerInfo]; null to simulate failure. */
-  var latestUpdatedAt: Long? = 0L
+  /**
+   * Latest data timestamp returned by [fetchServerInfo]; null to simulate failure.
+   * Defaults to null so tests that do not exercise the server-info check keep the
+   * previous best-effort behaviour.
+   */
+  var latestUpdatedAt: Long? = null
 
   /** Client count returned by [fetchServerInfo]. */
   var clientCount: Int = 0

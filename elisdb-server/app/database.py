@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS fotos (
     cliente_id TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
     mime TEXT NOT NULL,
     caminho TEXT NOT NULL,
-    ordem INTEGER NOT NULL DEFAULT 0
+    ordem INTEGER NOT NULL DEFAULT 0,
+    hash TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_fotos_cliente ON fotos (cliente_id);
 CREATE TABLE IF NOT EXISTS tombstones (
@@ -82,6 +83,13 @@ def _migrate_keys_provisioned(conn: sqlite3.Connection) -> None:
     columns = [row["name"] for row in conn.execute("PRAGMA table_info(keys)").fetchall()]
     if "provisioned" not in columns:
         conn.execute("ALTER TABLE keys ADD COLUMN provisioned INTEGER NOT NULL DEFAULT 0")
+
+
+def _migrate_fotos_hash(conn: sqlite3.Connection) -> None:
+    """Idempotently add the fotos.hash column for cached content hashes."""
+    columns = [row["name"] for row in conn.execute("PRAGMA table_info(fotos)").fetchall()]
+    if "hash" not in columns:
+        conn.execute("ALTER TABLE fotos ADD COLUMN hash TEXT")
 
 
 def _migrate_clients_created_at(conn: sqlite3.Connection) -> None:
@@ -408,6 +416,7 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     _migrate_keys_comment(conn)
     _migrate_keys_provisioned(conn)
     _migrate_clients_created_at(conn)
+    _migrate_fotos_hash(conn)
     # delivery_ts must exist before the coordinate rebuild, which copies it.
     _migrate_delivery_ts(conn)
     # ativo must exist before the coordinate rebuild too, which preserves it.
@@ -739,12 +748,14 @@ class Database:
             conn.execute("DELETE FROM fotos WHERE cliente_id = ?", (cliente_id,))
 
         for foto in incoming:
+            path = self._foto(foto.id)
+            digest = self._hash_file(path)
             conn.execute(
-                "INSERT INTO fotos (id, cliente_id, mime, caminho, ordem) "
-                "VALUES (?, ?, ?, ?, ?) "
+                "INSERT INTO fotos (id, cliente_id, mime, caminho, ordem, hash) "
+                "VALUES (?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(id) DO UPDATE SET "
-                "cliente_id=excluded.cliente_id, mime=excluded.mime, caminho=excluded.caminho, ordem=excluded.ordem",
-                (foto.id, cliente_id, foto.mime, self._foto(foto.id), foto.ordem),
+                "cliente_id=excluded.cliente_id, mime=excluded.mime, caminho=excluded.caminho, ordem=excluded.ordem, hash=excluded.hash",
+                (foto.id, cliente_id, foto.mime, path, foto.ordem, digest),
             )
         return kept_ids, missing_ids, files_to_remove
 
@@ -770,6 +781,10 @@ class Database:
         except FileNotFoundError:
             return None
 
+    def _hash_file(self, path: str) -> str | None:
+        data = self._read_foto(path)
+        return hashlib.sha256(data).hexdigest() if data is not None else None
+
     def get_photo(self, foto_id: str) -> tuple[str, bytes] | None:
         """Return (mime, bytes) for a stored photo, or None when absent."""
         conn = self._conn()
@@ -793,6 +808,13 @@ class Database:
         with open(tmp, "wb") as fh:
             fh.write(data)
         os.replace(tmp, path)
+        digest = hashlib.sha256(data).hexdigest()
+        conn = self._conn()
+        try:
+            conn.execute("UPDATE fotos SET hash = ? WHERE id = ?", (digest, foto_id))
+            conn.commit()
+        finally:
+            conn.close()
 
     def gc_orphan_photos(self) -> int:
         """Delete photo files on disk that have no matching ``fotos`` row.
@@ -912,23 +934,32 @@ class Database:
         if row is None:
             return None
         fotos = conn.execute(
-            "SELECT id, mime, caminho, ordem FROM fotos WHERE cliente_id = ? ORDER BY ordem",
+            "SELECT id, mime, caminho, ordem, hash FROM fotos WHERE cliente_id = ? ORDER BY ordem",
             (cliente_id,),
         ).fetchall()
         foto_out = []
         for f in fotos:
-            data = self._read_foto(f["caminho"])
-            # A row whose file is missing is still returned. Omitting it would
-            # make every device interpret the absence as a deletion and drop its
-            # own copy; `available=False` tells clients the metadata exists but
-            # the bytes need repair/upload.
+            digest = f["hash"]
+            available = os.path.exists(f["caminho"])
+            if not available:
+                # A row whose file is missing is still returned. Omitting it
+                # would make every device interpret the absence as a deletion
+                # and drop its own copy; `available=False` tells clients the
+                # metadata exists but the bytes need repair/upload.
+                digest = None
+            elif digest is None:
+                digest = self._hash_file(f["caminho"])
+                if digest is not None:
+                    conn.execute(
+                        "UPDATE fotos SET hash = ? WHERE id = ?", (digest, f["id"])
+                    )
             foto_out.append(
                 {
                     "id": f["id"],
                     "mime": f["mime"],
-                    "hash": hashlib.sha256(data).hexdigest() if data is not None else None,
+                    "hash": digest,
                     "ordem": f["ordem"],
-                    "available": data is not None,
+                    "available": available,
                 }
             )
         return {

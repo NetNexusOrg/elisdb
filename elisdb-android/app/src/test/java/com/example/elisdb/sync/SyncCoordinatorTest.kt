@@ -28,6 +28,7 @@ class SyncCoordinatorTest {
     incrementalPullEnabled: Boolean = false,
     clockOffsetStore: FakeClockOffsetStore? = null,
     photoPushState: FakePhotoPushState? = null,
+    onWarning: (String) -> Unit = {},
     onError: (Throwable) -> Unit = {},
   ) =
     SyncCoordinator(
@@ -39,6 +40,7 @@ class SyncCoordinatorTest {
       incrementalPullEnabled = incrementalPullEnabled,
       clockOffsetStore = clockOffsetStore,
       photoPushState = photoPushState,
+      onWarning = onWarning,
       onError = onError,
     )
 
@@ -805,6 +807,62 @@ class SyncCoordinatorTest {
   }
 
   @Test
+  fun `stale ack clears the watermark once so the pull re-fetches the server version`() = runBlocking {
+    val dao =
+      FakeClienteDao(
+        listOf(
+          cliente("1", pending = true, nome = "Maria"),
+          cliente("2", pending = true, nome = "Joao"),
+        )
+      )
+    val api =
+      FakeSyncApi().apply {
+        pushResult = { it.map { r -> PushResultDto(r.client.id, "stale") } }
+        pullResponse =
+          pullResponseOf(
+            serverItem(id = "1", nome = "MARIA", updatedAt = 700),
+            serverItem(id = "2", nome = "JOAO", updatedAt = 700),
+          )
+      }
+    val watermark = FakePullWatermark(value = 500L)
+    val c = coord(clienteDao = dao, api = api, pullWatermark = watermark, incrementalPullEnabled = true)
+
+    c.sync()
+
+    assertEquals("watermark cleared only once per sync", 1, watermark.clears)
+    assertEquals("pull restarts from the beginning", listOf<Long?>(null), api.pulledSinces)
+    assertEquals("watermark re-advanced by the full pull", 700L, watermark.value)
+    assertEquals("server version applied", "MARIA", dao.data.first { it.id == "1" }.nome)
+  }
+
+  @Test
+  fun `server latest below the watermark forces a full pull`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("local", pending = false, updatedAt = 100L)))
+    val api =
+      FakeSyncApi().apply {
+        latestUpdatedAt = 300L
+        pullResponse = pullResponseOf(serverItem(id = "s1", updatedAt = 200))
+      }
+    val watermark = FakePullWatermark(value = 500L)
+    var warning: String? = null
+    val c =
+      coord(
+        clienteDao = dao,
+        api = api,
+        pullWatermark = watermark,
+        incrementalPullEnabled = true,
+        onWarning = { warning = it },
+      )
+
+    c.sync()
+
+    assertEquals("full pull requested", listOf<Long?>(null), api.pulledSinces)
+    assertEquals("watermark reset once", 1, watermark.clears)
+    assertEquals("watermark follows the restored server", 200L, watermark.value)
+    assertTrue("restore warning emitted", warning?.contains("restaurado") == true)
+  }
+
+  @Test
   fun `pull removes a tombstoned local record without pending edits`() = runBlocking {
     val dao = FakeClienteDao(listOf(cliente("1", pending = false, nome = "Maria")))
     val api =
@@ -861,6 +919,7 @@ class SyncCoordinatorTest {
     assertTrue("second page applied", dao.data.any { it.id == "b" })
     assertEquals("watermark advanced to the last page", 200L, watermark.value)
     assertEquals("two pages fetched", 2, api.pulledSinces.size)
+    assertEquals("every page requests the fixed page size", listOf(200, 200), api.pulledLimits)
   }
 
   @Test

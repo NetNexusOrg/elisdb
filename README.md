@@ -4,8 +4,8 @@ Sistema de gestão de clientes **offline-first** para Android: uma app no
 telemóvel que cria e edita clientes, tira fotos e marca localizações — e um
 servidor que guarda os dados e mantém tudo sincronizado entre dispositivos.
 
-Funciona mesmo sem servidor; quando o servidor está acessível, os dados
-sincronizam automaticamente.
+Funciona mesmo sem servidor; quando o servidor está acessível, a app
+sincroniza ao abrir, ao guardar um cliente e no botão **Sincronizar**.
 
 ## De que é feito o projeto
 
@@ -22,7 +22,7 @@ sincronizam automaticamente.
    ```bash
    docker compose exec elisdb-server python -m app.keys issue <nome> --server-url <URL-do-servidor>
    ```
-3. **Importa** o `<nome>.config.json` no ecrã **Servidor** da app e sincroniza no ecrã **Sincronização**.
+3. **Importa** o `<nome>.config.json` no ecrã **Configuração** da app e carrega em **Sincronizar**.
 
 Tudo isto está explicado passo a passo na [utilização da app](elisdb-android/docs/uso.md).
 
@@ -30,6 +30,7 @@ Tudo isto está explicado passo a passo na [utilização da app](elisdb-android/
 
 - **App Android:** [`elisdb-android/README.md`](elisdb-android/README.md) e guias em [`elisdb-android/docs/`](elisdb-android/docs/index.md).
 - **Servidor:** [`elisdb-server/README.md`](elisdb-server/README.md) e guias em [`elisdb-server/docs/`](elisdb-server/docs/index.md).
+- **Cópias de segurança do servidor:** [backup e restauro](elisdb-server/docs/backup.md).
 
 ## Desenvolvimento
 

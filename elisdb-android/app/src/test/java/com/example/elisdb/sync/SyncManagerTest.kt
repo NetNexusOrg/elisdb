@@ -87,7 +87,7 @@ class SyncManagerTest {
   }
 
   @Test
-  fun `worker maps transient failure to retry and updates status and fault`() = runBlocking {
+  fun `transient failure updates status and fault`() = runBlocking {
     val api = FakeSyncApi().apply { failWith = IOException("boom") }
     val manager =
       SyncManager(
@@ -99,20 +99,12 @@ class SyncManagerTest {
     val outcome = manager.sync()
 
     assertEquals(SyncOutcome.TransientError, outcome)
-    assertEquals(SyncWorker.mapToResult(SyncOutcome.TransientError), androidx.work.ListenableWorker.Result.retry())
     assertEquals(SyncStatus.ERROR, manager.status.value)
     assertEquals(SyncFault.NETWORK, manager.fault.value)
   }
 
   @Test
-  fun `worker maps auth failure to failure without retry`() {
-    assertEquals(androidx.work.ListenableWorker.Result.failure(), SyncWorker.mapToResult(SyncOutcome.AuthFailure))
-    assertEquals(androidx.work.ListenableWorker.Result.failure(), SyncWorker.mapToResult(SyncOutcome.ConfigFault))
-    assertEquals(androidx.work.ListenableWorker.Result.success(), SyncWorker.mapToResult(SyncOutcome.Success))
-  }
-
-  @Test
-  fun `manual sync joins periodic in-flight run producing exactly one push`() = runBlocking {
+  fun `manual sync joins an in-flight run producing exactly one push`() = runBlocking {
     val releasePull = CompletableDeferred<Unit>()
     val api = FakeSyncApi().apply { pullGate = releasePull }
     val pending = Cliente(id = "1", nome = "A", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0, pending = true)
@@ -125,12 +117,12 @@ class SyncManagerTest {
         },
       )
 
-    val periodic = launch { manager.sync() } // periodic run in flight
+    val first = launch { manager.sync() } // run already in flight
     while (api.pushCalls == 0) delay(5)
     val manual = launch { manager.syncNow() }
     delay(50)
     releasePull.complete(Unit)
-    periodic.join()
+    first.join()
     manual.join()
 
     assertEquals("exactly one push", 1, api.pushCalls)
@@ -205,7 +197,7 @@ class SyncManagerTest {
   }
 
   @Test
-  fun `no pending downloads when latest at or below watermark`() = runBlocking {
+  fun `no pending downloads when latest equals the watermark`() = runBlocking {
     val watermark = FakePullWatermark(value = 100L)
     val manager =
       SyncManager(
@@ -215,6 +207,21 @@ class SyncManagerTest {
       )
     manager.refreshPendingDownloads()
     assertTrue(!manager.hasPendingDownloads.value)
+  }
+
+  @Test
+  fun `pending downloads set when latest is below the watermark`() = runBlocking {
+    // A server restored from an older backup reports a latest below the local
+    // cursor; that still means there is data to re-download.
+    val watermark = FakePullWatermark(value = 500L)
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        pullWatermark = watermark,
+        fetchServerInfo = { ServerInfo(200L, 0) },
+      )
+    manager.refreshPendingDownloads()
+    assertTrue(manager.hasPendingDownloads.value)
   }
 
   @Test
@@ -261,17 +268,6 @@ class SyncManagerTest {
       )
     manager.refreshPendingDownloads()
     assertNull(manager.serverClienteCount.value)
-  }
-
-  @Test
-  fun `schedulePeriodic with no work manager does nothing`() {
-    val manager =
-      SyncManager(
-        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
-      )
-    // With a null WorkManager, scheduling is a no-op — there is no automatic sync.
-    manager.schedulePeriodic()
-    assertTrue(true)
   }
 
   @Test

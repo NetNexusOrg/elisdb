@@ -23,8 +23,8 @@ private val json = Json { ignoreUnknownKeys = true }
 /**
  * Parses a server-issued configuration file (JSON with `server_url`,
  * `private_seed` and an optional `user_name`). Returns null when the content
- * is not a valid config file or when the `server_url` uses an unsupported
- * scheme (anything other than `http` or `https`).
+ * is not a valid config file or when the `server_url` is not acceptable under
+ * [isAllowedServerUrl] (unsupported scheme, or public cleartext HTTP).
  */
 fun parseServerConfig(content: String): ServerConfigDto? =
   try {
@@ -38,19 +38,4 @@ fun parseServerConfig(content: String): ServerConfigDto? =
     ServerConfigDto(serverUrl, privateSeed, userName?.takeIf { it.isNotEmpty() })
   } catch (e: Exception) {
     null
-  }
-
-/**
- * A server URL is allowed when it uses the `http` or `https` scheme for any
- * host (a domain or an IP address). Any other scheme is rejected at import
- * time so the user gets a clear error instead of a runtime failure.
- */
-private fun isAllowedServerUrl(url: String): Boolean =
-  try {
-    val u = java.net.URI(url)
-    val host = u.host
-    u.scheme != null && host != null && host.isNotBlank() &&
-      (u.scheme.equals("http", ignoreCase = true) || u.scheme.equals("https", ignoreCase = true))
-  } catch (_: Exception) {
-    false
   }

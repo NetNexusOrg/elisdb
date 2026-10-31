@@ -177,8 +177,6 @@ dependencies {
   // Ed25519 signing (net.i2p.crypto:eddsa)
   implementation(libs.eddsa)
   testImplementation(libs.ktor.client.mock)
-  // WorkManager for scheduling/retrying sync work
-  implementation(libs.androidx.work.runtime)
   // EncryptedSharedPreferences for the server signing key at rest
   implementation(libs.androidx.security.crypto)
   // EXIF orientation for photo re-encoding

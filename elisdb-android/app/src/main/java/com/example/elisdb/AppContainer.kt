@@ -33,7 +33,6 @@ import com.example.elisdb.sync.PrefsPhotoPushState
 import com.example.elisdb.sync.SyncCoordinator
 import com.example.elisdb.sync.SyncCoordinatorProvider
 import com.example.elisdb.sync.SyncManager
-import androidx.work.WorkManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -130,7 +129,6 @@ class AppContainer(context: Context) {
           onError = { e -> Log.w("ElisdbSync", "sync run failed", e) },
         )
       },
-      workManager = WorkManager.getInstance(context),
       clienteDao = database.clienteDao(),
       pullWatermark = watermark,
       fetchServerInfo = {

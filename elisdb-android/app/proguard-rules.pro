@@ -34,13 +34,6 @@
 -keepclassmembers class net.i2p.crypto.eddsa.** { *; }
 -dontwarn net.i2p.crypto.eddsa.**
 
-# ---- WorkManager ----------------------------------------------------------
-# O WorkManager encontra os workers (CoroutineWorker) por nome de classe via
-# reflection/ContentProvider — não ofuscar os nossos subclasses.
--keep class com.example.elisdb.sync.SyncWorker { *; }
--dontwarn androidx.work.**
--keep class androidx.work.** { *; }
-
 # ---- osmdroid --------------------------------------------------
 # As bibliotecas do osmdroid usam reflexão (POIs, providers de tiles),
 # pelo que não devem ser ofuscadas nem encurtadas.

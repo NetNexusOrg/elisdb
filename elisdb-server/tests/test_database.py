@@ -1,6 +1,7 @@
 """Unit tests for the SQLite persistence layer (LWW, duplicates, tombstones,
 migrations, photo hygiene and the timestamp-unit normalization)."""
 
+import hashlib
 import os
 
 import pytest
@@ -472,3 +473,41 @@ def test_removed_photo_file_is_deleted_after_commit(tmp_path):
 
     assert not os.path.exists(path)
     assert db.get_client_with_photos("a")["fotos"] == []
+
+
+def test_photo_hash_is_cached_and_used_without_reading_the_file(tmp_path, monkeypatch):
+    db = _db(tmp_path)
+    payload = b"\xff\xd8\xff\xe0hash-me"
+    db.write_photo("p1", payload)
+    db.save_client(
+        _cliente(id="a", updated_at=1000),
+        [FotoIn(id="p1", mime="image/jpeg")],
+    )
+
+    conn = connect(db.db_path)
+    row = conn.execute("SELECT hash FROM fotos WHERE id = 'p1'").fetchone()
+    conn.close()
+    assert row["hash"] == hashlib.sha256(payload).hexdigest()
+
+    def fail_read(_path):
+        raise AssertionError("pull must use the cached hash")
+
+    monkeypatch.setattr(db, "_read_foto", fail_read)
+    stored = db.get_client_with_photos("a")
+    assert stored["fotos"][0]["hash"] == hashlib.sha256(payload).hexdigest()
+
+
+def test_upload_backfills_hash_for_an_existing_placeholder(tmp_path):
+    db = _db(tmp_path)
+    payload = b"\xff\xd8\xff\xe0late-upload"
+    db.save_client(
+        _cliente(id="a", updated_at=1000),
+        [FotoIn(id="p1", mime="image/jpeg")],
+    )
+    db.write_photo("p1", payload)
+
+    conn = connect(db.db_path)
+    row = conn.execute("SELECT hash FROM fotos WHERE id = 'p1'").fetchone()
+    conn.close()
+    assert row["hash"] == hashlib.sha256(payload).hexdigest()
+    assert db.get_client_with_photos("a")["fotos"][0]["available"] is True

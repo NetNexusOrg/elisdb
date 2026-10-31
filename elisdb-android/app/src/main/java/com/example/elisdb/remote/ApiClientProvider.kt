@@ -1,6 +1,7 @@
 package com.example.elisdb.remote
 
 import com.example.elisdb.settings.SettingsStore
+import com.example.elisdb.settings.validateServerUrl
 import com.example.elisdb.sync.ClockSync
 import com.example.elisdb.util.Signer
 
@@ -28,6 +29,7 @@ object ApiClientProvider {
     if (settings.baseUrl.isBlank()) {
       throw ConfigException("Nenhum servidor configurado (SERVER_BASE_URL)")
     }
+    validateServerUrl(settings.baseUrl)?.let { problem -> throw ConfigException(problem) }
     return ApiClient.create(
       baseUrl = settings.baseUrl,
       signer = signer,

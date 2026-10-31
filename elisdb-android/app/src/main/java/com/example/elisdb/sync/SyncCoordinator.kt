@@ -153,6 +153,9 @@ class SyncCoordinator(
     var mergedNome: String? = null
     val staleNames = mutableListOf<String>()
     val filesToDelete = mutableSetOf<String>()
+    // One clear per sync is enough: the pull that follows re-fetches the server
+    // state, so further stale acks in the same run do not need another reset.
+    var clearWatermarkAfterPush = false
     runInTransaction {
       pending.forEach { cliente ->
         val result = byId[cliente.id]
@@ -170,6 +173,10 @@ class SyncCoordinator(
           // on the next sync instead of being silently dropped.
           if (clienteDao.markSynced(cliente.id, cliente.revision) == 1) {
             staleNames += cliente.nome
+            // The local edit lost to a newer server version. Forget the pull
+            // watermark so the pull below re-fetches the server version instead
+            // of leaving the two sides permanently divergent.
+            clearWatermarkAfterPush = true
           } else {
             onWarning(
               "O cliente ${cliente.nome} mudou durante a sincronização; a alteração será reenviada"
@@ -206,6 +213,7 @@ class SyncCoordinator(
     // committed, so a later failure in the loop cannot leave Foto rows pointing
     // at deleted files.
     filesToDelete.forEach { photoStore.delete(it) }
+    if (clearWatermarkAfterPush) pullWatermark?.clear()
     return staleNames to mergedNome
   }
 
@@ -326,7 +334,28 @@ class SyncCoordinator(
 
   private suspend fun pull() {
     PhotoStoreGuard.mutex.withLock {
-      val watermark = if (incrementalPullEnabled) pullWatermark?.get() else null
+      var watermark = if (incrementalPullEnabled) pullWatermark?.get() else null
+      // A server restored from an older backup can report a latest timestamp
+      // below the local cursor; a delta pull would then never return the
+      // restored records. Detect it and fall back to a full pull. Best effort:
+      // if the status call fails, keep the current incremental behaviour.
+      if (watermark != null) {
+        val latest =
+          try {
+            api.fetchServerInfo(timestamp = normalizedEpochSeconds()).latestUpdatedAt
+          } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+          } catch (_: Exception) {
+            null
+          }
+        if (latest != null && latest < watermark) {
+          pullWatermark?.clear()
+          watermark = null
+          onWarning(
+            "O servidor parece ter sido restaurado de uma cópia mais antiga; a sincronizar tudo de novo"
+          )
+        }
+      }
       val isFullPull = watermark == null
       // Follow the server's pagination cursor to the last page before applying,
       // so a paginated pull never drops local records based on a partial page.
@@ -335,7 +364,13 @@ class SyncCoordinator(
       val allServerClients = mutableListOf<ClienteComFotosDto>()
       val allTombstones = mutableListOf<TombstoneDto>()
       do {
-        val response = api.pull(since = since, sinceId = sinceId, timestamp = normalizedEpochSeconds())
+        val response =
+          api.pull(
+            since = since,
+            sinceId = sinceId,
+            timestamp = normalizedEpochSeconds(),
+            limit = PULL_PAGE_SIZE,
+          )
         allServerClients += response.records
         allTombstones += response.tombstones
         val nextSince = response.nextSince
@@ -574,6 +609,9 @@ class SyncCoordinator(
     tombstone.deliveryTs ?: tombstone.deletedAt
 
   private companion object {
+    /** Records requested per pull page (the server accepts up to 1000). */
+    const val PULL_PAGE_SIZE = 200
+
     /** Pause before retrying a failed photo download. */
     const val PHOTO_RETRY_DELAY_MS = 500L
 

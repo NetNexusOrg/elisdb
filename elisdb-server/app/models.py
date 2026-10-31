@@ -12,6 +12,20 @@ def normalize_nome(nome: str) -> str:
     return re.sub(r"\s+", " ", nome).strip().upper()
 
 
+ALLOWED_PHOTO_MIMES = frozenset({"image/jpeg", "image/png", "image/webp"})
+
+
+def sniff_image_mime(data: bytes) -> str | None:
+    """Return the supported image MIME type detected from the file signature."""
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
 class FotoIn(BaseModel):
     id: str
     mime: str
@@ -26,6 +40,14 @@ class FotoIn(BaseModel):
         if any(ch in v for ch in ("/", "\\")) or ".." in v:
             raise ValueError("photo id must not contain path separators or '..'")
         return v
+
+    @field_validator("mime")
+    @classmethod
+    def _mime_must_be_supported(cls, v: str) -> str:
+        mime = v.strip().lower()
+        if mime not in ALLOWED_PHOTO_MIMES:
+            raise ValueError(f"unsupported photo mime type: {v}")
+        return mime
 
 
 class ClienteIn(BaseModel):

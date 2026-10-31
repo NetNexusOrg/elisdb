@@ -1,19 +1,7 @@
 package com.example.elisdb.sync
 
-import android.content.Context
-import androidx.work.BackoffPolicy
-import androidx.work.Constraints
-import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.ListenableWorker
-import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.WorkerParameters
-import com.example.elisdb.ElisdbApp
 import com.example.elisdb.data.local.ClienteDao
 import com.example.elisdb.remote.ConfigException
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.NonCancellable
@@ -33,13 +21,12 @@ fun interface SyncCoordinatorProvider {
 }
 
 /**
- * Owns the periodic/manual sync schedule and exposes a live status plus the
+ * Owns manual sync execution and exposes a live status plus the
  * pending-uploads / pending-downloads signals (when a [ClienteDao] and a
  * watermark/fetch are supplied).
  */
 class SyncManager(
   private val coordinatorProvider: SyncCoordinatorProvider,
-  private val workManager: WorkManager? = null,
   private val runScope: CoroutineScope = CoroutineScope(SupervisorJob()),
   private val clienteDao: ClienteDao? = null,
   private val pullWatermark: PullWatermark? = null,
@@ -111,10 +98,11 @@ class SyncManager(
     _serverClienteCount.value = info.clientCount
     val current = watermark.get()
     // With no local watermark (fresh install / never pulled), any server data
-    // (latest > 0) is still to be received. Once a watermark exists, only a
-    // newer server timestamp counts.
+    // (latest > 0) is still to be received. Once a watermark exists, any
+    // difference counts: a server restored from an older backup reports a
+    // latest below the local cursor and still has data to re-download.
     _hasPendingDownloads.value =
-      if (current == null) info.latestUpdatedAt > 0 else info.latestUpdatedAt > current
+      if (current == null) info.latestUpdatedAt > 0 else info.latestUpdatedAt != current
   }
 
   /**
@@ -132,28 +120,10 @@ class SyncManager(
     _hasPendingDownloads.value = false
   }
 
-  fun schedulePeriodic() {
-    val wm = workManager ?: return
-    val constraints =
-      Constraints.Builder()
-        .setRequiredNetworkType(NetworkType.CONNECTED)
-        .build()
-    val request =
-      PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
-        .setConstraints(constraints)
-        .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-        .build()
-    wm.enqueueUniquePeriodicWork(
-      PERIODIC_WORK,
-      ExistingPeriodicWorkPolicy.UPDATE,
-      request,
-    )
-  }
-
   /**
    * Runs exactly one sync (single-flight): concurrent callers join the in-flight
    * run and observe its outcome. Publishes [SyncStatus]/[SyncFault] for every
-   * execution, including those started by the periodic [SyncWorker].
+   * execution.
    *
    * Publication happens in [runScope] (see [startRun]), so the observable status
    * reaches a terminal state even when the calling coroutine is cancelled while
@@ -245,8 +215,6 @@ class SyncManager(
   )
 
   companion object {
-    private const val PERIODIC_WORK = "elisdb_sync"
-
     internal fun mapOutcome(outcome: SyncOutcome): OutcomeDisplay =
       when (outcome) {
         SyncOutcome.Success -> OutcomeDisplay(SyncStatus.SUCCESS)
@@ -264,29 +232,6 @@ class SyncManager(
         SyncOutcome.ClockFailure -> OutcomeDisplay(SyncStatus.ERROR, SyncFault.CLOCK)
         SyncOutcome.TransientError -> OutcomeDisplay(SyncStatus.ERROR, SyncFault.NETWORK)
         SyncOutcome.ConfigFault -> OutcomeDisplay(SyncStatus.ERROR, SyncFault.CONFIG)
-      }
-  }
-}
-
-/** WorkManager worker that performs a sync attempt in the background. */
-class SyncWorker(
-  appContext: Context,
-  params: WorkerParameters,
-) : CoroutineWorker(appContext, params) {
-  override suspend fun doWork(): Result {
-    val app = applicationContext as? ElisdbApp ?: return Result.retry()
-    return mapToResult(app.container.syncManager.sync())
-  }
-
-  companion object {
-    /** Maps a sync outcome to the WorkManager schedule decision, so it is unit-testable. */
-    internal fun mapToResult(outcome: SyncOutcome): ListenableWorker.Result =
-      when (outcome) {
-        SyncOutcome.Success, is SyncOutcome.SuccessWithStatuses, is SyncOutcome.DuplicateMerged -> ListenableWorker.Result.success()
-        SyncOutcome.AuthFailure -> ListenableWorker.Result.failure() // don't retry indefinitely
-        SyncOutcome.ClockFailure -> ListenableWorker.Result.failure() // device clock won't self-correct
-        SyncOutcome.TransientError -> ListenableWorker.Result.retry()
-        SyncOutcome.ConfigFault -> ListenableWorker.Result.failure() // configuration won't fix itself
       }
   }
 }

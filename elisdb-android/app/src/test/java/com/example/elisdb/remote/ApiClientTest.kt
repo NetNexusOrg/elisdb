@@ -156,6 +156,17 @@ class ApiClientTest {
   }
 
   @Test
+  fun pull_sendsLimitAsQueryParamWhenProvided() = runBlocking {
+    var requestedUrl = ""
+    val api = client(MockEngine { request ->
+      requestedUrl = request.url.toString()
+      okJson("""{"records":[],"tombstones":[]}""")
+    })
+    api.pull(timestamp = 1_700_000_000L, since = 123L, limit = 200)
+    assertTrue(requestedUrl.contains("/api/pull?since=123&limit=200"))
+  }
+
+  @Test
   fun pull_withoutSinceOmitsQueryParam() = runBlocking {
     var requestedUrl = ""
     val api = client(MockEngine { request ->

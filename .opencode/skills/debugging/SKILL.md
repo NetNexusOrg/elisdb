@@ -22,8 +22,9 @@ Follow this order; do not jump to a fix.
 
 ## Project-specific gotchas
 
-- Sync is async (WorkManager); a "no data" state may be a config fault (blank URL/key), a
-  clock-skew failure, or a replay rejection — check `SyncFault`/`SyncStatus` first.
+- Sync is async and manual (single-flight); a "no data" state may be a config fault
+  (blank URL/key), a clock-skew failure, or a replay rejection — check
+  `SyncFault`/`SyncStatus` first.
 - LWW conflicts: a client that "disappears" locally may be a `stale`/`duplicate` result from
   `save_client` — inspect the push response, not just the UI.
 - Room: after a schema change, missing/mismatched export JSON or a missing `Migration` breaks

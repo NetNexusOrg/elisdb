@@ -102,7 +102,7 @@ def test_replayed_request_is_rejected(server):
 
 def test_photo_upload_and_download_roundtrip(server):
     client, _db = server
-    payload = b"\x00\x01fake-image-bytes"
+    payload = b"\xff\xd8\xff\xe0fake-image-bytes"
     assert client.put("/api/photos/f1", payload).status_code == 204
     # A photo only gets a database row once a push references it.
     reference = [{"id": "f1", "mime": "image/jpeg", "ordem": 0}]
@@ -110,7 +110,32 @@ def test_photo_upload_and_download_roundtrip(server):
     got = client.get("/api/photos/f1")
     assert got.status_code == 200
     assert got.content == payload
+    assert got.headers["x-content-type-options"] == "nosniff"
+    assert got.headers["content-disposition"] == "attachment"
     assert client.get("/api/photos/missing").status_code == 404
+
+
+def test_photo_with_invalid_bytes_is_rejected(server):
+    client, _db = server
+    response = client.put("/api/photos/f1", b"not-an-image")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "unsupported image content"
+
+
+def test_push_with_invalid_photo_mime_is_rejected(server):
+    client, _db = server
+    response = client.post(
+        "/api/push",
+        _body(
+            [
+                _record(
+                    id="1",
+                    fotos=[{"id": "f1", "mime": "text/html", "ordem": 0}],
+                )
+            ]
+        ),
+    )
+    assert response.status_code == 422
 
 
 def test_oversized_photo_is_rejected_with_413(server, monkeypatch):

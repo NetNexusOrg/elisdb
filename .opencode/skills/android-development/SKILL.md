@@ -10,7 +10,7 @@ Base facts live in `project-context`. This skill covers how to write code here.
 ## Stack (verified)
 
 - Kotlin 2.4.20, Jetpack Compose + Material 3, Navigation 3 (`androidx.navigation3`).
-- Room 2.8.5 (KSP), Ktor 3.6 client, kotlinx-serialization, WorkManager, CameraX,
+- Room 2.8.5 (KSP), Ktor 3.6 client, kotlinx-serialization, CameraX,
   Coil 3, osmdroid, Play Services Location, `EncryptedSharedPreferences`.
 - No Hilt/Koin: manual DI via `AppContainer`. No DataStore: SharedPreferences.
 

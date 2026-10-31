@@ -34,8 +34,9 @@ the code rather than trusting memory.
   Room DAOs and entities in `data/local/`.
 - **Manual DI**: `AppContainer` (no Hilt); `ui/AppDependencies.kt` exposes `rememberAppContainer()`.
 - **Networking**: Ktor client (`remote/ApiClient.kt`) + kotlinx-serialization.
-- **Sync**: offline-first; `sync/SyncCoordinator` + `sync/SyncManager` (WorkManager),
-  incremental pull/push, tombstone deletes, clock-offset tracking.
+- **Sync**: offline-first; `sync/SyncCoordinator` + `sync/SyncManager` (manual,
+  single-flight), incremental paginated pull/push, tombstone deletes,
+  clock-offset tracking.
 - **Persistence**: Room (SQLite), schema JSON exported to `app/schemas/` (KSP).
 - Maps: osmdroid · Photos: CameraX + Coil 3 · Location: Play Services.
 

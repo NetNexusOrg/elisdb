@@ -22,7 +22,6 @@ coil = "3.6.2"
 ktor = "3.6.0"
 kotlinxSerializationJson = "1.11.0"
 eddsa = "0.3.0"
-androidxWorkManager = "2.11.2"
 androidxSecurityCrypto = "1.1.0"
 exifinterface = "1.4.2"
 desugarJdkLibs = "2.1.5"
@@ -69,7 +68,6 @@ ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx
 ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 eddsa = { module = "net.i2p.crypto:eddsa", version.ref = "eddsa" }
-androidx-work-runtime = { module = "androidx.work:work-runtime-ktx", version.ref = "androidxWorkManager" }
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "androidxSecurityCrypto" }
 androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "exifinterface" }
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }

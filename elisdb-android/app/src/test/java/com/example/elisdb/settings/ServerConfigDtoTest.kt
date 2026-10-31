@@ -17,15 +17,26 @@ class ServerConfigDtoTest {
   }
 
   @Test
-  fun http_dominio_aceite() {
-    val dto = parseServerConfig(config("http://db.example.com"))
-    assertEquals("http://db.example.com", dto?.serverUrl)
+  fun http_publico_rejeitado() {
+    assertNull(parseServerConfig(config("http://db.example.com")))
   }
 
   @Test
-  fun http_ip_aceite() {
+  fun http_localhost_aceite() {
+    val dto = parseServerConfig(config("http://localhost:8000"))
+    assertEquals("http://localhost:8000", dto?.serverUrl)
+  }
+
+  @Test
+  fun http_ip_privado_aceite() {
     val dto = parseServerConfig(config("http://192.168.1.10"))
     assertEquals("http://192.168.1.10", dto?.serverUrl)
+  }
+
+  @Test
+  fun http_ipv6_loopback_aceite() {
+    val dto = parseServerConfig(config("http://[::1]:8000"))
+    assertEquals("http://[::1]:8000", dto?.serverUrl)
   }
 
   @Test

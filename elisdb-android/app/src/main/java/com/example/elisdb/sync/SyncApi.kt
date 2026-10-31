@@ -17,6 +17,8 @@ interface SyncApi {
     timestamp: Long = System.currentTimeMillis() / 1000,
     since: Long? = null,
     sinceId: String? = null,
+    /** Maximum records per page; null lets the server choose (unbounded). */
+    limit: Int? = null,
   ): PullResponseDto
 
   /** Deletes on the server; returns true when confirmed gone (204/404), false otherwise. */

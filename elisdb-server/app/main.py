@@ -25,6 +25,7 @@ from .models import (
     PushRequest,
     PushResult,
     TombstoneOut,
+    sniff_image_mime,
 )
 
 logger = logging.getLogger("elisdb.server")
@@ -109,9 +110,6 @@ async def require_auth(request: Request) -> None:
     if not auth.is_timestamp_fresh(timestamp):
         raise HTTPException(status_code=401, detail="stale or future timestamp")
 
-    if auth.is_replay(signature):
-        raise HTTPException(status_code=401, detail="replay detected")
-
     raw_path = request.url.path
     query = request.url.query
     path_with_query = raw_path if not query else f"{raw_path}?{query}"
@@ -121,14 +119,16 @@ async def require_auth(request: Request) -> None:
     if key_header is not None:
         key_record = store.get_key_by_public_key(key_header)
         if key_record is not None and auth.verify_signature(key_header, signature, message):
-            auth.record_replay(signature)
+            if not auth.consume_replay(signature):
+                raise HTTPException(status_code=401, detail="replay detected")
             request.state.authenticated_key = key_record
             return
         raise HTTPException(status_code=401, detail="invalid signature")
 
     for public_key in store.get_all_public_keys():
         if auth.verify_signature(public_key, signature, message):
-            auth.record_replay(signature)
+            if not auth.consume_replay(signature):
+                raise HTTPException(status_code=401, detail="replay detected")
             request.state.authenticated_key = store.get_key_by_public_key(public_key)
             return
     raise HTTPException(status_code=401, detail="invalid signature")
@@ -341,7 +341,14 @@ def create_app(database: Database | None = None) -> FastAPI:
         if result is None:
             raise HTTPException(status_code=404, detail="photo not found")
         mime, data = result
-        return Response(content=data, media_type=mime)
+        return Response(
+            content=data,
+            media_type=mime,
+            headers={
+                "X-Content-Type-Options": "nosniff",
+                "Content-Disposition": "attachment",
+            },
+        )
 
     @app.put("/api/photos/{foto_id}", status_code=204, dependencies=[auth_dep])
     async def put_photo(foto_id: str, request: Request) -> Response:
@@ -352,6 +359,8 @@ def create_app(database: Database | None = None) -> FastAPI:
         data = await request.body()
         if len(data) > MAX_PHOTO_BYTES:
             raise HTTPException(status_code=413, detail="photo too large")
+        if sniff_image_mime(data) is None:
+            raise HTTPException(status_code=400, detail="unsupported image content")
         store.write_photo(foto_id, data)
         return Response(status_code=204)
 

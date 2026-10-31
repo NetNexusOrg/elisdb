@@ -70,3 +70,12 @@ def test_distinct_signatures_do_not_collide():
     auth.record_replay(a, now=now)
     assert auth.is_replay(a, now=now)
     assert not auth.is_replay(b, now=now)
+
+
+def test_consume_replay_is_atomic_and_single_use():
+    now = 1_700_000_000
+    signature = base64.b64encode(b"consume-once").decode()
+    assert auth.consume_replay(signature, now=now) is True
+    assert auth.consume_replay(signature, now=now) is False
+    # Expiry follows the same window as the replay cache.
+    assert auth.consume_replay(signature, now=now + auth.TIMESTAMP_WINDOW_SECONDS + 1) is True

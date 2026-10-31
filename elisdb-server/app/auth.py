@@ -56,6 +56,22 @@ def record_replay(signature_b64: str, now: int | None = None) -> None:
         _replay_cache[signature_b64] = now + TIMESTAMP_WINDOW_SECONDS
 
 
+def consume_replay(signature_b64: str, now: int | None = None) -> bool:
+    """Atomically consume a signature.
+
+    Returns True exactly once per signature within its timestamp window. The
+    check and the record happen under the same lock, so two concurrent identical
+    requests cannot both pass.
+    """
+    now = int(time.time()) if now is None else now
+    with _replay_lock:
+        _prune_replay(now)
+        if signature_b64 in _replay_cache:
+            return False
+        _replay_cache[signature_b64] = now + TIMESTAMP_WINDOW_SECONDS
+        return True
+
+
 def build_message(method: str, path: str, body: bytes, timestamp: int) -> bytes:
     digest = hashlib.sha256(body).hexdigest()
     return f"{method}\n{path}\n{digest}\n{timestamp}".encode("utf-8")

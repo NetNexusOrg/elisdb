@@ -1,10 +1,13 @@
 """Unit tests for the SQLite persistence layer (LWW, duplicates, tombstones,
 migrations, photo hygiene and the timestamp-unit normalization)."""
 
+import os
+import sqlite3
+
 import pytest
 
 from app.database import Database, _apply_schema, connect
-from app.models import ClienteIn, FotoIn, normalize_nome
+from app.models import ClienteIn, DocumentoIn, FotoIn, normalize_nome
 
 
 def _cliente(**kwargs) -> ClienteIn:
@@ -47,7 +50,7 @@ def test_future_updated_at_rejected(tmp_path):
 def test_duplicate_name_returns_canonical(tmp_path):
     db = _db(tmp_path)
     db.save_client(_cliente(id="1", nome="Ana", updated_at=1000), [])
-    status, existing_id, canonical, missing = db.save_client(
+    status, existing_id, canonical, missing, _missing_docs = db.save_client(
         _cliente(id="2", nome="  ana ", updated_at=1000), []
     )
     assert missing == []
@@ -109,6 +112,22 @@ def test_gc_orphan_photos_removes_unreferenced(tmp_path):
     assert removed == 1
     assert db.get_photo("referenced") is not None
     assert db.get_photo("orphan") is None
+
+
+def test_gc_keeps_referenced_documents(tmp_path):
+    db = _db(tmp_path)
+    db.write_photo("d1", b"%PDF-1.7")
+    db.save_client(
+        _cliente(id="1"),
+        [],
+        None,
+        [DocumentoIn(id="d1", nome="planta.pdf", mime="application/pdf")],
+    )
+    db.write_photo("orphan-doc", b"%PDF-1.7")
+
+    assert db.gc_orphan_photos() == 1
+    assert db.get_document("d1") is not None
+    assert db.get_document("orphan-doc") is None
 
 
 def test_photo_id_path_traversal_rejected(tmp_path):
@@ -303,7 +322,7 @@ def test_unchanged_push_records_no_entry(tmp_path):
     actor = {"id": "key-1", "comment": "Joao"}
     db.save_client(_cliente(id="a", updated_at=1000), [], actor)
 
-    status, _existing, _canonical, _missing = db.save_client(
+    status, _existing, _canonical, _missing, _missing_docs = db.save_client(
         _cliente(id="a", nome="  ana ", updated_at=1001), [], actor
     )
 
@@ -336,3 +355,109 @@ def test_history_entries_written_before_details_stay_compatible(tmp_path):
     conn.close()
 
     assert db.client_history("a")[0]["details"] is None
+
+
+def test_legacy_photos_table_gains_the_attachment_columns(tmp_path):
+    """A pre-device-map database keeps its photos and they default to kind=photo."""
+    path = str(tmp_path / "legacy.db")
+    photos_dir = tmp_path / "photos"
+    photos_dir.mkdir()
+    photo_path = photos_dir / "p1"
+    photo_path.write_bytes(b"image-bytes")
+    conn = sqlite3.connect(path)
+    conn.executescript(
+        """
+        CREATE TABLE clientes (
+            id TEXT PRIMARY KEY,
+            nome TEXT NOT NULL,
+            contrato TEXT,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            notas TEXT,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE fotos (
+            id TEXT PRIMARY KEY,
+            cliente_id TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+            mime TEXT NOT NULL,
+            caminho TEXT NOT NULL,
+            ordem INTEGER NOT NULL DEFAULT 0
+        );
+        INSERT INTO clientes (id, nome, latitude, longitude, updated_at)
+            VALUES ('a', 'Ana', 1.0, 2.0, 1000);
+        """
+    )
+    conn.execute(
+        "INSERT INTO fotos (id, cliente_id, mime, caminho, ordem) "
+        "VALUES ('p1', 'a', 'image/jpeg', ?, 0)",
+        (str(photo_path),),
+    )
+    conn.commit()
+    conn.close()
+
+    db = Database(path, fotos_dir=str(photos_dir))
+    db.init()
+
+    canonical = db.get_client_with_photos("a")
+    assert [f["id"] for f in canonical["fotos"]] == ["p1"]
+    assert canonical["documentos"] == []
+    conn = connect(path)
+    try:
+        assert {row["kind"] for row in conn.execute("SELECT kind FROM fotos")} == {
+            "photo"
+        }
+    finally:
+        conn.close()
+
+
+def test_replacing_photos_keeps_the_documents(tmp_path):
+    """The two kinds have independent canonical sets and do not delete each other."""
+    db = _db(tmp_path)
+    db.write_photo("p1", b"1")
+    db.write_photo("d1", b"%PDF-1.7")
+    db.save_client(
+        _cliente(id="a", updated_at=1000),
+        [FotoIn(id="p1", mime="image/jpeg")],
+        None,
+        [DocumentoIn(id="d1", nome="planta.pdf", mime="application/pdf")],
+    )
+
+    db.save_client(
+        _cliente(id="a", updated_at=1001),
+        [],
+        None,
+        [DocumentoIn(id="d1", nome="planta.pdf", mime="application/pdf")],
+    )
+
+    canonical = db.get_client_with_photos("a")
+    assert canonical["fotos"] == []
+    assert [d["id"] for d in canonical["documentos"]] == ["d1"]
+    assert not os.path.exists(db._foto("p1"))
+    assert db.get_document("d1") is not None
+
+
+def test_attachment_kinds_cannot_be_swapped(tmp_path):
+    db = _db(tmp_path)
+    db.write_photo("p1", b"1")
+    db.save_client(
+        _cliente(id="a", updated_at=1000),
+        [FotoIn(id="p1", mime="image/jpeg")],
+    )
+
+    with pytest.raises(ValueError):
+        db.save_client(
+            _cliente(id="a", updated_at=1001),
+            [],
+            None,
+            [DocumentoIn(id="p1", nome="planta.pdf", mime="application/pdf")],
+        )
+
+
+def test_photo_allowlist_rejects_non_images(tmp_path):
+    db = _db(tmp_path)
+    db.write_photo("f1", b"%PDF-1.7")
+    with pytest.raises(ValueError):
+        db.save_client(
+            _cliente(id="a", updated_at=1000),
+            [FotoIn(id="f1", mime="application/pdf")],
+        )

@@ -3,6 +3,7 @@ photos, deletion, history and rate limiting."""
 
 import hashlib
 import json
+import os
 import time
 
 
@@ -10,10 +11,14 @@ def _body(records) -> bytes:
     return json.dumps({"records": records}).encode("utf-8")
 
 
-def _record(id="1", nome="Ana", updated_at=1000, fotos=None, **extra):
+def _record(id="1", nome="Ana", updated_at=1000, fotos=None, documentos=None, **extra):
     client = {"id": id, "nome": nome, "updated_at": updated_at}
     client.update(extra)
-    return {"client": client, "fotos": fotos or []}
+    return {"client": client, "fotos": fotos or [], "documentos": documentos or []}
+
+
+def _doc(id, nome="planta.pdf", mime="application/pdf", ordem=0):
+    return {"id": id, "nome": nome, "mime": mime, "ordem": ordem}
 
 
 def test_health_and_time_are_open(server):
@@ -202,6 +207,119 @@ def test_client_history_carries_the_recorded_changes(server):
     assert entries[-1]["details"]["fields"] == [
         {"field": "nome", "old": "ANA", "new": "ANA SILVA", "truncated": False}
     ]
+
+
+def test_document_upload_download_and_pull_roundtrip(server):
+    client, _db = server
+    pdf = b"%PDF-1.7 planta do edificio"
+    assert client.put("/api/documents/d1", pdf).status_code == 204
+
+    pushed = client.post(
+        "/api/push", _body([_record(id="1", documentos=[_doc("d1")])])
+    )
+    assert pushed.json()[0]["status"] == "accepted"
+
+    record = client.get("/api/pull").json()["records"][0]
+    assert record["fotos"] == []
+    assert [d["id"] for d in record["documentos"]] == ["d1"]
+    assert record["documentos"][0]["nome"] == "planta.pdf"
+    assert record["documentos"][0]["mime"] == "application/pdf"
+    assert len(record["documentos"][0]["hash"]) == 64
+
+    downloaded = client.get("/api/documents/d1")
+    assert downloaded.status_code == 200
+    assert downloaded.content == pdf
+    assert downloaded.headers["content-type"].startswith("application/pdf")
+
+
+def test_photos_and_documents_never_mix(server):
+    client, _db = server
+    assert client.put("/api/photos/p1", b"image").status_code == 204
+    assert client.put("/api/documents/d1", b"%PDF-1.7").status_code == 204
+
+    client.post(
+        "/api/push",
+        _body(
+            [
+                _record(
+                    id="1",
+                    fotos=[{"id": "p1", "mime": "image/jpeg", "ordem": 0}],
+                    documentos=[_doc("d1")],
+                )
+            ]
+        ),
+    )
+
+    record = client.get("/api/pull").json()["records"][0]
+    assert [f["id"] for f in record["fotos"]] == ["p1"]
+    assert [d["id"] for d in record["documentos"]] == ["d1"]
+    # A row is only served under its own kind.
+    assert client.get("/api/documents/p1").status_code == 404
+    assert client.get("/api/photos/d1").status_code == 404
+
+
+def test_document_endpoints_require_a_signature(server):
+    client, _db = server
+    assert client.client.get("/api/documents/d1").status_code == 401
+    assert client.client.put("/api/documents/d1", content=b"x").status_code == 401
+
+
+def test_oversized_document_is_rejected_with_413(server, monkeypatch):
+    client, _db = server
+    monkeypatch.setattr("app.main.MAX_PHOTO_BYTES", 100)
+    assert client.put("/api/documents/big", b"x" * 200).status_code == 413
+
+
+def test_missing_document_is_reported_and_not_stored(server):
+    client, _db = server
+    response = client.post(
+        "/api/push", _body([_record(id="1", documentos=[_doc("absent")])])
+    )
+    result = response.json()[0]
+    assert result["status"] == "accepted"
+    assert result["missing_documents"] == ["absent"]
+    assert client.get("/api/pull").json()["records"][0]["documentos"] == []
+
+
+def test_unsupported_document_type_rejects_only_that_record(server):
+    client, _db = server
+    client.put("/api/documents/html", b"<script>")
+    response = client.post(
+        "/api/push",
+        _body(
+            [
+                _record(id="bad", nome="Bad", documentos=[_doc("html", mime="text/html")]),
+                _record(id="good", nome="Good", updated_at=1001),
+            ]
+        ),
+    )
+    statuses = {r["id"]: r["status"] for r in response.json()}
+    assert statuses["bad"] == "error"
+    assert statuses["good"] == "accepted"
+
+
+def test_deleting_a_client_removes_document_files(server):
+    client, db = server
+    client.put("/api/documents/d1", b"%PDF-1.7")
+    client.post("/api/push", _body([_record(id="1", documentos=[_doc("d1")])]))
+
+    assert client.delete("/api/clients/1").status_code == 204
+
+    assert not os.path.exists(os.path.join(db.fotos_dir, "d1"))
+
+
+def test_document_changes_appear_in_history(server):
+    client, _db = server
+    base = int(time.time())
+    client.put("/api/documents/d1", b"%PDF-1.7")
+    client.post("/api/push", _body([_record(id="1", updated_at=base, documentos=[_doc("d1")])]))
+
+    added = client.get("/api/clients/1/history", timestamp=base + 1).json()[-1]
+    assert added["details"]["documents"] == {"added": ["planta.pdf"], "removed": []}
+
+    client.post("/api/push", _body([_record(id="1", updated_at=base + 2)]))
+    removed = client.get("/api/clients/1/history", timestamp=base + 3).json()[-1]
+    assert removed["details"]["documents"] == {"added": [], "removed": ["planta.pdf"]}
 
 
 def test_app_release_without_a_package_is_a_404(server, monkeypatch, tmp_path):

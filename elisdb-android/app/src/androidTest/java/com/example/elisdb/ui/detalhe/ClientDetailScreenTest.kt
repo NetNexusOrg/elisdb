@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.pinch
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.geometry.Offset
@@ -17,6 +19,7 @@ import com.example.elisdb.sync.SyncStatus
 import com.example.elisdb.data.ClienteDraft
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
+import com.example.elisdb.data.local.Documento
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.theme.ElisdbTheme
 import java.io.File
@@ -77,6 +80,7 @@ class ClientDetailScreenTest {
           onViewLog = { id -> openedId = id },
           onDeleted = {},
           onPhotoClick = {},
+          onOpenDocumento = {},
           onOpenFullscreenMap = {},
         )
       }
@@ -111,6 +115,7 @@ class ClientDetailScreenTest {
           onViewLog = {},
           onDeleted = {},
           onPhotoClick = { clickedIndex = it },
+          onOpenDocumento = {},
           onOpenFullscreenMap = {},
         )
       }
@@ -265,6 +270,52 @@ class ClientDetailScreenTest {
     )
   }
 
+  @Test
+  fun detalhe_mostraDocumentosDoMapaEAbreImagem() {
+    val cliente =
+      Cliente(id = "20", nome = "Rita", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
+    val pdf =
+      Documento(id = "d1", clienteId = "20", nome = "planta.pdf", mime = "application/pdf", uriLocal = "/f/planta.pdf")
+    val imageFile =
+      File(composeTestRule.activity.cacheDir, "mapa_${System.nanoTime()}.webp").apply {
+        writeBytes("imagem".toByteArray())
+      }
+    val image =
+      Documento(
+        id = "d2",
+        clienteId = "20",
+        nome = "mapa.jpg",
+        mime = "image/webp",
+        uriLocal = imageFile.absolutePath,
+      )
+    val repository =
+      FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = emptyList(), documentos = listOf(pdf, image)))
+    val viewModel = ClientDetailViewModel(repository, cliente.id)
+    var opened: Documento? = null
+    composeTestRule.setContent {
+      ElisdbTheme {
+        ClientDetailScreen(
+          viewModel = viewModel,
+          onBack = {},
+          onEdit = {},
+          onViewLog = {},
+          onDeleted = {},
+          onPhotoClick = {},
+          onOpenDocumento = { opened = it },
+          onOpenFullscreenMap = {},
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("planta.pdf").assertExists()
+    composeTestRule.onNodeWithText("mapa.jpg").assertExists()
+
+    composeTestRule.onNode(hasText("mapa.jpg") and hasClickAction()).performClick()
+    composeTestRule.waitForIdle()
+
+    assertEquals("images open in the app viewer", "d2", opened?.id)
+  }
+
   private fun setDetailContent(cliente: Cliente) {
     val repository = FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = emptyList()))
     val viewModel = ClientDetailViewModel(repository, cliente.id)
@@ -277,6 +328,7 @@ class ClientDetailScreenTest {
           onViewLog = {},
           onDeleted = {},
           onPhotoClick = {},
+          onOpenDocumento = {},
           onOpenFullscreenMap = {},
         )
       }
@@ -300,6 +352,11 @@ private class FakeDetailRepository(
   override fun createPhotoFile(): File = error("Not used in this test")
 
   override suspend fun deletePhotoFile(foto: Foto) = Unit
+
+  override suspend fun stageDocument(source: Uri, nome: String): Documento =
+    error("Not used in this test")
+
+  override suspend fun deleteDocumentoFile(documento: Documento) = Unit
 
   override suspend fun save(draft: ClienteDraft): String = error("Not used in this test")
 

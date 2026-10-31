@@ -6,14 +6,16 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-  entities = [Cliente::class, Foto::class, SyncMeta::class],
-  version = 9,
+  entities = [Cliente::class, Foto::class, Documento::class, SyncMeta::class],
+  version = 10,
   exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
   abstract fun clienteDao(): ClienteDao
 
   abstract fun fotoDao(): FotoDao
+
+  abstract fun documentoDao(): DocumentoDao
 
   abstract fun syncMetaDao(): SyncMetaDao
 
@@ -190,6 +192,32 @@ abstract class AppDatabase : RoomDatabase() {
           // second resolution, so an edit made in the same second as the push
           // looked identical to the snapshot that was sent.
           db.execSQL("ALTER TABLE clientes ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
+        }
+      }
+
+    val MIGRATION_9_10: Migration =
+      object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+          // Device map attachments (images and PDFs) live in their own table,
+          // separate from the client's photos so neither list can leak into the
+          // other's UI.
+          db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS documentos (
+              id TEXT NOT NULL PRIMARY KEY,
+              clienteId TEXT NOT NULL,
+              nome TEXT NOT NULL DEFAULT '',
+              mime TEXT NOT NULL DEFAULT 'application/pdf',
+              uriLocal TEXT NOT NULL,
+              ordem INTEGER NOT NULL DEFAULT 0,
+              deletePending INTEGER NOT NULL DEFAULT 0,
+              FOREIGN KEY(clienteId) REFERENCES clientes(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """
+          )
+          db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_documentos_clienteId ON documentos (clienteId)"
+          )
         }
       }
   }

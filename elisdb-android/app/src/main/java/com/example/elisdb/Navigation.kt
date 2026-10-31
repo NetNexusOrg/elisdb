@@ -19,6 +19,8 @@ import com.example.elisdb.ui.cliente.ClientListScreen
 import com.example.elisdb.ui.cliente.ClientListViewModel
 import com.example.elisdb.ui.detalhe.ClientDetailScreen
 import com.example.elisdb.ui.detalhe.ClientDetailViewModel
+import com.example.elisdb.ui.detalhe.DocumentoViewerScreen
+import com.example.elisdb.ui.detalhe.DocumentoViewerViewModel
 import com.example.elisdb.ui.detalhe.ClientLogScreen
 import com.example.elisdb.ui.detalhe.ClientLogViewModel
 import com.example.elisdb.ui.detalhe.MapFullscreenScreen
@@ -140,6 +142,7 @@ fun MainNavigation() {
             onViewLog = { id -> backStack.add(ClientLog(id)) },
             onDeleted = { backStack.removeLastOrNull() },
             onPhotoClick = { index -> backStack.add(PhotoViewer(key.clienteId, index)) },
+            onOpenDocumento = { documento -> backStack.add(DocumentoViewer(key.clienteId, documento.id)) },
             onOpenFullscreenMap = { id -> backStack.add(MapFullscreen(id)) },
           )
         }
@@ -165,6 +168,16 @@ fun MainNavigation() {
             viewModel =
               viewModel {
                 PhotoViewerViewModel(container.repository, key.clienteId, key.indiceFoto)
+              },
+            onBack = { backStack.removeLastOrNull() },
+          )
+        }
+        entry<DocumentoViewer> { key ->
+          val container = rememberAppContainer()
+          DocumentoViewerScreen(
+            viewModel =
+              viewModel {
+                DocumentoViewerViewModel(container.repository, key.clienteId, key.documentoId)
               },
             onBack = { backStack.removeLastOrNull() },
           )

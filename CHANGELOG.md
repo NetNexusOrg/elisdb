@@ -8,6 +8,18 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [Não publicado]
+
+### Novidades
+
+- **Mapa de dispositivos.** Cada cliente pode ter imagens e PDFs com a
+  localização dos equipamentos. Adiciona-os no formulário (ficheiro ou câmara),
+  vê-os no detalhe — as imagens no visualizador da app, os PDFs na aplicação
+  externa — e sincronizam como as fotos, sem reenviar ficheiros inalterados.
+- **Servidor: anexos de documentos.** Novos `PUT`/`GET /api/documents/{id}` e
+  os campos `documentos`/`missing_documents` no contrato de sincronização.
+  Atualiza o servidor antes da app.
+
 ## [1.6.1] - 2026-10-26
 
 ### Novidades

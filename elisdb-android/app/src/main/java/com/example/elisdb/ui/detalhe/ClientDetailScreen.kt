@@ -51,11 +51,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
+import com.example.elisdb.data.local.Documento
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.ui.map.OsmMap
 import java.io.File
@@ -70,6 +72,7 @@ fun ClientDetailScreen(
   onViewLog: (String) -> Unit,
   onDeleted: () -> Unit,
   onPhotoClick: (Int) -> Unit,
+  onOpenDocumento: (Documento) -> Unit,
   onOpenFullscreenMap: (String) -> Unit,
   modifier: Modifier = Modifier,
 ) {
@@ -174,6 +177,14 @@ fun ClientDetailScreen(
             },
             onOpenFullscreenMap = { onOpenFullscreenMap(data.cliente.id) },
             onPhotoClick = onPhotoClick,
+            onDocumentoClick = { documento ->
+              when {
+                !File(documento.uriLocal).exists() -> viewModel.notifyFileUnavailable()
+                documento.mime == "application/pdf" ->
+                  if (!openPdf(context, documento)) viewModel.notifyPdfUnavailable()
+                else -> onOpenDocumento(documento)
+              }
+            },
           )
       }
     }
@@ -212,12 +223,31 @@ private fun openInMap(context: android.content.Context, cliente: Cliente): Boole
   }
 }
 
+private fun openPdf(context: android.content.Context, documento: Documento): Boolean {
+  val file = File(documento.uriLocal)
+  if (!file.exists()) return false
+  return try {
+    val uri =
+      FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    val intent =
+      Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "application/pdf")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      }
+    context.startActivity(intent)
+    true
+  } catch (_: Exception) {
+    false
+  }
+}
+
 @Composable
 private fun ClientDetailContent(
   data: ClienteComFotos,
   onNavigateHere: () -> Unit,
   onOpenFullscreenMap: () -> Unit,
   onPhotoClick: (Int) -> Unit,
+  onDocumentoClick: (Documento) -> Unit,
 ) {
   val cliente = data.cliente
 
@@ -275,6 +305,30 @@ private fun ClientDetailContent(
                 foto = foto,
                 onClick = { onPhotoClick(rowIndex * 3 + colIndex) },
                 modifier = Modifier.weight(1f),
+              )
+            }
+          }
+        }
+      }
+    }
+
+    if (data.documentos.isNotEmpty()) {
+      Text("Mapa de dispositivos", style = MaterialTheme.typography.titleMedium)
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        data.documentos.forEach { documento ->
+          Card(onClick = { onDocumentoClick(documento) }, modifier = Modifier.fillMaxWidth()) {
+            Row(
+              modifier = Modifier.fillMaxWidth().padding(12.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Text(
+                if (documento.mime == "application/pdf") "PDF" else "IMG",
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.width(40.dp),
+              )
+              Text(
+                documento.nome.ifBlank { "Sem nome" },
+                style = MaterialTheme.typography.bodyMedium,
               )
             }
           }

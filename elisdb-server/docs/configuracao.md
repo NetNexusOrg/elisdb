@@ -126,6 +126,37 @@ Consequências que valem a pena saber ao diagnosticar:
   existe no servidor. Não são gravadas e o cliente volta a enviá-las; nunca são
   dadas como enviadas.
 
+## Anexos do mapa de dispositivos (documentos)
+
+O "mapa de dispositivos" de um cliente junta imagens e PDFs. No servidor são
+linhas da mesma tabela `fotos`, distinguidas pela coluna **`kind`**
+(`'photo'` ou `'document'`, por omissão `'photo'`), e os ficheiros ficam na
+mesma pasta (`ELISDB_PHOTOS`). As duas listas nunca se misturam no contrato.
+
+- **Push** — `POST /api/push` aceita `documentos` em cada registo (`id`, `nome`,
+  `mime`, `ordem`). A resposta devolve `documentos` (a lista canónica, com
+  `hash`) e **`missing_documents`**: documentos referenciados cujo ficheiro
+  ainda não chegou. Não são gravados e o cliente volta a enviá-los.
+- **Pull** — cada registo traz `documentos` e `fotos` separados.
+- **Ficheiros** — `PUT /api/documents/{id}` (204) e `GET /api/documents/{id}`
+  (200, ou 404 se o id não for um documento). Ambos exigem assinatura ed25519.
+  Pedir um documento em `/api/photos/{id}` (ou o contrário) devolve 404: o
+  `kind` é sempre verificado.
+- **Tipos aceites** — imagens `image/jpeg`, `image/png`, `image/webp` e
+  `application/pdf`. Um registo com outro tipo é rejeitado sem afetar os
+  restantes.
+- **Tamanho** — o mesmo teto das fotos, `ELISDB_MAX_PHOTO_BYTES` (20 MB por
+  omissão); acima disso a resposta é 413.
+- **Eliminação e GC** — apagar o cliente remove também os ficheiros dos
+  documentos; o coletor de órfãos mantém os que estão referenciados.
+- **Histórico** — uma alteração só de documentos aparece em `details.documents`
+  como `{"added": [nomes], "removed": [nomes]}`.
+
+> **Ordem de atualização:** o servidor tem de ser atualizado **antes** da app.
+> Um servidor antigo ignora `documentos`/`missing_documents`, pelo que o pull
+> seguinte devolveria o registo sem documentos e a app apagaria os anexos
+> locais.
+
 ## Primeira execução
 
 Numa base de dados nova, **nenhuma chave é confiada**: até emitires a primeira

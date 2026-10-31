@@ -3,6 +3,7 @@ package com.example.elisdb.data
 import android.net.Uri
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
+import com.example.elisdb.data.local.Documento
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncStatus
@@ -24,9 +25,13 @@ interface ClienteRepository {
 
   suspend fun stagePhoto(source: Uri): Foto
 
+  suspend fun stageDocument(source: Uri, nome: String): Documento
+
   fun createPhotoFile(): File
 
   suspend fun deletePhotoFile(foto: Foto)
+
+  suspend fun deleteDocumentoFile(documento: Documento)
 
   suspend fun save(draft: ClienteDraft): String
 

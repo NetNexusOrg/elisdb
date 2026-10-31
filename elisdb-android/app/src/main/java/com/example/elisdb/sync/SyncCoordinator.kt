@@ -2,6 +2,8 @@ package com.example.elisdb.sync
 
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteDao
+import com.example.elisdb.data.local.Documento
+import com.example.elisdb.data.local.DocumentoDao
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.data.local.FotoDao
 import com.example.elisdb.remote.AuthCause
@@ -32,6 +34,11 @@ class SyncCoordinator(
   private val photoSweeper: PhotoSweeper? = null,
   private val clockOffsetStore: ClockOffsetStore? = null,
   private val photoPushState: PhotoPushState? = null,
+  /**
+   * Device-map attachments. Optional so the coordinator still works (and older
+   * tests keep compiling) without the documents table.
+   */
+  private val documentoDao: DocumentoDao? = null,
   private val onWarning: (String) -> Unit = {},
   /**
    * Receives the unexpected exception that aborts a run. The UI only shows a
@@ -87,6 +94,21 @@ class SyncCoordinator(
       api.downloadPhoto(id, normalizedEpochSeconds())
     }
 
+  private suspend fun downloadDocument(id: String): ByteArray =
+    try {
+      api.downloadDocument(id, normalizedEpochSeconds())
+    } catch (e: kotlinx.coroutines.CancellationException) {
+      throw e
+    } catch (e: AuthException) {
+      throw e
+    } catch (e: ConfigException) {
+      throw e
+    } catch (e: Exception) {
+      onWarning("Falha ao descarregar o documento $id; a tentar novamente")
+      kotlinx.coroutines.delay(PHOTO_RETRY_DELAY_MS)
+      api.downloadDocument(id, normalizedEpochSeconds())
+    }
+
   /** Refreshes the persisted clock offset from the server time, best-effort. */
   private suspend fun refreshClockOffset() {
     val store = clockOffsetStore ?: return
@@ -110,10 +132,13 @@ class SyncCoordinator(
 
     val records = mutableListOf<com.example.elisdb.remote.RecordDto>()
     val photosToMark = mutableListOf<Foto>()
+    val documentosToMark = mutableListOf<Documento>()
     val hashesByCliente = mutableMapOf<String, Map<String, String>>()
     for (cliente in pending) {
       val fotos = fotoDao.getByCliente(cliente.id).filter { !it.deletePending }
+      val documentos = documentoDao?.getByCliente(cliente.id)?.filter { !it.deletePending }.orEmpty()
       val available = mutableListOf<Foto>()
+      val availableDocumentos = mutableListOf<Documento>()
       val hashesById = mutableMapOf<String, String>()
       val knownHashes = photoPushState?.getHashes(cliente.id).orEmpty()
       for (foto in fotos) {
@@ -130,11 +155,30 @@ class SyncCoordinator(
           available.add(foto)
         }
       }
+      for (documento in documentos) {
+        val bytes = photoStore.readBytes(documento.uriLocal)
+        if (bytes == null) {
+          documentosToMark.add(documento)
+          onWarning(
+            "Documento ${documento.id} (cliente ${cliente.id}) sem ficheiro; marcado para eliminação"
+          )
+        } else {
+          val hash = PhotoHashes.sha256(bytes)
+          if (knownHashes[documento.id] != hash) {
+            api.uploadDocument(documento.id, bytes, timestamp = normalizedEpochSeconds())
+          }
+          hashesById[documento.id] = hash
+          availableDocumentos.add(documento)
+        }
+      }
       hashesByCliente[cliente.id] = hashesById
-      records.add(SyncMapper.toRecord(cliente, available))
+      records.add(SyncMapper.toRecord(cliente, available, availableDocumentos))
     }
-    if (photosToMark.isNotEmpty()) {
-      runInTransaction { photosToMark.forEach { fotoDao.update(it.copy(deletePending = true)) } }
+    if (photosToMark.isNotEmpty() || documentosToMark.isNotEmpty()) {
+      runInTransaction {
+        photosToMark.forEach { fotoDao.update(it.copy(deletePending = true)) }
+        documentosToMark.forEach { documentoDao?.update(it.copy(deletePending = true)) }
+      }
     }
 
     val results = api.push(records, timestamp = normalizedEpochSeconds())
@@ -175,9 +219,10 @@ class SyncCoordinator(
           // clear it while the row is still the version that was sent; an edit
           // made during the push stays pending for the next sync.
           if (clienteDao.markSynced(cliente.id, cliente.revision) == 1) {
-            // Photos the server reported as missing were not stored, so they
-            // must not be recorded as uploaded or they would never be retried.
-            val missing = result.missingPhotos.toSet()
+            // Photos and documents the server reported as missing were not
+            // stored, so they must not be recorded as uploaded or they would
+            // never be retried.
+            val missing = (result.missingPhotos + result.missingDocuments).toSet()
             recordPushedHashes(
               cliente.id,
               hashesByCliente[cliente.id].orEmpty().filterKeys { it !in missing },
@@ -241,7 +286,48 @@ class SyncCoordinator(
     val removedRows = canonicalRemoved.map { it.id }
     canonicalRemoved.forEach { filesToDeleteAfterCommit += it.uriLocal }
 
+    // Same for the device-map documents: the canonical record's attachments must
+    // survive the merge even when this device never downloaded them.
+    val dao = documentoDao
+    val existingCanonicalDocumentos = dao?.getAllByCliente(existingId).orEmpty()
+    val canonicalDocumentoUpserts = mutableListOf<Documento>()
+    val canonicalDocumentoKeptIds = mutableSetOf<String>()
+    if (dao != null) {
+      for (documentoDto in result.documentos) {
+        val existing = existingCanonicalDocumentos.firstOrNull { it.id == documentoDto.id }
+        when (val m =
+          materializer.materialize(existing, documentoDto, download = { downloadDocument(it) })) {
+          is MaterializeResult.Keep -> {
+            canonicalDocumentoKeptIds += documentoDto.id
+            if (existing != null && existing.nome != documentoDto.nome) {
+              canonicalDocumentoUpserts += existing.copy(nome = documentoDto.nome)
+            }
+          }
+          is MaterializeResult.Repointed -> {
+            canonicalDocumentoUpserts +=
+              Documento(
+                id = documentoDto.id,
+                clienteId = existingId,
+                nome = documentoDto.nome,
+                mime = documentoDto.mime,
+                uriLocal = m.uriLocal,
+                ordem = documentoDto.ordem,
+              )
+            if (existing != null) {
+              canonicalDocumentoKeptIds += existing.id
+              filesToDeleteAfterCommit += existing.uriLocal
+            }
+          }
+        }
+      }
+    }
+    val canonicalDocumentosRemoved =
+      existingCanonicalDocumentos.filter { it.id !in canonicalDocumentoKeptIds }
+    val removedDocumentoRows = canonicalDocumentosRemoved.map { it.id }
+    canonicalDocumentosRemoved.forEach { filesToDeleteAfterCommit += it.uriLocal }
+
     val localFotos = fotoDao.getByCliente(cliente.id).filter { !it.deletePending }
+    val localDocumentos = dao?.getAllByCliente(cliente.id).orEmpty()
     val now = normalizedEpochSeconds()
     runInTransaction {
       // upsert (not insert/REPLACE): preserves any canonical row already stored,
@@ -257,6 +343,11 @@ class SyncCoordinator(
       canonicalUpserts.forEach { fotoDao.insert(it) }
       localFotos.forEach { fotoDao.insert(it.copy(clienteId = existingId)) }
       if (removedRows.isNotEmpty()) fotoDao.deleteByIds(removedRows)
+      if (dao != null) {
+        canonicalDocumentoUpserts.forEach { dao.insert(it) }
+        localDocumentos.forEach { dao.insert(it.copy(clienteId = existingId)) }
+        if (removedDocumentoRows.isNotEmpty()) dao.deleteByIds(removedDocumentoRows)
+      }
       clienteDao.delete(cliente)
     }
     // Old files are returned (not deleted here): the enclosing push transaction
@@ -300,6 +391,9 @@ class SyncCoordinator(
       val fotos = fotoDao.getByCliente(clienteId)
       fotos.forEach { filesToDelete += it.uriLocal }
       if (fotos.isNotEmpty()) fotoDao.deleteByIds(fotos.map { it.id })
+      val documentos = documentoDao?.getAllByCliente(clienteId).orEmpty()
+      documentos.forEach { filesToDelete += it.uriLocal }
+      if (documentos.isNotEmpty()) documentoDao?.deleteByIds(documentos.map { it.id })
       clienteDao.getById(clienteId)?.let { clienteDao.delete(it) }
     }
     // Drop the persisted push-hash entry so a deleted client's tracking does not
@@ -481,6 +575,46 @@ class SyncCoordinator(
     val removedRows = existingFotos.filter { it.id !in keptIds }
     removedRows.forEach { filesToDeleteAfterCommit += it.uriLocal }
 
+    // Local documents the server no longer carries are removed with their rows.
+    // getAllByCliente includes rows awaiting deletion, so their files are cleaned
+    // up too instead of lingering as orphans.
+    val existingDocumentos = documentoDao?.getAllByCliente(cliente.id).orEmpty()
+    val documentoUpserts = mutableListOf<Documento>()
+    val keptDocumentoIds = mutableSetOf<String>()
+    if (documentoDao != null) {
+      for (documentoDto in serverItem.documentos) {
+        val existing = existingDocumentos.firstOrNull { it.id == documentoDto.id }
+        when (val result =
+          materializer.materialize(existing, documentoDto, download = { downloadDocument(it) })) {
+          is MaterializeResult.Keep -> {
+            keptDocumentoIds += documentoDto.id
+            // The bytes match, but the display name is metadata: it may have
+            // been renamed on another device without changing the content.
+            if (existing != null && existing.nome != documentoDto.nome) {
+              documentoUpserts += existing.copy(nome = documentoDto.nome)
+            }
+          }
+          is MaterializeResult.Repointed -> {
+            documentoUpserts +=
+              Documento(
+                id = documentoDto.id,
+                clienteId = cliente.id,
+                nome = documentoDto.nome,
+                mime = documentoDto.mime,
+                uriLocal = result.uriLocal,
+                ordem = documentoDto.ordem,
+              )
+            if (existing != null) {
+              keptDocumentoIds += existing.id
+              filesToDeleteAfterCommit += existing.uriLocal
+            }
+          }
+        }
+      }
+    }
+    val removedDocumentoRows = existingDocumentos.filter { it.id !in keptDocumentoIds }
+    removedDocumentoRows.forEach { filesToDeleteAfterCommit += it.uriLocal }
+
     var applied = true
     var holdsCursor = false
     runInTransaction {
@@ -496,7 +630,11 @@ class SyncCoordinator(
         // exists locally, even ones the server still carries.
         clienteDao.upsert(cliente)
         upserts.forEach { fotoDao.insert(it) }
+        documentoUpserts.forEach { documentoDao?.insert(it) }
         if (removedRows.isNotEmpty()) fotoDao.deleteByIds(removedRows.map { it.id })
+        if (removedDocumentoRows.isNotEmpty()) {
+          documentoDao?.deleteByIds(removedDocumentoRows.map { it.id })
+        }
       }
     }
 

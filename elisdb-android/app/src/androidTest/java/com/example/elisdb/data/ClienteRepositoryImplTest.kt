@@ -1,10 +1,15 @@
 package com.example.elisdb.data
 
 import android.content.Context
+import android.net.Uri
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.elisdb.data.local.AppDatabase
+import com.example.elisdb.data.local.Documento
 import com.example.elisdb.sync.ClockOffsetStore
+import java.io.File
+import java.io.RandomAccessFile
+import org.junit.Assert.fail
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -119,6 +124,85 @@ class ClienteRepositoryImplTest {
 
     assertFalse(database.clienteDao().getPendingDeletions().isEmpty())
     assertTrue(database.clienteDao().observeAll().first { true }.none { it.id == id })
+  }
+
+  @Test
+  fun saveGuardaDocumentosNaOrdem() = runBlocking {
+    val id =
+      repository.save(
+        ClienteDraft(
+          nome = "Ana",
+          documentos =
+            listOf(
+              Documento(id = "", clienteId = "", nome = "planta.pdf", uriLocal = "/f/planta.pdf"),
+              Documento(id = "", clienteId = "", nome = "foto.jpg", mime = "image/webp", uriLocal = "/f/foto.webp"),
+            ),
+        )
+      )
+
+    val documentos = repository.getCliente(id)?.documentos.orEmpty()
+    assertEquals(listOf("planta.pdf", "foto.jpg"), documentos.map { it.nome })
+    assertEquals(listOf(0, 1), documentos.map { it.ordem })
+    assertTrue("ids assigned on save", documentos.all { it.id.isNotEmpty() })
+    assertEquals(listOf("planta.pdf", "foto.jpg"), documentos.sortedBy { it.ordem }.map { it.nome })
+  }
+
+  @Test
+  fun saveSemDocumentoApagaLinhaEFicheiro() = runBlocking {
+    val file = File(context.filesDir, "planta_${System.nanoTime()}.pdf").apply { writeBytes("%PDF".toByteArray()) }
+    val id =
+      repository.save(
+        ClienteDraft(
+          nome = "Ana",
+          documentos = listOf(Documento(id = "", clienteId = "", nome = "planta.pdf", uriLocal = file.absolutePath)),
+        )
+      )
+    assertTrue("file staged before save", file.exists())
+
+    repository.save(ClienteDraft(id = id, nome = "Ana", documentos = emptyList()))
+
+    assertTrue("document row removed", repository.getCliente(id)!!.documentos.isEmpty())
+    assertFalse("document file removed after the commit", file.exists())
+  }
+
+  @Test
+  fun stageDocumentCopiaPdfByteAByte() = runBlocking {
+    val bytes = "%PDF-1.4\nconteudo\n%%EOF".toByteArray()
+    val source = File(context.cacheDir, "origem_${System.nanoTime()}.pdf").apply { writeBytes(bytes) }
+
+    val documento = repository.stageDocument(Uri.fromFile(source), "planta.pdf")
+
+    assertEquals("planta.pdf", documento.nome)
+    assertEquals("application/pdf", documento.mime)
+    assertEquals("", documento.id)
+    assertTrue("copied, not moved", source.exists())
+    assertTrue("copy lives in the photos dir", File(documento.uriLocal).parentFile == File(context.filesDir, "photos"))
+    assertTrue("bytes copied verbatim", File(documento.uriLocal).readBytes().contentEquals(bytes))
+  }
+
+  @Test
+  fun stageDocumentRejeitaTipoNaoSuportado() = runBlocking {
+    val source = File(context.cacheDir, "notas_${System.nanoTime()}.txt").apply { writeText("texto") }
+
+    try {
+      repository.stageDocument(Uri.fromFile(source), "notas.txt")
+      fail("a .txt must be rejected")
+    } catch (e: AttachmentRejectedException) {
+      assertEquals(AttachmentRejection.UNSUPPORTED_TYPE, e.rejection)
+    }
+  }
+
+  @Test
+  fun stageDocumentRejeitaFicheiroAcimaDoLimite() = runBlocking {
+    val source = File(context.cacheDir, "grande_${System.nanoTime()}.pdf")
+    RandomAccessFile(source, "rw").use { it.setLength(ClienteRepositoryImpl.MAX_ATTACHMENT_BYTES + 1) }
+
+    try {
+      repository.stageDocument(Uri.fromFile(source), "grande.pdf")
+      fail("a file above the ceiling must be rejected")
+    } catch (e: AttachmentRejectedException) {
+      assertEquals(AttachmentRejection.TOO_LARGE, e.rejection)
+    }
   }
 
   @Test

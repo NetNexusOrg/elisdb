@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.example.elisdb.remote.AuditDetailsDto
+import com.example.elisdb.remote.AuditDocumentsDto
 import com.example.elisdb.remote.AuditEntryDto
 import com.example.elisdb.remote.AuditFieldDto
 import com.example.elisdb.remote.AuditPhotosDto
@@ -208,11 +209,42 @@ private fun LogEntryCard(
 /** What an edit changed: one row per field, then a summary of the photos. */
 @Composable
 private fun ChangeDetails(details: AuditDetailsDto, photoUris: Map<String, String>) {
-  if (details.fields.isEmpty() && details.photos == null) return
+  if (details.fields.isEmpty() && details.photos == null && details.documents == null) return
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
     details.fields.forEach { change -> FieldChangeRow(change) }
     details.photos?.let { photos -> PhotoChanges(photos = photos, photoUris = photoUris) }
+    details.documents?.let { documents -> DocumentChanges(documents = documents) }
   }
+}
+
+/** Device-map changes: the attachment names added or removed by the edit. */
+@Composable
+private fun DocumentChanges(documents: AuditDocumentsDto) {
+  Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    if (documents.added.isNotEmpty()) {
+      Text(
+        text = documentSummary("Adicionou", documents.added),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis,
+      )
+    }
+    if (documents.removed.isNotEmpty()) {
+      Text(
+        text = documentSummary("Removeu", documents.removed),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis,
+      )
+    }
+  }
+}
+
+private fun documentSummary(verb: String, names: List<String>): String {
+  val count = if (names.size == 1) "1 documento" else "${names.size} documentos"
+  return "$verb $count: ${names.joinToString(", ")}"
 }
 
 /** "Nome: ~~JOAO~~ → JOAO SILVA", with long values ellipsized. */

@@ -13,6 +13,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data class PhotoViewer(val clienteId: String, val indiceFoto: Int) : NavKey
 
+@Serializable data class DocumentoViewer(val clienteId: String, val documentoId: String) : NavKey
+
 @Serializable data class MapFullscreen(val clienteId: String) : NavKey
 
 @Serializable data object Config : NavKey

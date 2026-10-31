@@ -14,6 +14,7 @@ import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_5_6
 import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_6_7
 import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_7_8
 import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_8_9
+import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_9_10
 import com.example.elisdb.data.local.RoomPullWatermark
 import com.example.elisdb.location.LocationService
 import com.example.elisdb.remote.ApiClient
@@ -41,7 +42,7 @@ class AppContainer(context: Context) {
   val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
   val database: AppDatabase =
     Room.databaseBuilder(context, AppDatabase::class.java, "elisdb.db")
-      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
       .build()
 
   val locationService: LocationService = LocationService(context)
@@ -51,7 +52,7 @@ class AppContainer(context: Context) {
   val photoStore: FilePhotoStore = FilePhotoStore(context)
 
   /** Reclaims files no photo row references; run post-pull and on app start. */
-  val photoSweeper: PhotoSweeper = PhotoSweeper(database.fotoDao(), photoStore)
+  val photoSweeper: PhotoSweeper = PhotoSweeper(database.fotoDao(), photoStore, database.documentoDao())
 
   /** High-water mark of server `updated_at` seen on pulls, used for incremental pulls (R7). */
   val watermark = RoomPullWatermark(database.syncMetaDao())
@@ -125,6 +126,7 @@ class AppContainer(context: Context) {
           photoSweeper = photoSweeper,
           clockOffsetStore = clockOffsetStore,
           photoPushState = photoPushState,
+          documentoDao = database.documentoDao(),
           onWarning = { msg -> Log.w("ElisdbSync", msg) },
           onError = { e -> Log.w("ElisdbSync", "sync run failed", e) },
         )

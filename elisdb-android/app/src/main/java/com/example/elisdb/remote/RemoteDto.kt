@@ -22,18 +22,9 @@ data class FotoInDto(
 )
 
 @Serializable
-data class DocumentoInDto(
-  val id: String,
-  val nome: String = "",
-  val mime: String,
-  val ordem: Int = 0,
-)
-
-@Serializable
 data class RecordDto(
   val client: ClienteInDto,
   val fotos: List<FotoInDto> = emptyList(),
-  val documentos: List<DocumentoInDto> = emptyList(),
 )
 
 @Serializable
@@ -44,15 +35,6 @@ data class PushRequestDto(
 @Serializable
 data class FotoOutDto(
   val id: String,
-  val mime: String,
-  val ordem: Int = 0,
-  val hash: String? = null,
-)
-
-@Serializable
-data class DocumentoOutDto(
-  val id: String,
-  val nome: String = "",
   val mime: String,
   val ordem: Int = 0,
   val hash: String? = null,
@@ -79,7 +61,6 @@ data class ClienteOutDto(
 data class ClienteComFotosDto(
   val client: ClienteOutDto,
   val fotos: List<FotoOutDto> = emptyList(),
-  val documentos: List<DocumentoOutDto> = emptyList(),
 )
 
 /** Server-side deletion marker returned by pull. */
@@ -108,14 +89,11 @@ data class PushResultDto(
   /** Canonical record (client + photos) on a "duplicate" response; null otherwise. */
   val client: ClienteOutDto? = null,
   val fotos: List<FotoOutDto> = emptyList(),
-  val documentos: List<DocumentoOutDto> = emptyList(),
   /**
    * Photos this push referenced that have no file on the server. They were not
    * stored, so the client must upload them again on the next push.
    */
   @SerialName("missing_photos") val missingPhotos: List<String> = emptyList(),
-  /** Same as [missingPhotos], for the device-map documents. */
-  @SerialName("missing_documents") val missingDocuments: List<String> = emptyList(),
 )
 
 /** Identity lookup response for `GET /api/keys/me`: the key holder's allowlist record. */
@@ -142,19 +120,11 @@ data class AuditPhotosDto(
   val reordered: Boolean = false,
 )
 
-/** Documents added or removed by an edit (the device map). */
-@Serializable
-data class AuditDocumentsDto(
-  val added: List<String> = emptyList(),
-  val removed: List<String> = emptyList(),
-)
-
 /** What an edit changed; absent on entries recorded before change tracking. */
 @Serializable
 data class AuditDetailsDto(
   val fields: List<AuditFieldDto> = emptyList(),
   val photos: AuditPhotosDto? = null,
-  val documents: AuditDocumentsDto? = null,
 )
 
 /** One entry of a client's edit history: who acted, when, and what changed. */

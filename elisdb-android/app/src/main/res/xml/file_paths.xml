@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Only the downloaded update packages are shared. -->
+<!-- Only the downloaded update packages are shared, and only with the installer. -->
+<paths>
     <cache-path name="updates" path="updates/" />
-    <!-- Device-map attachments (images and PDFs) handed to an external reader
-         with a temporary read permission. -->
-    <files-path name="photos" path="photos/" />
 </paths>

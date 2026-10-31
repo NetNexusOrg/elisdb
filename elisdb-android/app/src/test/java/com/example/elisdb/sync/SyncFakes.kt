@@ -2,13 +2,10 @@ package com.example.elisdb.sync
 
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteDao
-import com.example.elisdb.data.local.Documento
-import com.example.elisdb.data.local.DocumentoDao
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.data.local.FotoDao
 import com.example.elisdb.remote.ClienteComFotosDto
 import com.example.elisdb.remote.ClienteOutDto
-import com.example.elisdb.remote.DocumentoOutDto
 import com.example.elisdb.remote.FotoOutDto
 import com.example.elisdb.remote.PullResponseDto
 import com.example.elisdb.remote.PushResultDto
@@ -90,33 +87,6 @@ class FakeFotoDao(initial: List<Foto> = emptyList()) : FotoDao {
   override suspend fun update(foto: Foto) {
     val i = data.indexOfFirst { it.id == foto.id }
     if (i >= 0) data[i] = foto else data.add(foto)
-  }
-
-  override suspend fun getAllUris(): List<String> = data.map { it.uriLocal }
-}
-
-/** In-memory [DocumentoDao] for device-map tests. */
-class FakeDocumentoDao(initial: List<Documento> = emptyList()) : DocumentoDao {
-  val data = initial.toMutableList()
-
-  override suspend fun getByCliente(clienteId: String): List<Documento> =
-    data.filter { it.clienteId == clienteId && !it.deletePending }.sortedWith(compareBy({ it.ordem }, { it.id }))
-
-  override suspend fun getAllByCliente(clienteId: String): List<Documento> =
-    data.filter { it.clienteId == clienteId }.sortedWith(compareBy({ it.ordem }, { it.id }))
-
-  override suspend fun insert(documento: Documento) {
-    data.removeAll { it.id == documento.id }
-    data.add(documento)
-  }
-
-  override suspend fun deleteByIds(ids: List<String>) {
-    data.removeAll { it.id in ids }
-  }
-
-  override suspend fun update(documento: Documento) {
-    val i = data.indexOfFirst { it.id == documento.id }
-    if (i >= 0) data[i] = documento else data.add(documento)
   }
 
   override suspend fun getAllUris(): List<String> = data.map { it.uriLocal }
@@ -297,34 +267,6 @@ class FakeSyncApi : SyncApi {
     failWith?.let { throw it }
     uploaded[id] = bytes
   }
-
-  /** Server-side device-map document bytes keyed by id. */
-  val documents = mutableMapOf<String, ByteArray>()
-
-  /** How many times [downloadDocument] was called. */
-  var documentDownloadCalls = 0
-
-  /** Documents uploaded via [uploadDocument], keyed by id. */
-  val uploadedDocuments = mutableMapOf<String, ByteArray>()
-
-  /** How many times [uploadDocument] was called. */
-  var documentUploadCalls = 0
-
-  override suspend fun downloadDocument(id: String, timestamp: Long): ByteArray {
-    failWith?.let { throw it }
-    documentDownloadCalls++
-    if (photoFailures > 0) {
-      photoFailures--
-      throw java.io.IOException("transient document failure")
-    }
-    return documents[id] ?: throw java.io.IOException("no document $id")
-  }
-
-  override suspend fun uploadDocument(id: String, bytes: ByteArray, timestamp: Long) {
-    failWith?.let { throw it }
-    documentUploadCalls++
-    uploadedDocuments[id] = bytes
-  }
 }
 
 /** Helper builders. */
@@ -339,7 +281,6 @@ fun serverItem(
   latitude: Double? = 0.0,
   longitude: Double? = 0.0,
   fotos: List<FotoOutDto> = emptyList(),
-  documentos: List<DocumentoOutDto> = emptyList(),
   deliveryTs: Long? = null,
 ): ClienteComFotosDto =
   ClienteComFotosDto(
@@ -354,7 +295,6 @@ fun serverItem(
         deliveryTs = deliveryTs,
       ),
     fotos = fotos,
-    documentos = documentos,
   )
 /** Base64-decodes [dataB64] into bytes. */
 fun decoded(dataB64: String): ByteArray = java.util.Base64.getDecoder().decode(dataB64)

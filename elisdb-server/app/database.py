@@ -12,14 +12,7 @@ import sqlite3
 import threading
 import time
 
-from .models import (
-    ALLOWED_DOCUMENT_MIMES,
-    ALLOWED_PHOTO_MIMES,
-    ClienteIn,
-    DocumentoIn,
-    FotoIn,
-    normalize_nome,
-)
+from .models import ClienteIn, FotoIn, normalize_nome
 
 # Reject data timestamps further in the future than this many seconds, so a
 # malicious or broken client timestamp cannot permanently win last-write-wins.
@@ -44,9 +37,7 @@ CREATE TABLE IF NOT EXISTS fotos (
     cliente_id TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
     mime TEXT NOT NULL,
     caminho TEXT NOT NULL,
-    ordem INTEGER NOT NULL DEFAULT 0,
-    nome TEXT,
-    kind TEXT NOT NULL DEFAULT 'photo'
+    ordem INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_fotos_cliente ON fotos (cliente_id);
 CREATE TABLE IF NOT EXISTS tombstones (
@@ -234,26 +225,6 @@ def _migrate_client_audit_details(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE client_audit ADD COLUMN details TEXT")
 
 
-def _migrate_fotos_documents(conn: sqlite3.Connection) -> None:
-    """Idempotently turn the photos table into the attachment table.
-
-    Device-map attachments (map images and PDF datasheets) live in the same
-    table and directory as photos so the storage, hashing, cascade delete and
-    orphan sweep stay one code path. `kind` separates the two lists and `nome`
-    carries the original file name (null for photos, which only need an index).
-    """
-    columns = [row["name"] for row in conn.execute("PRAGMA table_info(fotos)").fetchall()]
-    if "nome" not in columns:
-        conn.execute("ALTER TABLE fotos ADD COLUMN nome TEXT")
-    if "kind" not in columns:
-        conn.execute("ALTER TABLE fotos ADD COLUMN kind TEXT NOT NULL DEFAULT 'photo'")
-    # Created here (not in SCHEMA) because the column only exists after the
-    # ALTER above on pre-existing databases.
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_fotos_cliente_kind ON fotos (cliente_id, kind)"
-    )
-
-
 def _migrate_timestamps_to_seconds(conn: sqlite3.Connection) -> None:
     """Idempotently convert legacy millisecond timestamps to epoch seconds.
 
@@ -313,44 +284,23 @@ def build_audit_details(
     after: dict,
     before_photos: list[str],
     after_photos: list[str],
-    before_documents: list[tuple[str, str]] = (),
-    after_documents: list[tuple[str, str]] = (),
 ) -> dict | None:
     """Describe what an accepted write changed, or None when nothing did.
 
     ``before`` is the stored client row (None on insert); the photo arguments are
-    the ordered ids of the canonical sets before and after the write, while the
-    document arguments are ``(id, nome)`` pairs so the history can name the files
-    the user added or removed. Text values are shortened to ``AUDIT_TEXT_LIMIT``
-    and flagged; coordinates are compared with six decimals and presented as a
-    single "localizacao" field.
+    the ordered ids of the canonical sets before and after the write. Text values
+    are shortened to ``AUDIT_TEXT_LIMIT`` and flagged; coordinates are compared
+    with six decimals and presented as a single "localizacao" field.
     """
-    before_document_ids = {doc_id for doc_id, _ in before_documents}
-    after_document_ids = {doc_id for doc_id, _ in after_documents}
-    added_names = [
-        name for doc_id, name in after_documents if doc_id not in before_document_ids
-    ]
-    removed_names = [
-        name for doc_id, name in before_documents if doc_id not in after_document_ids
-    ]
-    documents = None
-    if added_names or removed_names:
-        documents = {
-            "added": [name or "(sem nome)" for name in added_names],
-            "removed": [name or "(sem nome)" for name in removed_names],
-        }
-
     if before is None:
-        details: dict = {"fields": []}
-        if after_photos:
-            details["photos"] = {
-                "added": list(after_photos),
-                "removed": [],
-                "reordered": False,
+        return (
+            {
+                "fields": [],
+                "photos": {"added": list(after_photos), "removed": [], "reordered": False},
             }
-        if documents is not None:
-            details["documents"] = documents
-        return details if len(details) > 1 else None
+            if after_photos
+            else None
+        )
 
     fields: list[dict] = []
     for name in ("nome", "contrato", "notas"):
@@ -396,13 +346,11 @@ def build_audit_details(
         else None
     )
 
-    if not fields and photos is None and documents is None:
+    if not fields and photos is None:
         return None
     details: dict = {"fields": fields}
     if photos is not None:
         details["photos"] = photos
-    if documents is not None:
-        details["documents"] = documents
     return details
 
 
@@ -439,7 +387,6 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     _migrate_delivery_ts(conn)
     _migrate_clients_nullable_coords(conn)
     _migrate_client_audit_details(conn)
-    _migrate_fotos_documents(conn)
     _migrate_timestamps_to_seconds(conn)
     conn.commit()
 
@@ -501,33 +448,27 @@ class Database:
             conn.close()
 
     def save_client(
-        self,
-        cliente: ClienteIn,
-        fotos: list[FotoIn],
-        actor: dict | None = None,
-        documentos: list[DocumentoIn] | None = None,
-    ) -> tuple[str, str | None, dict | None, list[str], list[str]]:
+        self, cliente: ClienteIn, fotos: list[FotoIn], actor: dict | None = None
+    ) -> tuple[str, str | None, dict | None, list[str]]:
         """Insert or update a client, applying last-write-wins.
 
         When `actor` (the authenticated key record: `id`, `comment`) is given and
         the record is accepted, an audit entry is appended to client_audit
         (`create` on insert, `edit` on update).
 
-        Returns (status, existing_id, canonical, missing_photos, missing_documents)
-        where status is:
-          - "accepted": the record (and attachments) were persisted
+        Returns (status, existing_id, canonical, missing_photos) where status is:
+          - "accepted": the record (and photos) were persisted
           - "duplicate": a different client already holds this normalized name
           - "stale": the incoming updated_at is older than the stored value
 
         On "duplicate", `canonical` carries the stored canonical record (client
-        + photos + documents) so the client can merge without a separate
-        round-trip; it is None for any other status.
+        + photos) so the client can merge without a separate round-trip; it is
+        None for any other status.
 
-        The two ``missing_*`` lists hold the attachment ids the push referenced
-        but whose bytes are not on the server. They are not stored, and the
-        client is told so it uploads them again instead of assuming they are safe.
+        `missing_photos` lists the photo ids the push referenced but whose bytes
+        are not on the server. They are not stored, and the client is told so it
+        uploads them again instead of assuming they are safe.
         """
-        documentos = documentos or []
         nome = normalize_nome(cliente.nome)
         if not nome:
             raise ValueError("nome cannot be blank")
@@ -551,17 +492,11 @@ class Database:
                 "SELECT deleted_at FROM tombstones WHERE id = ?", (cliente.id,)
             ).fetchone()
             if tombstone is not None and cliente.updated_at <= tombstone["deleted_at"]:
-                return "stale", None, None, [], []
+                return "stale", None, None, []
             if tombstone is not None:
                 # The pushed record is newer than the deletion: resurrect the
                 # client and clear the tombstone so it persists as a new record.
                 conn.execute("DELETE FROM tombstones WHERE id = ?", (cliente.id,))
-
-            # A record cannot move an existing attachment to the other kind, nor
-            # list the same id as both a photo and a document: ids are unique
-            # across the attachment table and the kind decides which endpoint
-            # serves the file, so a silent flip would make the file unreachable.
-            self._reject_kind_collisions(conn, fotos, documentos)
 
             # `updated_at` keeps the device timestamp (it is what last-write-wins
             # compares) while `delivery_ts` is assigned here so the change is
@@ -577,17 +512,16 @@ class Database:
 
             if existing is not None:
                 if cliente.updated_at < existing["updated_at"]:
-                    return "stale", None, None, [], []
+                    return "stale", None, None, []
                 other = conn.execute(
                     "SELECT id FROM clientes WHERE nome = ? COLLATE NOCASE AND id != ?",
                     (nome, cliente.id),
                 ).fetchone()
                 if other is not None:
                     canonical = self._canonical_from_conn(conn, other["id"])
-                    return "duplicate", other["id"], canonical, [], []
+                    return "duplicate", other["id"], canonical, []
                 before = dict(existing)
-                before_photos = self._attachment_ids(conn, cliente.id, "photo")
-                before_documents = self._attachment_names(conn, cliente.id, "document")
+                before_photos = self._photo_ids(conn, cliente.id)
                 conn.execute(
                     "UPDATE clientes SET nome=?, contrato=?, latitude=?, longitude=?, notas=?, updated_at=?, delivery_ts=? WHERE id=?",
                     (
@@ -601,12 +535,7 @@ class Database:
                         cliente.id,
                     ),
                 )
-                kept_ids, missing_ids = self._replace_attachments(
-                    conn, cliente.id, fotos, "photo", ALLOWED_PHOTO_MIMES
-                )
-                _kept_docs, missing_docs = self._replace_attachments(
-                    conn, cliente.id, documentos, "document", ALLOWED_DOCUMENT_MIMES
-                )
+                kept_ids, missing_ids = self._replace_fotos(conn, cliente.id, fotos)
                 details = build_audit_details(
                     before,
                     {
@@ -618,8 +547,6 @@ class Database:
                     },
                     before_photos,
                     kept_ids,
-                    before_documents,
-                    self._attachment_names(conn, cliente.id, "document"),
                 )
                 # A push that changes nothing records no entry: "edited" with no
                 # visible difference is noise in the history.
@@ -628,7 +555,7 @@ class Database:
                         conn, cliente.id, actor, "edit", cliente.updated_at, details
                     )
                 conn.commit()
-                return "accepted", None, None, missing_ids, missing_docs
+                return "accepted", None, None, missing_ids
 
             try:
                 conn.execute(
@@ -652,15 +579,10 @@ class Database:
                     "SELECT id FROM clientes WHERE nome = ? COLLATE NOCASE", (nome,)
                 ).fetchone()
                 if other is None:
-                    return "duplicate", None, None, [], []
+                    return "duplicate", None, None, []
                 canonical = self._canonical_from_conn(conn, other["id"])
-                return "duplicate", other["id"], canonical, [], []
-            kept_ids, missing_ids = self._replace_attachments(
-                conn, cliente.id, fotos, "photo", ALLOWED_PHOTO_MIMES
-            )
-            _kept_docs, missing_docs = self._replace_attachments(
-                conn, cliente.id, documentos, "document", ALLOWED_DOCUMENT_MIMES
-            )
+                return "duplicate", other["id"], canonical, []
+            kept_ids, missing_ids = self._replace_fotos(conn, cliente.id, fotos)
             details = build_audit_details(
                 None,
                 {
@@ -672,14 +594,12 @@ class Database:
                 },
                 [],
                 kept_ids,
-                [],
-                self._attachment_names(conn, cliente.id, "document"),
             )
             self._record_audit(
                 conn, cliente.id, actor, "create", cliente.updated_at, details
             )
             conn.commit()
-            return "accepted", None, None, missing_ids, missing_docs
+            return "accepted", None, None, missing_ids
         finally:
             conn.close()
 
@@ -708,151 +628,80 @@ class Database:
             ),
         )
 
-    def _reject_kind_collisions(
-        self,
-        conn: sqlite3.Connection,
-        fotos: list[FotoIn],
-        documentos: list[DocumentoIn],
-    ) -> None:
-        """Reject ids that would exist as both kinds or change kind in place."""
-        photo_ids = {f.id for f in fotos}
-        document_ids = {d.id for d in documentos}
-        overlap = photo_ids & document_ids
-        if overlap:
-            raise ValueError(
-                f"attachment id {sorted(overlap)[0]} is listed as both photo and document"
-            )
-        for ids, kind, other in (
-            (photo_ids, "photo", "document"),
-            (document_ids, "document", "photo"),
-        ):
-            if not ids:
-                continue
-            rows = conn.execute(
-                "SELECT id, kind FROM fotos WHERE id IN (%s)" % ",".join("?" * len(ids)),
-                sorted(ids),
-            ).fetchall()
-            for row in rows:
-                if row["kind"] == other:
-                    raise ValueError(
-                        f"attachment id {row['id']} already belongs to a {other}"
-                    )
-
-    def _attachment_ids(
-        self, conn: sqlite3.Connection, cliente_id: str, kind: str
-    ) -> list[str]:
-        """Ordered attachment ids of one kind currently stored for a client."""
+    def _photo_ids(self, conn: sqlite3.Connection, cliente_id: str) -> list[str]:
+        """Ordered photo ids currently stored for a client."""
         return [
             row["id"]
             for row in conn.execute(
-                "SELECT id FROM fotos WHERE cliente_id = ? AND kind = ? "
-                "ORDER BY ordem, id",
-                (cliente_id, kind),
+                "SELECT id FROM fotos WHERE cliente_id = ? ORDER BY ordem", (cliente_id,)
             ).fetchall()
         ]
 
-    def _attachment_names(
-        self, conn: sqlite3.Connection, cliente_id: str, kind: str
-    ) -> list[tuple[str, str]]:
-        """Ordered ``(id, nome)`` pairs of one attachment kind for a client."""
-        return [
-            (row["id"], row["nome"] or "")
-            for row in conn.execute(
-                "SELECT id, nome FROM fotos WHERE cliente_id = ? AND kind = ? "
-                "ORDER BY ordem, id",
-                (cliente_id, kind),
-            ).fetchall()
-        ]
-
-    def _replace_attachments(
-        self,
-        conn: sqlite3.Connection,
-        cliente_id: str,
-        items: list[FotoIn] | list[DocumentoIn],
-        kind: str,
-        allowed_mimes: frozenset[str],
+    def _replace_fotos(
+        self, conn: sqlite3.Connection, cliente_id: str, fotos: list[FotoIn]
     ) -> tuple[list[str], list[str]]:
-        """Merge one kind of attachment (photos or documents) into the store.
+        """Merge a client's photos into the store.
 
-        Attachments are referenced by id and their binary content is uploaded to
-        the matching endpoint separately; only rows pointing at an existing file
-        are recorded. An attachment owned by another client, already stored as
-        the other kind, or carrying a mime outside ``allowed_mimes`` rejects the
-        whole record. Stored attachments of this kind the push no longer lists
-        are removed.
+        Photos are referenced by id and their binary content is uploaded to the
+        photo endpoint separately; only rows pointing at an existing file are
+        recorded. Photos owned by another client are rejected rather than
+        reassigned. Stored photos the push no longer lists are removed as before.
 
-        Returns (kept_ids, missing_ids): the kept ids in display order (the
+        Returns (kept_ids, missing_ids): the kept photo ids in display order (the
         canonical set, which the audit uses to describe what was added or
         removed) and the ids the push referenced whose file is absent. The
         missing ones are reported back so the client uploads them again instead
         of recording them as already pushed.
         """
-        incoming = sorted(items, key=lambda a: a.ordem)
+        incoming = sorted(fotos, key=lambda f: f.ordem)
         kept_ids: list[str] = []
         missing_ids: list[str] = []
-        seen: set[str] = set()
-        for item in incoming:
-            if item.id in seen:
-                continue
-            seen.add(item.id)
-            if item.mime not in allowed_mimes:
-                raise ValueError(f"{kind} mime {item.mime!r} is not allowed")
+        for foto in incoming:
             owner = conn.execute(
-                "SELECT cliente_id, kind FROM fotos WHERE id = ?", (item.id,)
+                "SELECT cliente_id FROM fotos WHERE id = ?", (foto.id,)
             ).fetchone()
             if owner is not None and owner["cliente_id"] != cliente_id:
                 raise ValueError(
-                    f"attachment id {item.id} already belongs to another client"
+                    f"photo id {foto.id} already belongs to another client"
                 )
-            if owner is not None and owner["kind"] != kind:
-                raise ValueError(
-                    f"attachment id {item.id} already belongs to a {owner['kind']}"
-                )
-            if os.path.exists(self._foto(item.id)):
-                kept_ids.append(item.id)
+            if os.path.exists(self._foto(foto.id)):
+                kept_ids.append(foto.id)
             else:
-                missing_ids.append(item.id)
+                missing_ids.append(foto.id)
 
-        # The client's canonical set of this kind is exactly what the push lists.
+        # The client's canonical photo set is exactly what the push lists.
         # Remove rows no longer present, deleting their files from disk too so
-        # storage does not grow from orphaned files.
+        # storage does not grow from orphaned photo files.
         if kept_ids:
             remove_rows = conn.execute(
-                "SELECT caminho FROM fotos WHERE cliente_id = ? AND kind = ? "
-                "AND id NOT IN (%s)" % ",".join("?" * len(kept_ids)),
-                [cliente_id, kind, *kept_ids],
+                "SELECT caminho FROM fotos WHERE cliente_id = ? AND id NOT IN (%s)"
+                % ",".join("?" * len(kept_ids)),
+                [cliente_id, *kept_ids],
             ).fetchall()
         else:
             remove_rows = conn.execute(
-                "SELECT caminho FROM fotos WHERE cliente_id = ? AND kind = ?",
-                (cliente_id, kind),
+                "SELECT caminho FROM fotos WHERE cliente_id = ?", (cliente_id,)
             ).fetchall()
         for row in remove_rows:
             self._remove_file(row["caminho"])
         if kept_ids:
             conn.execute(
-                "DELETE FROM fotos WHERE cliente_id = ? AND kind = ? "
-                "AND id NOT IN (%s)" % ",".join("?" * len(kept_ids)),
-                [cliente_id, kind, *kept_ids],
+                "DELETE FROM fotos WHERE cliente_id = ? AND id NOT IN (%s)"
+                % ",".join("?" * len(kept_ids)),
+                [cliente_id, *kept_ids],
             )
         else:
-            conn.execute(
-                "DELETE FROM fotos WHERE cliente_id = ? AND kind = ?",
-                (cliente_id, kind),
-            )
+            conn.execute("DELETE FROM fotos WHERE cliente_id = ?", (cliente_id,))
 
-        for item in incoming:
-            if item.id not in kept_ids:
+        for foto in incoming:
+            if foto.id not in kept_ids:
                 continue
-            nome = getattr(item, "nome", None)
             conn.execute(
-                "INSERT INTO fotos (id, cliente_id, mime, caminho, ordem, nome, kind) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "INSERT INTO fotos (id, cliente_id, mime, caminho, ordem) "
+                "VALUES (?, ?, ?, ?, ?) "
                 "ON CONFLICT(id) DO UPDATE SET "
-                "cliente_id=excluded.cliente_id, mime=excluded.mime, "
-                "caminho=excluded.caminho, ordem=excluded.ordem, "
-                "nome=excluded.nome, kind=excluded.kind",
-                (item.id, cliente_id, item.mime, self._foto(item.id), item.ordem, nome, kind),
+                "cliente_id=excluded.cliente_id, mime=excluded.mime, caminho=excluded.caminho, ordem=excluded.ordem",
+                (foto.id, cliente_id, foto.mime, self._foto(foto.id), foto.ordem),
             )
         return kept_ids, missing_ids
 
@@ -880,22 +729,10 @@ class Database:
 
     def get_photo(self, foto_id: str) -> tuple[str, bytes] | None:
         """Return (mime, bytes) for a stored photo, or None when absent."""
-        return self._get_attachment(foto_id, "photo")
-
-    def get_document(self, documento_id: str) -> tuple[str, bytes] | None:
-        """Return (mime, bytes) for a stored document, or None when absent.
-
-        The kind is checked so a photo id cannot be downloaded as a document
-        (and vice versa), even though ids live in one table.
-        """
-        return self._get_attachment(documento_id, "document")
-
-    def _get_attachment(self, attachment_id: str, kind: str) -> tuple[str, bytes] | None:
         conn = self._conn()
         try:
             row = conn.execute(
-                "SELECT mime, caminho FROM fotos WHERE id = ? AND kind = ?",
-                (attachment_id, kind),
+                "SELECT mime, caminho FROM fotos WHERE id = ?", (foto_id,)
             ).fetchone()
         finally:
             conn.close()
@@ -1020,11 +857,7 @@ class Database:
             conn.close()
 
     def _canonical_from_conn(self, conn: sqlite3.Connection, cliente_id: str) -> dict | None:
-        """Read one client with its two attachment lists from an open connection.
-
-        Photos and documents are returned as separate lists so the app's gallery
-        and pager never see a document. Attachments whose file vanished are
-        skipped rather than returned with a hash of nothing.
+        """Read one client with its photos from an open connection.
 
         Returns None when the client does not exist.
         """
@@ -1036,8 +869,7 @@ class Database:
         if row is None:
             return None
         fotos = conn.execute(
-            "SELECT id, mime, caminho, ordem FROM fotos "
-            "WHERE cliente_id = ? AND kind = 'photo' ORDER BY ordem, id",
+            "SELECT id, mime, caminho, ordem FROM fotos WHERE cliente_id = ? ORDER BY ordem",
             (cliente_id,),
         ).fetchall()
         foto_out = []
@@ -1053,29 +885,9 @@ class Database:
                     "ordem": f["ordem"],
                 }
             )
-        documentos = conn.execute(
-            "SELECT id, nome, mime, caminho, ordem FROM fotos "
-            "WHERE cliente_id = ? AND kind = 'document' ORDER BY ordem, id",
-            (cliente_id,),
-        ).fetchall()
-        documento_out = []
-        for d in documentos:
-            data = self._read_foto(d["caminho"])
-            if data is None:
-                continue
-            documento_out.append(
-                {
-                    "id": d["id"],
-                    "nome": d["nome"] or "",
-                    "mime": d["mime"],
-                    "hash": hashlib.sha256(data).hexdigest(),
-                    "ordem": d["ordem"],
-                }
-            )
         return {
             "client": dict(row),
             "fotos": foto_out,
-            "documentos": documento_out,
         }
 
     def pull_all(

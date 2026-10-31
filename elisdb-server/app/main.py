@@ -212,11 +212,8 @@ def create_app(database: Database | None = None) -> FastAPI:
         results: list[PushResult] = []
         for record in req.records:
             try:
-                status, existing_id, canonical, missing, missing_docs = store.save_client(
-                    record.client,
-                    record.fotos,
-                    actor=actor,
-                    documentos=record.documentos,
+                status, existing_id, canonical, missing = store.save_client(
+                    record.client, record.fotos, actor=actor
                 )
             except ValueError as exc:
                 # One invalid record must not abort the whole batch: report it
@@ -231,9 +228,7 @@ def create_app(database: Database | None = None) -> FastAPI:
                     existing_id=existing_id,
                     client=canonical["client"] if canonical is not None else None,
                     fotos=canonical["fotos"] if canonical is not None else [],
-                    documentos=canonical["documentos"] if canonical is not None else [],
                     missing_photos=missing,
-                    missing_documents=missing_docs,
                 )
             )
         return results
@@ -261,22 +256,6 @@ def create_app(database: Database | None = None) -> FastAPI:
     def list_clients() -> list[ClienteOut]:
         return [ClienteOut.model_validate(c) for c in store.list_clients()]
 
-    async def _store_attachment(attachment_id: str, request: Request, kind: str) -> None:
-        """Store an uploaded file after checking the shared size ceiling.
-
-        Photos and documents share the limit and the write path: both are opaque
-        files in the same directory, so a second code path would only add a way
-        for the two to diverge.
-        """
-        content_length = request.headers.get("content-length")
-        if content_length is not None and content_length.isdigit():
-            if int(content_length) > MAX_PHOTO_BYTES:
-                raise HTTPException(status_code=413, detail=f"{kind} too large")
-        data = await request.body()
-        if len(data) > MAX_PHOTO_BYTES:
-            raise HTTPException(status_code=413, detail=f"{kind} too large")
-        store.write_photo(attachment_id, data)
-
     @app.get("/api/photos/{foto_id}", dependencies=[auth_dep])
     def get_photo(foto_id: str) -> Response:
         result = store.get_photo(foto_id)
@@ -287,20 +266,14 @@ def create_app(database: Database | None = None) -> FastAPI:
 
     @app.put("/api/photos/{foto_id}", status_code=204, dependencies=[auth_dep])
     async def put_photo(foto_id: str, request: Request) -> Response:
-        await _store_attachment(foto_id, request, "photo")
-        return Response(status_code=204)
-
-    @app.get("/api/documents/{documento_id}", dependencies=[auth_dep])
-    def get_document(documento_id: str) -> Response:
-        result = store.get_document(documento_id)
-        if result is None:
-            raise HTTPException(status_code=404, detail="document not found")
-        mime, data = result
-        return Response(content=data, media_type=mime)
-
-    @app.put("/api/documents/{documento_id}", status_code=204, dependencies=[auth_dep])
-    async def put_document(documento_id: str, request: Request) -> Response:
-        await _store_attachment(documento_id, request, "document")
+        content_length = request.headers.get("content-length")
+        if content_length is not None and content_length.isdigit():
+            if int(content_length) > MAX_PHOTO_BYTES:
+                raise HTTPException(status_code=413, detail="photo too large")
+        data = await request.body()
+        if len(data) > MAX_PHOTO_BYTES:
+            raise HTTPException(status_code=413, detail="photo too large")
+        store.write_photo(foto_id, data)
         return Response(status_code=204)
 
     @app.delete("/api/clients/{cliente_id}", status_code=204, dependencies=[auth_dep])

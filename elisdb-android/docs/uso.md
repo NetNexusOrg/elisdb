@@ -69,14 +69,10 @@ Fluxos principais:
 - **Novo/editar cliente** — formulário com nome, contrato, coordenadas, notas.
 - **Mapa** — escolher/indicar a localização (Picker).
 - **Fotos** — capturar e associar imagens; ver em ecrã inteiro.
-- **Mapa de dispositivos** — no formulário e no detalhe, juntar imagens e
-  PDFs com a localização dos equipamentos (ver abaixo).
-- **Detalhe do cliente** — mapa, navegação, notas, fotos e mapa de
-  dispositivos; no menu (⋮) podes
+- **Detalhe do cliente** — mapa, navegação, notas e fotos; no menu (⋮) podes
   editar, apagar ou abrir o **Log**, uma página com o histórico de alterações
   agrupado por dia: quem alterou, a que horas, que campos mudaram (valor antigo
-  e novo), que fotos foram adicionadas, removidas ou reordenadas e que
-  documentos do mapa entraram ou saíram. As
+  e novo) e que fotos foram adicionadas, removidas ou reordenadas. As
   miniaturas das fotos adicionadas aparecem quando ainda existem neste
   dispositivo.
 - **Configuração** — o ecrã único de sincronização e servidor: estado, resumo do que falta sincronizar, totais de clientes na app e no servidor e o botão **Sincronizar** (envia e recebe os dados); abaixo, o cartão **Servidor** com o URL, a chave mascarada e o utilizador associado; sem configuração mostra **Importar configuração do servidor**, e depois de configurado mostra apenas **Remover configuração**. O estado pendente é verificado automaticamente ao abrir o ecrã.
@@ -111,29 +107,6 @@ Duas garantias que evitam surpresas:
 > seguinte (vence pelo mais recente). No ecrã **Configuração** aparece: *"Registo
 > «Nome» foi fundido com um registo existente."*. O teu registo nunca é apagado
 > em silêncio.
-
-### Mapa de dispositivos
-
-Cada cliente pode ter um **mapa de dispositivos**: imagens (fotografias ou
-capturas) e PDFs com a planta ou a localização dos equipamentos. No formulário,
-a secção **Mapa de dispositivos** tem dois botões: **Ficheiro** (escolhe uma
-imagem ou um PDF do telemóvel) e **Câmara** (tira uma fotografia na hora). Os
-anexos aparecem numa lista com o nome e o tipo (**PDF** ou **IMG**) e podem ser
-removidos antes de guardar; a ordem em que foram adicionados é mantida.
-
-Só são aceites imagens (JPEG, PNG, WebP) e PDFs, até **20 MB por ficheiro**.
-Um tipo não suportado ou um ficheiro demasiado grande é recusado com uma
-mensagem e não é guardado.
-
-No detalhe do cliente, a secção **Mapa de dispositivos** abre as imagens no
-visualizador da app e entrega os PDFs a uma aplicação externa (com permissão
-temporária de leitura). Se o ficheiro já não existir no telemóvel, a app avisa
-em vez de abrir um ecrã vazio.
-
-Os anexos sincronizam como as fotos: o conteúdo é identificado por hash, por
-isso um ficheiro inalterado não volta a ser enviado nem descarregado. Quando o
-servidor ainda não tem o ficheiro, responde em `missing_documents` e a app
-reenvia-o na sincronização seguinte.
 
 ## 3. Resolução de problemas
 

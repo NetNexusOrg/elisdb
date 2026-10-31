@@ -1,8 +1,6 @@
 package com.example.elisdb.sync
 
-import com.example.elisdb.data.local.Documento
 import com.example.elisdb.data.local.Foto
-import com.example.elisdb.remote.DocumentoOutDto
 import com.example.elisdb.remote.FotoOutDto
 
 /** Outcome of attempting to materialize one server photo. */
@@ -25,24 +23,6 @@ class PhotoMaterializer(private val photoStore: PhotoStore) {
   suspend fun materialize(
     existing: Foto?,
     server: FotoOutDto,
-    download: suspend (String) -> ByteArray,
-  ): MaterializeResult {
-    if (existing != null &&
-      existing.mime == server.mime &&
-      existing.ordem == server.ordem &&
-      server.hash != null &&
-      photoStore.contentHashMatches(existing.uriLocal, server.hash)
-    ) {
-      return MaterializeResult.Keep(existing.uriLocal)
-    }
-    val bytes = download(server.id)
-    return MaterializeResult.Repointed(photoStore.storeBytes(bytes, server.mime))
-  }
-
-  /** Same contract as [materialize], for a device-map document. */
-  suspend fun materialize(
-    existing: Documento?,
-    server: DocumentoOutDto,
     download: suspend (String) -> ByteArray,
   ): MaterializeResult {
     if (existing != null &&

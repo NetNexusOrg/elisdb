@@ -6,9 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.elisdb.data.ClienteRemovidoException
 import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.ClienteDraft
-import com.example.elisdb.data.AttachmentRejectedException
-import com.example.elisdb.data.AttachmentRejection
-import com.example.elisdb.data.local.Documento
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.location.Localizacao
 import java.io.File
@@ -35,12 +32,9 @@ data class ClientFormUiState(
   val latitude: Double? = null,
   val longitude: Double? = null,
   val fotos: List<Foto> = emptyList(),
-  val documentos: List<Documento> = emptyList(),
   val nomeError: Boolean = false,
   val saving: Boolean = false,
   val showCamera: Boolean = false,
-  /** True when the open camera is capturing an image for the device map. */
-  val cameraAsDocument: Boolean = false,
   val message: String? = null,
 )
 
@@ -79,7 +73,6 @@ class ClientFormViewModel(
           latitude = data?.cliente?.latitude,
           longitude = data?.cliente?.longitude,
           fotos = data?.fotos.orEmpty(),
-          documentos = data?.documentos.orEmpty(),
         )
       }
     }
@@ -136,54 +129,9 @@ class ClientFormViewModel(
     }
   }
 
-  /**
-   * Adds a device-map attachment. The repository resolves the display name from
-   * the content resolver; the type and size are validated there because that is
-   * where the bytes and the server's limit are known.
-   */
-  fun onDocumentPicked(uri: Uri) {
-    viewModelScope.launch {
-      runCatching { repository.stageDocument(uri, "") }
-        .onSuccess { documento -> _uiState.update { it.copy(documentos = it.documentos + documento) } }
-        .onFailure { error -> _uiState.update { it.copy(message = attachmentMessage(error)) } }
-    }
-  }
+  fun showCamera() = _uiState.update { it.copy(showCamera = true) }
 
-  fun onDocumentCaptured(file: File) {
-    viewModelScope.launch {
-      runCatching { repository.stageDocument(Uri.fromFile(file), file.name) }
-        .onSuccess { documento ->
-          _uiState.update {
-            it.copy(documentos = it.documentos + documento, showCamera = false, cameraAsDocument = false)
-          }
-        }
-        .onFailure { error ->
-          _uiState.update { it.copy(showCamera = false, cameraAsDocument = false, message = attachmentMessage(error)) }
-        }
-      // The capture file is re-encoded into the store; drop the raw one.
-      runCatching { withContext(Dispatchers.IO) { file.delete() } }
-    }
-  }
-
-  fun onRemoveDocumento(documento: Documento) {
-    _uiState.update { it.copy(documentos = it.documentos - documento) }
-    if (documento.id.isEmpty()) {
-      viewModelScope.launch { repository.deleteDocumentoFile(documento) }
-    }
-  }
-
-  private fun attachmentMessage(error: Throwable): String =
-    when ((error as? AttachmentRejectedException)?.rejection) {
-      AttachmentRejection.UNSUPPORTED_TYPE -> "Tipo de ficheiro não suportado. Adiciona imagens ou PDFs."
-      AttachmentRejection.TOO_LARGE -> "O ficheiro é demasiado grande (máximo 20 MB)."
-      else -> "Não foi possível guardar o ficheiro."
-    }
-
-  fun showCamera() = _uiState.update { it.copy(showCamera = true, cameraAsDocument = false) }
-
-  fun showCameraForDocument() = _uiState.update { it.copy(showCamera = true, cameraAsDocument = true) }
-
-  fun dismissCamera() = _uiState.update { it.copy(showCamera = false, cameraAsDocument = false) }
+  fun dismissCamera() = _uiState.update { it.copy(showCamera = false) }
 
   fun save() {
     val state = _uiState.value
@@ -203,7 +151,6 @@ class ClientFormViewModel(
             longitude = state.longitude,
             notas = state.notas,
             fotos = state.fotos,
-            documentos = state.documentos,
           )
         )
       }
@@ -231,9 +178,7 @@ class ClientFormViewModel(
 
   override fun onCleared() {
     if (wasSaved) return
-    val orphanFiles =
-      _uiState.value.fotos.filter { it.id.isEmpty() }.map { File(it.uriLocal) } +
-        _uiState.value.documentos.filter { it.id.isEmpty() }.map { File(it.uriLocal) }
+    val orphanFiles = _uiState.value.fotos.filter { it.id.isEmpty() }.map { File(it.uriLocal) }
     if (orphanFiles.isNotEmpty()) {
       CoroutineScope(Dispatchers.IO).launch { orphanFiles.forEach { runCatching { it.delete() } } }
     }

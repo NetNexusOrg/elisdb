@@ -68,14 +68,4 @@ class ClientDetailViewModel(
     _uiState.update {
       it.copy(navigateMessage = "Não foi encontrada uma aplicação de navegação.")
     }
-
-  fun notifyFileUnavailable() =
-    _uiState.update {
-      it.copy(message = "O ficheiro já não está disponível no dispositivo.")
-    }
-
-  fun notifyPdfUnavailable() =
-    _uiState.update {
-      it.copy(message = "Não foi encontrada uma aplicação para abrir o PDF.")
-    }
 }

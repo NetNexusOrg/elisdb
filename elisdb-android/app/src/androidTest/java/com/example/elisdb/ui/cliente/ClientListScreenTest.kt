@@ -12,7 +12,6 @@ import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.ClienteDraft
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
-import com.example.elisdb.data.local.Documento
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncStatus
@@ -149,11 +148,6 @@ private class FakeListRepository(
   override fun createPhotoFile(): File = error("Not used in this test")
 
   override suspend fun deletePhotoFile(foto: Foto) = Unit
-
-  override suspend fun stageDocument(source: Uri, nome: String): Documento =
-    error("Not used in this test")
-
-  override suspend fun deleteDocumentoFile(documento: Documento) = Unit
 
   override suspend fun save(draft: ClienteDraft): String = error("Not used in this test")
 

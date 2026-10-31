@@ -149,7 +149,7 @@ private fun PhotoPager(
 }
 
 @Composable
-internal fun ZoomablePhoto(
+private fun ZoomablePhoto(
   foto: Foto,
   onZoomChanged: (Boolean) -> Unit,
   modifier: Modifier = Modifier,

@@ -1,13 +1,11 @@
 package com.example.elisdb.sync
 
 import com.example.elisdb.data.local.Cliente
-import com.example.elisdb.data.local.Documento
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.remote.AuthCause
 import com.example.elisdb.remote.AuthException
 import com.example.elisdb.remote.ClienteOutDto
 import com.example.elisdb.remote.ConfigException
-import com.example.elisdb.remote.DocumentoOutDto
 import com.example.elisdb.remote.FotoOutDto
 import com.example.elisdb.remote.PullResponseDto
 import com.example.elisdb.remote.PushResultDto
@@ -24,7 +22,6 @@ class SyncCoordinatorTest {
   private fun coord(
     clienteDao: FakeClienteDao,
     fotoDao: FakeFotoDao = FakeFotoDao(),
-    documentoDao: FakeDocumentoDao? = null,
     api: FakeSyncApi = FakeSyncApi(),
     photoStore: FakePhotoStore = FakePhotoStore(),
     pullWatermark: PullWatermark? = null,
@@ -42,7 +39,6 @@ class SyncCoordinatorTest {
       incrementalPullEnabled = incrementalPullEnabled,
       clockOffsetStore = clockOffsetStore,
       photoPushState = photoPushState,
-      documentoDao = documentoDao,
       onError = onError,
     )
 
@@ -1084,232 +1080,5 @@ class SyncCoordinatorTest {
 
     assertEquals("watermark moves past the stuck record", 200L, watermark.value)
     assertTrue("the pending record is kept", dao.data.any { it.id == "1" && it.pending })
-  }
-
-  @Test
-  fun `push uploads a document once per content change`() = runBlocking {
-    val dao = FakeClienteDao(listOf(cliente("1", pending = true, nome = "Ana")))
-    val documento =
-      Documento(id = "d1", clienteId = "1", nome = "planta.pdf", uriLocal = "file:/planta.pdf")
-    val documentoDao = FakeDocumentoDao(listOf(documento))
-    val photoStore = FakePhotoStore().apply { stage("file:/planta.pdf", "cGRm") }
-    val api = FakeSyncApi()
-    val c =
-      coord(
-        clienteDao = dao,
-        documentoDao = documentoDao,
-        api = api,
-        photoStore = photoStore,
-        pullWatermark = FakePullWatermark(value = 5L),
-        incrementalPullEnabled = true,
-        photoPushState = FakePhotoPushState(),
-      )
-
-    c.sync()
-
-    assertEquals("document uploaded", 1, api.documentUploadCalls)
-    assertEquals("pdf", String(api.uploadedDocuments.getValue("d1")))
-    val pushed = api.pushed.single().single().documentos
-    assertEquals("document listed in the record", listOf("d1"), pushed.map { it.id })
-    assertEquals("planta.pdf", pushed.single().nome)
-
-    // Editing the record without touching the file must not upload it again.
-    dao.data[0] = dao.data[0].copy(pending = true, revision = dao.data[0].revision + 1)
-    c.sync()
-
-    assertEquals("unchanged document not re-uploaded", 1, api.documentUploadCalls)
-  }
-
-  @Test
-  fun `push marks a missing-file document as pending delete and warns`() = runBlocking {
-    val dao = FakeClienteDao(listOf(cliente("1", pending = true, nome = "Ana")))
-    val documento =
-      Documento(id = "d1", clienteId = "1", nome = "planta.pdf", uriLocal = "file:/gone.pdf")
-    val documentoDao = FakeDocumentoDao(listOf(documento))
-    val api = FakeSyncApi()
-    var warnings = 0
-    val c =
-      SyncCoordinator(
-        api = api,
-        clienteDao = dao,
-        fotoDao = FakeFotoDao(),
-        photoStore = FakePhotoStore(),
-        pullWatermark = FakePullWatermark(value = 5L),
-        documentoDao = documentoDao,
-        onWarning = { warnings++ },
-      )
-
-    c.sync()
-
-    assertTrue("missing-file document marked pending delete", documentoDao.data.single().deletePending)
-    assertEquals("one warning logged", 1, warnings)
-    assertTrue("record pushed without the missing document", api.pushed.single().single().documentos.isEmpty())
-    assertTrue("client kept and synced", dao.data.any { it.id == "1" && !it.pending })
-  }
-
-  @Test
-  fun `pull materializes a document next to the client`() = runBlocking {
-    val dao = FakeClienteDao()
-    val api =
-      FakeSyncApi().apply {
-        documents["d1"] = decoded("cGRm")
-        pullResponse =
-          pullResponseOf(
-            serverItem(
-              id = "1",
-              updatedAt = 100,
-              documentos =
-                listOf(
-                  DocumentoOutDto(
-                    id = "d1",
-                    nome = "planta.pdf",
-                    mime = "application/pdf",
-                    ordem = 0,
-                    hash = sha256Of("cGRm"),
-                  )
-                ),
-            )
-          )
-      }
-    val documentoDao = FakeDocumentoDao()
-    val photoStore = FakePhotoStore()
-    val c = coord(clienteDao = dao, documentoDao = documentoDao, api = api, photoStore = photoStore)
-
-    c.sync()
-
-    val row = documentoDao.getByCliente("1").single()
-    assertEquals("d1", row.id)
-    assertEquals("planta.pdf", row.nome)
-    assertEquals("application/pdf", row.mime)
-    assertEquals("bytes stored", "cGRm", photoStore.contentB64(row.uriLocal))
-  }
-
-  @Test
-  fun `pull keeps an unchanged document without downloading it`() = runBlocking {
-    val dao = FakeClienteDao(listOf(cliente("1", updatedAt = 100)))
-    val existing =
-      Documento(
-        id = "d1",
-        clienteId = "1",
-        nome = "planta.pdf",
-        mime = "application/pdf",
-        uriLocal = "file:/keep.pdf",
-        ordem = 0,
-      )
-    val documentoDao = FakeDocumentoDao(listOf(existing))
-    val photoStore = FakePhotoStore().apply { stage("file:/keep.pdf", "cGRm") }
-    val api =
-      FakeSyncApi().apply {
-        pullResponse =
-          pullResponseOf(
-            serverItem(
-              id = "1",
-              updatedAt = 100,
-              documentos =
-                listOf(
-                  DocumentoOutDto(
-                    id = "d1",
-                    nome = "planta.pdf",
-                    mime = "application/pdf",
-                    ordem = 0,
-                    hash = sha256Of("cGRm"),
-                  )
-                ),
-            )
-          )
-      }
-    val c = coord(clienteDao = dao, documentoDao = documentoDao, api = api, photoStore = photoStore)
-
-    c.sync()
-
-    assertEquals("no download for unchanged document", 0, api.documentDownloadCalls)
-    assertEquals("file kept", "file:/keep.pdf", documentoDao.data.single().uriLocal)
-    assertTrue("file still on disk", "file:/keep.pdf" in photoStore.files)
-  }
-
-  @Test
-  fun `duplicate merge keeps the documents of both records`() = runBlocking {
-    val dao = FakeClienteDao(listOf(cliente("new", pending = true, nome = "Ana")))
-    val documentoDao =
-      FakeDocumentoDao(
-        listOf(
-          Documento(
-            id = "d1",
-            clienteId = "new",
-            nome = "local.pdf",
-            mime = "application/pdf",
-            uriLocal = "file:/local.pdf",
-          )
-        )
-      )
-    val photoStore = FakePhotoStore().apply { stage("file:/local.pdf", "bG9j") }
-    val api =
-      FakeSyncApi().apply {
-        documents["c1"] = decoded("Y2Fu")
-        pushResult = { records ->
-          records.map {
-            PushResultDto(
-              id = it.client.id,
-              status = "duplicate",
-              existingId = "existing",
-              client = ClienteOutDto(id = "existing", nome = "Ana", latitude = 0.0, longitude = 0.0, updatedAt = 500),
-              documentos =
-                listOf(
-                  DocumentoOutDto(
-                    id = "c1",
-                    nome = "canonical.pdf",
-                    mime = "application/pdf",
-                    ordem = 0,
-                    hash = sha256Of("Y2Fu"),
-                  )
-                ),
-            )
-          }
-        }
-      }
-    val c = coord(clienteDao = dao, documentoDao = documentoDao, api = api, photoStore = photoStore)
-
-    c.sync()
-
-    val documentos = documentoDao.getAllByCliente("existing")
-    assertEquals("both documents kept on the canonical record", 2, documentos.size)
-    assertTrue("local document re-attached", documentos.any { it.id == "d1" && it.clienteId == "existing" })
-    val canonical = documentos.first { it.id == "c1" }
-    assertEquals("canonical document materialized", "Y2Fu", photoStore.contentB64(canonical.uriLocal))
-    assertEquals("canonical name kept", "canonical.pdf", canonical.nome)
-  }
-
-  @Test
-  fun `deleting a client removes its document rows and files`() = runBlocking {
-    val dao = FakeClienteDao(listOf(cliente("9", deletePending = true)))
-    val documento =
-      Documento(id = "d9", clienteId = "9", nome = "planta.pdf", uriLocal = "file:/d9.pdf")
-    val documentoDao = FakeDocumentoDao(listOf(documento))
-    val photoStore = FakePhotoStore().apply { stage("file:/d9.pdf", "cGRm") }
-    val api = FakeSyncApi().apply { deleteResult = { true } }
-    val c = coord(clienteDao = dao, documentoDao = documentoDao, api = api, photoStore = photoStore)
-
-    c.sync()
-
-    assertTrue("document row deleted", documentoDao.data.isEmpty())
-    assertFalse("document file deleted", "file:/d9.pdf" in photoStore.files)
-  }
-
-  @Test
-  fun `document sweeper keeps referenced files and reclaims orphans`() = runBlocking {
-    val documento =
-      Documento(id = "d1", clienteId = "1", nome = "planta.pdf", uriLocal = "file:/keep.pdf")
-    val photoStore =
-      FakePhotoStore().apply {
-        files.add("file:/keep.pdf")
-        files.add("file:/orphan.pdf")
-      }
-    val sweeper = PhotoSweeper(FakeFotoDao(), photoStore, FakeDocumentoDao(listOf(documento)))
-
-    val removed = sweeper.sweep()
-
-    assertEquals("one orphan reclaimed", 1, removed)
-    assertTrue("referenced document kept", "file:/keep.pdf" in photoStore.files)
-    assertFalse("orphan document reclaimed", "file:/orphan.pdf" in photoStore.files)
   }
 }

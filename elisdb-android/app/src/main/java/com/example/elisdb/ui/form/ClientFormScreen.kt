@@ -55,7 +55,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
-import com.example.elisdb.data.local.Documento
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.ui.map.MapPicker
 import com.example.elisdb.ui.map.OsmMap
@@ -103,9 +102,7 @@ fun ClientFormScreen(
       if (state.showCamera) {
         CameraCapture(
           createOutputFile = viewModel::createPhotoFile,
-          onPhotoCaptured =
-            if (state.cameraAsDocument) viewModel::onDocumentCaptured
-            else viewModel::onPhotoCaptured,
+          onPhotoCaptured = viewModel::onPhotoCaptured,
           onCancel = viewModel::dismissCamera,
           modifier = Modifier.fillMaxSize(),
         )
@@ -120,9 +117,6 @@ fun ClientFormScreen(
           onPickPhoto = viewModel::onPhotoPicked,
           onTakePhoto = viewModel::showCamera,
           onRemoveFoto = viewModel::onRemoveFoto,
-          onPickDocument = viewModel::onDocumentPicked,
-          onTakeDocumentPhoto = viewModel::showCameraForDocument,
-          onRemoveDocumento = viewModel::onRemoveDocumento,
           onSave = viewModel::save,
         )
       }
@@ -144,9 +138,6 @@ private fun ClientFormContent(
   onPickPhoto: (Uri) -> Unit,
   onTakePhoto: () -> Unit,
   onRemoveFoto: (Foto) -> Unit,
-  onPickDocument: (Uri) -> Unit,
-  onTakeDocumentPhoto: () -> Unit,
-  onRemoveDocumento: (Documento) -> Unit,
   onSave: () -> Unit,
 ) {
   val context = LocalContext.current
@@ -154,22 +145,10 @@ private fun ClientFormContent(
     rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
       uri?.let(onPickPhoto)
     }
-  val documentPicker =
-    rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-      uri?.let(onPickDocument)
-    }
   val cameraLauncher =
     rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
       if (granted) {
         onTakePhoto()
-      } else {
-        Toast.makeText(context, "Sem permissão para usar a câmara.", Toast.LENGTH_SHORT).show()
-      }
-    }
-  val documentCameraLauncher =
-    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-      if (granted) {
-        onTakeDocumentPhoto()
       } else {
         Toast.makeText(context, "Sem permissão para usar a câmara.", Toast.LENGTH_SHORT).show()
       }
@@ -282,45 +261,6 @@ private fun ClientFormContent(
       PhotoGrid(fotos = state.fotos, onRemove = onRemoveFoto)
     }
 
-    Text("Mapa de dispositivos", style = MaterialTheme.typography.titleMedium)
-    Text(
-      "Imagens ou PDFs com a localização dos equipamentos (máximo 20 MB por ficheiro).",
-      style = MaterialTheme.typography.bodySmall,
-    )
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-      Button(
-        onClick = { documentPicker.launch(arrayOf("image/*", "application/pdf")) },
-        modifier = Modifier.weight(1f),
-      ) {
-        Icon(Icons.Default.PhotoLibrary, contentDescription = null)
-        Spacer(Modifier.size(8.dp))
-        Text("Ficheiro")
-      }
-      Button(
-        onClick = {
-          val granted =
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-              PackageManager.PERMISSION_GRANTED
-          if (granted) {
-            onTakeDocumentPhoto()
-          } else {
-            documentCameraLauncher.launch(Manifest.permission.CAMERA)
-          }
-        },
-        modifier = Modifier.weight(1f),
-      ) {
-        Icon(Icons.Default.PhotoCamera, contentDescription = null)
-        Spacer(Modifier.size(8.dp))
-        Text("Câmara")
-      }
-    }
-    if (state.documentos.isNotEmpty()) {
-      DocumentoList(documentos = state.documentos, onRemove = onRemoveDocumento)
-    }
-
     Button(
       onClick = onSave,
       enabled = !state.saving,
@@ -361,36 +301,6 @@ private fun LocationPermissionButton(onUseCurrentLocation: () -> Unit) {
     Icon(Icons.Default.GpsFixed, contentDescription = null)
     Spacer(Modifier.size(8.dp))
     Text("Usar localização atual")
-  }
-}
-
-@Composable
-private fun DocumentoList(documentos: List<Documento>, onRemove: (Documento) -> Unit) {
-  Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-    documentos.forEach { documento ->
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text(
-          if (documento.mime == "application/pdf") "PDF" else "IMG",
-          style = MaterialTheme.typography.labelSmall,
-          modifier = Modifier.padding(end = 12.dp),
-        )
-        Text(
-          documento.nome.ifBlank { "Sem nome" },
-          style = MaterialTheme.typography.bodyMedium,
-          modifier = Modifier.weight(1f),
-        )
-        IconButton(onClick = { onRemove(documento) }, modifier = Modifier.size(32.dp)) {
-          Icon(
-            Icons.Default.Close,
-            contentDescription = "Remover documento",
-            modifier = Modifier.size(18.dp),
-          )
-        }
-      }
-    }
   }
 }
 

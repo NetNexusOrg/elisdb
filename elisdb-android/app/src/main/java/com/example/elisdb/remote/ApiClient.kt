@@ -416,44 +416,6 @@ class ApiClient(
     }
   }
 
-  /** Downloads a device-map document's raw bytes by id. */
-  override suspend fun downloadDocument(id: String, timestamp: Long): ByteArray {
-    val path = "/api/documents/$id"
-    val response = execute(timestamp) { ts ->
-      client.get("$baseUrl$path") {
-        timeout {
-          requestTimeoutMillis = PHOTO_TRANSFER_TIMEOUT_MS
-          socketTimeoutMillis = TRANSFER_SOCKET_TIMEOUT_MS
-        }
-        header(AuthHeaders.TIMESTAMP, ts.toString())
-        header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
-      }
-    }
-    if (response.status != HttpStatusCode.OK) {
-      throw ServerException("document download failed HTTP ${response.status}", response.status.value)
-    }
-    return response.bodyAsBytes()
-  }
-
-  /** Uploads a device-map document's raw bytes by id. */
-  override suspend fun uploadDocument(id: String, bytes: ByteArray, timestamp: Long) {
-    val path = "/api/documents/$id"
-    val response = execute(timestamp) { ts ->
-      client.put("$baseUrl$path") {
-        timeout {
-          requestTimeoutMillis = PHOTO_TRANSFER_TIMEOUT_MS
-          socketTimeoutMillis = TRANSFER_SOCKET_TIMEOUT_MS
-        }
-        header(AuthHeaders.TIMESTAMP, ts.toString())
-        header(AuthHeaders.SIGNATURE, signer.signRequest("PUT", path, bytes, ts))
-        setBody(bytes)
-      }
-    }
-    if (response.status != HttpStatusCode.NoContent) {
-      throw ServerException("document upload failed HTTP ${response.status}", response.status.value)
-    }
-  }
-
   /** Closes the underlying HTTP client, releasing its connection pool. */
   fun close() {
     client.close()

@@ -6,5 +6,4 @@ import androidx.room.Relation
 data class ClienteComFotos(
   @Embedded val cliente: Cliente,
   @Relation(parentColumn = "id", entityColumn = "clienteId") val fotos: List<Foto>,
-  @Relation(parentColumn = "id", entityColumn = "clienteId") val documentos: List<Documento> = emptyList(),
 )

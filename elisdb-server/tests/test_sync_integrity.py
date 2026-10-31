@@ -127,7 +127,7 @@ def test_slow_clock_edit_is_accepted_and_keeps_its_timestamp(tmp_path):
     # Another device has already pushed far ahead; the watermark is now 9000.
     db.save_client(_cliente(id="b", nome="B", updated_at=9000), [])
 
-    status, _, _, _, _ = db.save_client(_cliente(id="a", updated_at=2000), [])
+    status, _, _, _ = db.save_client(_cliente(id="a", updated_at=2000), [])
 
     assert status == "accepted"
     stored = db.get_client_with_photos("a")["client"]
@@ -139,7 +139,7 @@ def test_push_reports_photos_missing_on_the_server(tmp_path):
     """A referenced photo without a file must be reported, not silently dropped."""
     db = _db(tmp_path)
 
-    status, _, _, missing, _ = db.save_client(
+    status, _, _, missing = db.save_client(
         _cliente(id="1"), [FotoIn(id="absent", mime="image/jpeg")]
     )
 

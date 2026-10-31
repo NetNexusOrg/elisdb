@@ -36,10 +36,4 @@ interface SyncApi {
 
   /** Uploads a photo's raw bytes by id. */
   suspend fun uploadPhoto(id: String, bytes: ByteArray, timestamp: Long = System.currentTimeMillis() / 1000)
-
-  /** Downloads a device-map document's raw bytes by id. */
-  suspend fun downloadDocument(id: String, timestamp: Long = System.currentTimeMillis() / 1000): ByteArray
-
-  /** Uploads a device-map document's raw bytes by id. */
-  suspend fun uploadDocument(id: String, bytes: ByteArray, timestamp: Long = System.currentTimeMillis() / 1000)
 }

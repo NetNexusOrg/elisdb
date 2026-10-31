@@ -12,10 +12,10 @@ pouco apelativa para um ecrã institucional.
 - Substituir o cartão “A aplicação” por um cabeçalho centralizado com o ícone da
   app, o nome e a versão instalada.
 - Separar o cabeçalho dos restantes cartões com um divisor subtil.
-- Substituir o cartão do desenvolvedor por um cartão “Equipa” com os membros, a
-  função de cada um e o email acionável, mais um botão de email por membro.
-- Alinhar a spec `client-about` (deixa de exigir a descrição e passa a falar da
-  equipa em vez de um único desenvolvedor).
+- Remover o cartão da equipa/desenvolvedor: os contactos foram considerados
+  informação desnecessária no ecrã por agora.
+- Alinhar a spec `client-about` (deixa de exigir a descrição e a informação do
+  desenvolvedor).
 
 ## Capabilities
 
@@ -25,9 +25,9 @@ Nenhuma.
 
 ### Modified Capabilities
 
-- `client-about`: o ecrã deixa de mostrar a descrição; passa a apresentar um
-  cabeçalho com ícone, nome e versão e a informação da equipa com emails
-  acionáveis.
+- `client-about`: o ecrã deixa de mostrar a descrição e a informação do
+  desenvolvedor; passa a apresentar um cabeçalho com ícone, nome e versão e o
+  cartão de atualizações.
 
 ## Impact
 

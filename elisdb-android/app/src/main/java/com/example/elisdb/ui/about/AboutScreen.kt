@@ -1,9 +1,6 @@
 package com.example.elisdb.ui.about
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,7 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Email
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,16 +44,6 @@ import com.example.elisdb.ui.components.InfoCard
 import java.util.Locale
 
 private const val APP_NAME = "ElisDB"
-private const val COLLABORATOR_ROLE = "Colaborador · ideias e testes"
-
-private data class TeamContact(val name: String, val role: String, val email: String)
-
-private val TEAM =
-  listOf(
-    TeamContact("Ricardo Pinto", "Desenvolvedor", "ricardo.pinto@elis.com"),
-    TeamContact("João Galado", COLLABORATOR_ROLE, "joao.galado@elis.com"),
-    TeamContact("Milton Barca", COLLABORATOR_ROLE, "milton.barca@elis.com"),
-  )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,19 +93,6 @@ fun AboutScreen(
           },
         )
       }
-      InfoCard(title = "Equipa") {
-        TEAM.forEachIndexed { index, member ->
-          if (index > 0) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-          }
-          TeamMember(
-            name = member.name,
-            role = member.role,
-            email = member.email,
-            onEmail = { openEmail(context, member.email) },
-          )
-        }
-      }
     }
   }
 }
@@ -150,43 +123,6 @@ private fun AppHeader(modifier: Modifier = Modifier) {
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
   }
-}
-
-/** One person of the team: name, role, and a tappable contact address. */
-@Composable
-private fun TeamMember(
-  name: String,
-  role: String,
-  email: String,
-  onEmail: () -> Unit,
-  modifier: Modifier = Modifier,
-) {
-  Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-    Column(modifier = Modifier.weight(1f)) {
-      Text(name, style = MaterialTheme.typography.titleMedium)
-      Text(
-        role,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-      Spacer(Modifier.height(4.dp))
-      Text(
-        email,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onEmail),
-      )
-    }
-    IconButton(onClick = onEmail) {
-      Icon(Icons.Default.Email, contentDescription = "Enviar email para $name")
-    }
-  }
-}
-
-/** Opens the external email composer; a device without one must not crash. */
-private fun openEmail(context: android.content.Context, address: String) {
-  val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$address"))
-  runCatching { context.startActivity(intent) }
 }
 
 /** The body of the "Atualizações" card, one branch per phase of the update flow. */

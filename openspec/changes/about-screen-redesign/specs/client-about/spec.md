@@ -1,10 +1,21 @@
 # Spec Delta
 
-## MODIFIED Requirements
+## REMOVED Requirements
 
 ### Requirement: About screen
 
-The system SHALL provide an about screen, reached from the client list menu, that shows information about the app and about the team behind it. The app information SHALL include the app icon, the app name and the running app version. The team information SHALL include each member's name, role and contact email address, and each contact email SHALL be actionable (opening an external email composer). The about screen SHALL NOT be merged into any other screen.
+**Reason**: The about screen no longer shows a developer/team card; it is reduced to
+the app identity and the updates section, which is clearer and avoids stale contact
+details.
+
+**Migration**: Replaced by the "App information screen" requirement below, which
+covers the same screen with the current content.
+
+## ADDED Requirements
+
+### Requirement: App information screen
+
+The system SHALL provide an about screen, reached from the client list menu, that shows the app identity and the app update section. The identity SHALL include the app icon, the app name and the running app version, and SHALL NOT show a description or a developer/team card. The about screen SHALL NOT be merged into any other screen.
 
 #### Scenario: About screen is opened from the client list menu
 - **WHEN** the user opens the client list menu and taps the about action
@@ -22,13 +33,11 @@ The system SHALL provide an about screen, reached from the client list menu, tha
 - **WHEN** the user opens the about screen
 - **THEN** the version shown SHALL be the version of the installed build
 
-#### Scenario: Developer information is shown
+#### Scenario: No developer or team card
 - **WHEN** the user opens the about screen
-- **THEN** the screen SHALL show each team member's name
-- **AND** the screen SHALL show each team member's contact email address
-- **AND** the screen SHALL show each team member's role
+- **THEN** the screen SHALL NOT show developer or team names
+- **AND** the screen SHALL NOT show contact email addresses
 
-#### Scenario: Contact email is actionable
-- **WHEN** the user taps a team member's contact email
-- **THEN** the system SHALL open an external email composer addressed to that email
-- **AND** a failure to open an email app SHALL NOT crash the app
+#### Scenario: Updates are available from the about screen
+- **WHEN** the user opens the about screen
+- **THEN** the screen SHALL offer the action to look for app updates

@@ -6,7 +6,7 @@
 - [x] 1.2 Substituir o cartão “A aplicação” por um cabeçalho centralizado com ícone, nome e versão.
 - [x] 1.3 Ajustar o teste instrumentado do ecrã (sem descrição, com ícone e versão).
 - [x] 1.4 Adicionar um divisor entre o cabeçalho e os cartões.
-- [x] 1.5 Substituir o cartão “Desenvolvedor” pelo cartão “Equipa”, com nome, função e email acionável de cada membro (Ricardo Pinto e João Galado).
+- [x] 1.5 Remover o cartão da equipa e os contactos do ecrã (informação considerada desnecessária por agora).
 
 ## 2. Verificação
 

@@ -62,21 +62,15 @@ class AboutScreenTest {
   }
 
   @Test
-  fun sobre_mostraInformacaoDaEquipa() {
+  fun sobre_naoMostraEquipa() {
     setContent()
-    composeTestRule.onNodeWithText("Equipa").assertExists()
-    composeTestRule.onNodeWithText("Ricardo Pinto").assertExists()
-    composeTestRule.onNodeWithText("ricardo.pinto@elis.com").assertExists()
-    composeTestRule.onNodeWithText("João Galado").assertExists()
-    composeTestRule.onNodeWithText("joao.galado@elis.com").assertExists()
-    composeTestRule.onNodeWithText("Milton Barca").assertExists()
-    composeTestRule.onNodeWithText("milton.barca@elis.com").assertExists()
+    composeTestRule.onNodeWithText("Equipa").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Ricardo Pinto").assertDoesNotExist()
+    composeTestRule.onNodeWithText("João Galado").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Milton Barca").assertDoesNotExist()
     composeTestRule
       .onNodeWithContentDescription("Enviar email para João Galado")
-      .assertExists()
-    composeTestRule
-      .onNodeWithContentDescription("Enviar email para Milton Barca")
-      .assertExists()
+      .assertDoesNotExist()
   }
 
   @Test

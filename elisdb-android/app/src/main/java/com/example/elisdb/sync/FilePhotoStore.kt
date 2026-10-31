@@ -7,7 +7,7 @@ import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Stores photos as JPEG files in app-private storage and reads/writes raw bytes. */
+/** Stores photos as image files in app-private storage and reads/writes raw bytes. */
 class FilePhotoStore(context: Context) : PhotoStore {
   private val dir = File(context.filesDir, "photos")
 

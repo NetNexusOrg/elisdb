@@ -20,15 +20,37 @@ class PhotoSweeper(
   private val fotoDao: FotoDao,
   private val photoStore: PhotoStore,
 ) {
-  /** Deletes at most [maxFiles] orphans; returns how many were removed. */
+  /**
+   * Deletes orphans in bounded batches, refreshing the referenced set between
+   * batches so a row inserted during the sweep is not mistaken for stale data.
+   * Stops when no orphans remain or [maxFiles] files have been attempted.
+   * Returns how many files were removed.
+   */
   suspend fun sweep(maxFiles: Int = MAX_ORPHANS_PER_SWEEP): Int {
-    val referenced = fotoDao.getAllUris().toHashSet()
-    val orphans = photoStore.listFiles().filter { it !in referenced }.take(maxFiles)
-    orphans.forEach { photoStore.delete(it) }
-    return orphans.size
+    var removed = 0
+    val attempted = mutableSetOf<String>()
+    while (removed < maxFiles) {
+      val referenced = fotoDao.getAllUris().toHashSet()
+      val batch =
+        photoStore
+          .listFiles()
+          .filter { it !in referenced && it !in attempted }
+          .take(minOf(BATCH_SIZE, maxFiles - removed))
+      if (batch.isEmpty()) break
+      batch.forEach {
+        attempted += it
+        photoStore.delete(it)
+      }
+      removed += batch.size
+    }
+    return removed
   }
 
   companion object {
-    const val MAX_ORPHANS_PER_SWEEP = 50
+    /** Safety cap on the total number of orphans deleted by one sweep. */
+    const val MAX_ORPHANS_PER_SWEEP = 500
+
+    /** Files handled per batch, keeping each deletion pass small. */
+    const val BATCH_SIZE = 50
   }
 }

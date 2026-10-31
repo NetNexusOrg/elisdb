@@ -3,10 +3,10 @@
 Usage:
     python -m app.keys issue USER_NAME [--server-url URL] [--output PATH]
 
-``issue`` generates an ed25519 keypair, registers the public key in the
-allowlist with the user name as comment, and writes a configuration file
-(JSON) with the server URL, the user name and the private seed for import
-into the app.
+``issue`` generates an ed25519 keypair; ``issue_and_register`` (the CLI flow)
+registers the public key in the allowlist with the user name as comment and
+writes a configuration file (JSON) with the server URL, the user name and the
+private seed for import into the app.
 The server URL is required and comes from ``--server-url`` or the
 ``ELISDB_SERVER_URL`` environment variable.
 
@@ -42,8 +42,8 @@ def generate() -> tuple[str, str]:
     Returns (private_seed_b64, public_key_b64). The private seed is the
     32-byte raw ed25519 key the app expects as ``ELISDB_PRIVATE_KEY``
     (``BuildConfig.SIGNER_PRIVATE_KEY_B64``, decoded by ``Signer.fromBase64``).
-    Used internally by ``issue``, which registers the public key in the
-    allowlist.
+    Used internally by ``issue_and_register``, which registers the public key
+    in the allowlist.
     """
     private = Ed25519PrivateKey.generate()
     seed = private.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
@@ -54,8 +54,10 @@ def generate() -> tuple[str, str]:
 def issue(user_name: str) -> tuple[str, str, str]:
     """Server-issue a keypair for a named user.
 
-    Generates a keypair, registers the public key with the user name as the
-    allowlist comment, and returns (private_seed_b64, public_key_b64, key_id).
+    Generates a keypair and returns (private_seed_b64, public_key_b64, key_id).
+    This only creates the key material: it does **not** write the configuration
+    file nor register the public key in the allowlist. Use
+    ``issue_and_register`` for the full flow (config file + allowlist).
     The operator hands the private seed to the app for import.
     """
     seed_b64, public_b64 = generate()

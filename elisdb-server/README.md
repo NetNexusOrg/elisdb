@@ -15,7 +15,7 @@ O servidor fica em `http://localhost:8000`. Confirma que está vivo:
 
 ```bash
 curl http://localhost:8000/health
-# → {"status":"ok"}
+# → {"status":"ok","version":"...","api_version":...}
 ```
 
 Para ligar um telemóvel, emite a chave dele dentro do contentor:

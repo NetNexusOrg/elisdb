@@ -13,6 +13,16 @@ def _db(tmp_path) -> Database:
     return db
 
 
+def test_issue_only_generates_key_material(tmp_path):
+    """`issue` must not register anything; only `issue_and_register` does."""
+    db = _db(tmp_path)
+
+    seed, public, key_id = keys.issue("maria")
+
+    assert seed and public and key_id.startswith("issue-")
+    assert db.list_keys() == []
+
+
 def test_issue_and_register_writes_url_seed_and_user_name(tmp_path):
     db = _db(tmp_path)
     output = tmp_path / "maria.config.json"

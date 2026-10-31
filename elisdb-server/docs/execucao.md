@@ -26,13 +26,14 @@ próprio telemóvel.
 
 ```bash
 curl http://localhost:8000/health
-# → {"status":"ok"}
+# → {"status":"ok","version":"...","api_version":...}
 ```
 
-Se responderes `{"status":"ok"}`, o servidor está vivo e pronto.
+Se a resposta contiver `"status":"ok"`, o servidor está vivo e pronto.
 
-> Todos os outros endereços (`/api/*`) só respondem a telemóveis com a chave
-> registada — até lá devolvem `401`. Isso é o comportamento normal e esperado.
+> Os restantes endereços `/api/*` (exceto `/api/time`, público) só respondem a
+> telemóveis com a chave registada — até lá devolvem `401`. Isso é o
+> comportamento normal e esperado.
 
 ## Onde ficam os dados
 
@@ -80,12 +81,15 @@ gh secret set DEPLOY_USER --body "ubuntu"
 # Opcional: porta (por omissão 22) e destino (por omissão
 # docker/elisdb-server/elisdb-data/apk/latest/, relativo à home do utilizador).
 gh secret set DEPLOY_PORT --body "22"
-# Recomendado: fixar a host key em vez de confiar no primeiro scan.
+# Obrigatório: fixa a host key. O runner recusa publicar sem este secret
+# (não faz ssh-keyscan em runtime, para não confiar num host não verificado).
 ssh-keyscan -H 144.21.63.93 | gh secret set DEPLOY_KNOWN_HOSTS
 ```
 
-Enquanto `DEPLOY_SSH_KEY`, `DEPLOY_HOST` e `DEPLOY_USER` não existirem, o passo
-é ignorado com um aviso e o release continua.
+Enquanto `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, `DEPLOY_USER` ou
+`DEPLOY_KNOWN_HOSTS` não existirem, o passo é ignorado com um aviso e o release
+continua. Em particular, **sem `DEPLOY_KNOWN_HOSTS` a publicação é saltada** —
+nunca é feito um `ssh-keyscan` automático.
 
 Para endurecer, restringe a chave em `~/.ssh/authorized_keys` a essa pasta:
 

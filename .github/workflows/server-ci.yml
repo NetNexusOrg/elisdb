@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - "elisdb-server/**"
+      - "elisdb-memento/**"
       - ".github/workflows/server-ci.yml"
   pull_request:
     branches: [main]
     paths:
       - "elisdb-server/**"
+      - "elisdb-memento/**"
       - ".github/workflows/server-ci.yml"
   workflow_dispatch:
 
@@ -39,6 +41,12 @@ jobs:
       - name: Run tests
         working-directory: elisdb-server
         run: python -m pytest
+
+      # The memento migration script is standalone (stdlib only), but it targets
+      # the server schema, so it runs with the server's pytest from the same venv.
+      - name: Run memento migration tests
+        working-directory: elisdb-memento
+        run: python -m pytest -q test_migrar_memento.py
 
   docker:
     # The server only reaches production as a container, so a dependency missing

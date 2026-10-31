@@ -551,7 +551,7 @@ class SyncCoordinatorTest {
   }
 
   @Test
-  fun `photo sweeper only removes files not referenced by any row and is bounded`() = runBlocking {
+  fun `photo sweeper only removes files not referenced by any row and respects the cap`() = runBlocking {
     val referenced = Foto(id = "f1", clienteId = "c1", uriLocal = "file:/keep.jpg")
     val photoStore =
       FakePhotoStore().apply {
@@ -560,11 +560,28 @@ class SyncCoordinatorTest {
       }
     val sweeper = PhotoSweeper(FakeFotoDao(listOf(referenced)), photoStore)
 
+    val removed = sweeper.sweep(maxFiles = 10)
+
+    assertEquals(10, removed)
+    assertTrue("referenced file kept", "file:/keep.jpg" in photoStore.files)
+    assertEquals("orphans beyond the cap remain for a later sweep", 50, photoStore.files.count { it.startsWith("file:/orphan") })
+  }
+
+  @Test
+  fun `photo sweeper drains many orphans in bounded batches`() = runBlocking {
+    val referenced = Foto(id = "f1", clienteId = "c1", uriLocal = "file:/keep.jpg")
+    val photoStore =
+      FakePhotoStore().apply {
+        files.add("file:/keep.jpg")
+        files.addAll((1..120).map { "file:/orphan$it.jpg" })
+      }
+    val sweeper = PhotoSweeper(FakeFotoDao(listOf(referenced)), photoStore)
+
     val removed = sweeper.sweep()
 
-    assertEquals(PhotoSweeper.MAX_ORPHANS_PER_SWEEP, removed)
+    assertEquals(120, removed)
     assertTrue("referenced file kept", "file:/keep.jpg" in photoStore.files)
-    assertTrue("orphans beyond the batch remain for a later sweep", (51..60).all { "file:/orphan$it.jpg" in photoStore.files })
+    assertTrue("all orphans reclaimed", photoStore.files.none { it.startsWith("file:/orphan") })
   }
 
   @Test

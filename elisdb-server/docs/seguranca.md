@@ -7,7 +7,7 @@ mesma casa ou equipa), não para utilizadores mutuamente não confiáveis.
 ## Autenticação não é autorização
 
 Cada telemóvel assina os pedidos com a sua chave ed25519. O servidor verifica a
-assinatura contra a lista de chaves registadas (`/api/keys` não é exposto às
+assinatura contra a lista de chaves registadas (`/api/keys` responde `403` às
 apps; a gestão é feita pela linha de comandos). Uma assinatura válida prova
 apenas que o pedido veio de **alguma** chave registada.
 
@@ -31,7 +31,9 @@ O histórico (`client_audit`) regista, para cada criação ou edição aceite:
 
 - a chave que fez o pedido (`key_id`);
 - o nome associado à chave (`username`);
-- a hora do registo e o que mudou (campos e fotos).
+- a hora do registo (o `updated_at` do dispositivo, ou seja, o momento da
+  edição — não a hora a que o servidor recebeu o push) e o que mudou (campos e
+  fotos).
 
 Isto permite **atribuir** uma alteração a um ator, mas **não impede** que esse
 ator altere ou apague dados de outra pessoa. As eliminações deixam um tombstone

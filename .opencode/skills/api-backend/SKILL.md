@@ -17,13 +17,14 @@ Base facts in `project-context`. This skill covers server development rules.
 
 - `GET /health` — liveness, unauthenticated.
 - `GET /api/time` — server epoch time (for clock offset), unauthenticated.
-- `GET /api/latest` — `latest_updated_at` watermark.
+- `GET /api/latest` — `latest_updated_at` (max `delivery_ts` over clients **and** tombstones) plus `client_count`/`api_version`.
 - `POST /api/push` — upsert records (LWW); returns per-record `accepted|duplicate|stale`.
 - `GET /api/pull` — incremental pull with `since`/`since_id`/`limit` keyset pagination; returns records + tombstones.
 - `GET /api/clients` — list all.
 - `GET/PUT /api/photos/{id}` — photo binary by id (PUT 204, capped by `ELISDB_MAX_PHOTO_BYTES`).
 - `DELETE /api/clients/{id}` — soft delete (tombstone).
-- `GET /api/clients/{id}/history` — audit log.
+- `GET /api/clients/{id}/history` — audit log (`ts` is the device `updated_at`, not server receipt time).
+- `GET /api/keys` — operator-only: always `403` to authenticated clients; list keys via the CLI.
 - `GET /api/keys/me` — identity of the authenticated key.
 
 ## Authentication

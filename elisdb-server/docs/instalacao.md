@@ -44,10 +44,10 @@ reinícios.
 
 ```bash
 curl http://localhost:8000/health
-# → {"status":"ok"}
+# → {"status":"ok","version":"...","api_version":...}
 ```
 
-Se responderes `{"status":"ok"}`, o servidor está vivo e pronto.
+Se a resposta contiver `"status":"ok"`, o servidor está vivo e pronto.
 
 ## O que saber antes da primeira execução
 

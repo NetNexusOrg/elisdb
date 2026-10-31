@@ -193,6 +193,11 @@ Consequências que valem a pena saber ao diagnosticar:
   `details.fields` com `field: "ativo"` e os valores `Ativo`/`Inativo`. Atualiza
   primeiro o servidor: uma app antiga ignora o campo e volta a enviá-lo como
   ativo.
+- O `ts` de cada entrada de `client_audit` é o `updated_at` do dispositivo
+  (o momento da edição), **não** a hora a que o servidor recebeu o push. Assim o
+  histórico mantém a ordem real das edições mesmo quando um telemóvel sincroniza
+  mais tarde; um relógio atrasado no dispositivo aparece refletido no histórico
+  e o servidor não o corrige.
 
 ## Primeira execução
 
@@ -201,18 +206,22 @@ chave, os telemóveis recebem `401` ao tentar sincronizar.
 
 ## Observabilidade (referência)
 
-Podes consultar as chaves registadas com os endereços autenticados:
+Endpoints de diagnóstico (todos exigem chave, exceto `/health`):
 
 - `GET /health` — estado do servidor, versão de release e `api_version`. A
   `api_version` serve para diagnóstico: sobe-a sempre que uma alteração de
   contrato importe para clientes antigos. Não é mostrada ao utilizador da app.
 - `GET /api/latest` — além de `latest_updated_at` e `client_count`, devolve a
-  mesma `api_version`.
-- `GET /api/keys` — lista todas as chaves (id, chave pública, comentário).
+  mesma `api_version`. O `latest_updated_at` é o maior `delivery_ts` entre
+  **clientes e tombstones**: inclui alterações de clientes e eliminações, não
+  apenas o `updated_at` dos registos ainda existentes.
+- `GET /api/keys` — **só para operadores**: responde sempre `403` a um cliente
+  autenticado. A listagem real (id, chave pública, comentário) é feita pela CLI
+  (`python -m app.keys`, opção `2`).
 - `GET /api/keys/me` — mostra a chave que está a ser usada neste momento
   (devolve `key_id` e `username` do utilizador autenticado).
 
-Numa base de dados nova, a lista está vazia.
+Numa base de dados nova, a lista de chaves está vazia.
 
 ## Passo seguinte
 

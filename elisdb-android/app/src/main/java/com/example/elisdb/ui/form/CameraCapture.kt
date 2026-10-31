@@ -1,6 +1,9 @@
 package com.example.elisdb.ui.form
 
 import android.content.Context
+import android.hardware.display.DisplayManager
+import android.os.Handler
+import android.os.Looper
 import android.view.Surface
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -53,7 +56,9 @@ fun CameraCapture(
     remember {
       ImageCapture.Builder()
         .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-        .setJpegQuality(80)
+        // PhotoEncoder re-encodes the capture to WebP at q82, so a low JPEG
+        // quality here would compound the loss. Keep the intermediate high.
+        .setJpegQuality(95)
         .build()
     }
 
@@ -68,6 +73,25 @@ fun CameraCapture(
       provider.unbindAll()
       provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
     }.onFailure { errorMessage = "Não foi possível abrir a câmara." }
+  }
+
+  // Keep the capture rotation in sync when the display rotates while the camera
+  // is open, instead of only using the rotation seen at bind time.
+  val displayManager = remember(context) { context.getSystemService(DisplayManager::class.java) }
+  DisposableEffect(displayManager, previewView, imageCapture) {
+    val listener =
+      object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+
+        override fun onDisplayRemoved(displayId: Int) = Unit
+
+        override fun onDisplayChanged(displayId: Int) {
+          val display = previewView.display ?: return
+          if (display.displayId == displayId) imageCapture.targetRotation = display.rotation
+        }
+      }
+    displayManager?.registerDisplayListener(listener, Handler(Looper.getMainLooper()))
+    onDispose { displayManager?.unregisterDisplayListener(listener) }
   }
 
   DisposableEffect(Unit) {

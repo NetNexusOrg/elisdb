@@ -14,6 +14,14 @@ class SignerTest {
   private val referenceSignature = "9ceQhOcbWzPlaasFsE3jtgotXBFl5xvPG5sb9j6LFpAh5VTpWK9MfsJ5yQ9jPGgnoU/5Lkx5HR6sh5HAAU6/BA=="
 
   @Test
+  fun publicKey_matchesRfc8032Vector() {
+    // RFC 8032, section 7.1: seed and public key for the first Ed25519 test vector.
+    val vectorSigner =
+      Signer(hexToBytes("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"))
+    assertEquals("11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=", vectorSigner.publicKeyB64)
+  }
+
+  @Test
   fun sha256_matchesReference() {
     assertEquals(referenceDigest, signer.sha256(body))
   }
@@ -32,4 +40,7 @@ class SignerTest {
     val signature = signer.signRequest("POST", "/api/push", body, timestamp)
     assertEquals(referenceSignature, signature)
   }
+
+  private fun hexToBytes(hex: String): ByteArray =
+    hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 }

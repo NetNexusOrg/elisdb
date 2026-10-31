@@ -31,6 +31,13 @@ Para sincronizar, importa o ficheiro de configuração no ecrã **Configuração
    ficheiro e carrega em **Sincronizar** (a app também sincroniza ao abrir e ao
    guardar um cliente; não há sincronização periódica em segundo plano).
 
+## Mapa e ligação à rede
+
+Os dados dos clientes são offline-first: continuam acessíveis sem servidor nem
+rede. O mapa usa *tiles* do OpenStreetMap através do osmdroid, por isso precisa
+de rede (ou de *tiles* já em cache) para os desenhar; sem ligação podem faltar
+zonas do mapa até os *tiles* serem carregados.
+
 ## Documentação
 
 Instalação, execução, configuração e utilização — em português em [`docs/`](docs/index.md).

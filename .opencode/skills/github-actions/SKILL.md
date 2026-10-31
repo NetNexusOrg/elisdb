@@ -31,7 +31,8 @@ description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-relea
   creates the GitHub Release via `softprops/action-gh-release` with `body_path` (the
   extracted notes — never `generate_release_notes`, which appends a "Full Changelog" link),
   then publishes the same file to the server with `rsync` (step "Publish APK to the server";
-  skipped with a warning when the `DEPLOY_*` secrets are absent).
+  skipped with a warning when the `DEPLOY_*` secrets are absent, and always skipped
+  without `DEPLOY_KNOWN_HOSTS`).
   The APK is **not** uploaded as a workflow artifact: Release assets have their own
   storage and do not consume the Actions artifact quota.
 
@@ -77,11 +78,13 @@ commit them or put them in any file in the repo.
 
 Deployment to the server (optional, step no-ops with a warning when missing):
 `DEPLOY_SSH_KEY` (private ed25519 key), `DEPLOY_HOST` (a name or IP the runner can
-resolve — local `~/.ssh/config` aliases do not exist there), `DEPLOY_USER`, and
-optionally `DEPLOY_PORT` (default 22), `DEPLOY_PATH` (default
+resolve — local `~/.ssh/config` aliases do not exist there), `DEPLOY_USER`,
+`DEPLOY_KNOWN_HOSTS` (`ssh-keyscan -H <host>` output) and optionally
+`DEPLOY_PORT` (default 22), `DEPLOY_PATH` (default
 `docker/elisdb-server/elisdb-data/apk/latest/`, relative to the deploy user's
-home) and `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan -H <host>` output; without it the
-step trusts a fresh scan and warns). Use a dedicated key, not a personal one.
+home). `DEPLOY_KNOWN_HOSTS` is **required** for publication: without it the step
+skips with a warning rather than trusting a runtime `ssh-keyscan`. Use a
+dedicated key, not a personal one.
 When the key is restricted with
 `restrict,command="rrsync -wo <dir>"`, the path sent by rsync is **relative** to
 `<dir>`, so set `DEPLOY_PATH=/`; an absolute path would be concatenated

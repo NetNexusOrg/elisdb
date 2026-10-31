@@ -137,10 +137,10 @@ Com o Proxy Host criado, de qualquer máquina na internet:
 
 ```bash
 curl https://db.exemplo.com/health
-# → {"status":"ok"}
+# → {"status":"ok","version":"...","api_version":...}
 ```
 
-`{"status":"ok"}` significa que o domínio, o NPM, o certificado e o servidor
+`"status":"ok"` significa que o domínio, o NPM, o certificado e o servidor
 estão todos a funcionar em cadeia.
 
 ## 6. Ligar a app ao servidor

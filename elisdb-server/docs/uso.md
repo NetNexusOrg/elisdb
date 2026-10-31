@@ -8,12 +8,13 @@ por baixo e ajuda a resolver problemas quando algo corre mal.
 
 - **Envia dados** (`/api/push`) — os clientes e fotos guardados no telemóvel.
 - **Recebe dados** (`/api/pull`) — tudo o que está no servidor, para o telemóvel.
-- **Consulta inconsistências** — clientes (`/api/clients`) e chaves
-  (`/api/keys`).
+- **Consulta inconsistências** — clientes (`/api/clients`). A listagem de chaves
+  (`/api/keys`) é uma operação de operador, feita pela linha de comandos.
 
-Tudo o que começa por `/api/` exige que o pedido venha de um telemóvel com chave
-registada. O `/health` é público (não precisa de chave) e serve para confirmar
-que o servidor está vivo.
+Quase tudo o que começa por `/api/` exige que o pedido venha de um telemóvel
+com chave registada. As exceções são `/health` e `/api/time`, que são públicos:
+o primeiro serve para confirmar que o servidor está vivo e o segundo para a app
+medir o desvio do relógio.
 
 ## Endpoints (referência)
 
@@ -22,10 +23,15 @@ que o servidor está vivo.
 | POST   | `/api/push` | Enviar registos (cliente + fotos) para o servidor |
 | GET    | `/api/pull` | Obter os registos do servidor (opções `since` e `limit`) |
 | GET    | `/api/clients` | Listar clientes (sem fotos) |
-| GET    | `/api/keys` | Listar as chaves registadas |
+| GET    | `/api/keys` | Só para operadores: responde `403` a clientes; a listagem é feita pela CLI |
 | GET    | `/api/keys/me` | Ver a chave que está a ser usada |
 | DELETE | `/api/clients/{id}` | Apagar um cliente e as suas fotos |
 | GET    | `/health` | Verificação de saúde (sem autenticação) |
+
+A gestão de chaves não é feita pela API: usa o menu interativo de
+`python -m app.keys` (criar, listar, remover) dentro do contentor. O endpoint
+`/api/keys` existe apenas para responder `403` a um cliente autenticado, para
+que uma app comprometida não consiga enumerar as chaves dos outros dispositivos.
 
 ## Regras dos dados
 

@@ -35,6 +35,7 @@ class ClienteIn(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     notas: str | None = Field(None, max_length=100_000)
+    ativo: bool = True
     updated_at: int
 
 
@@ -61,6 +62,7 @@ class ClienteOut(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     notas: str | None = None
+    ativo: bool = True
     updated_at: int
     created_at: int = 0
     # Server-assigned cursor for incremental pulls; independent of updated_at,
@@ -90,7 +92,7 @@ class AuditFieldChange(BaseModel):
     notes body cannot bloat the audit trail.
     """
 
-    field: str  # nome | contrato | notas | localizacao
+    field: str  # nome | contrato | notas | localizacao | ativo
     old: str | None = None
     new: str | None = None
     truncated: bool = False

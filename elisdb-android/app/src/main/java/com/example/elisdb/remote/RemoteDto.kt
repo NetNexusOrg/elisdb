@@ -11,6 +11,7 @@ data class ClienteInDto(
   val latitude: Double? = null,
   val longitude: Double? = null,
   val notas: String? = null,
+  val ativo: Boolean = true,
   @SerialName("updated_at") val updatedAt: Long,
 )
 
@@ -48,6 +49,8 @@ data class ClienteOutDto(
   val latitude: Double? = null,
   val longitude: Double? = null,
   val notas: String? = null,
+  /** Absent on older servers, which assume every client is active. */
+  val ativo: Boolean = true,
   @SerialName("updated_at") val updatedAt: Long,
   @SerialName("created_at") val createdAt: Long? = null,
   /**

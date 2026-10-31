@@ -29,6 +29,7 @@ data class ClientFormUiState(
   val nome: String = "",
   val contrato: String = "",
   val notas: String = "",
+  val ativo: Boolean = true,
   val latitude: Double? = null,
   val longitude: Double? = null,
   val fotos: List<Foto> = emptyList(),
@@ -70,6 +71,7 @@ class ClientFormViewModel(
           nome = data?.cliente?.nome.orEmpty(),
           contrato = data?.cliente?.contrato.orEmpty(),
           notas = data?.cliente?.notas.orEmpty(),
+          ativo = data?.cliente?.ativo ?: true,
           latitude = data?.cliente?.latitude,
           longitude = data?.cliente?.longitude,
           fotos = data?.fotos.orEmpty(),
@@ -84,6 +86,8 @@ class ClientFormViewModel(
   fun onContratoChange(value: String) = _uiState.update { it.copy(contrato = value) }
 
   fun onNotasChange(value: String) = _uiState.update { it.copy(notas = value) }
+
+  fun onAtivoChange(value: Boolean) = _uiState.update { it.copy(ativo = value) }
 
   fun onLocationChange(latitude: Double, longitude: Double) =
     _uiState.update { it.copy(latitude = latitude, longitude = longitude) }
@@ -150,6 +154,7 @@ class ClientFormViewModel(
             latitude = state.latitude,
             longitude = state.longitude,
             notas = state.notas,
+            ativo = state.ativo,
             fotos = state.fotos,
           )
         )

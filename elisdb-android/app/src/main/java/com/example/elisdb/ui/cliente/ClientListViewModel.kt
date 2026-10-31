@@ -35,6 +35,8 @@ data class ClientListItem(
   val id: String,
   val nome: String,
   val primeiraFotoUri: String?,
+  val contrato: String? = null,
+  val ativo: Boolean = true,
 )
 
 sealed interface ClientListUiState {
@@ -65,6 +67,8 @@ class ClientListViewModel(repository: ClienteRepository) : ViewModel() {
                 id = it.cliente.id,
                 nome = it.cliente.nome,
                 primeiraFotoUri = it.fotos.firstOrNull()?.uriLocal,
+                contrato = it.cliente.contrato,
+                ativo = it.cliente.ativo,
               )
             },
           query = q,

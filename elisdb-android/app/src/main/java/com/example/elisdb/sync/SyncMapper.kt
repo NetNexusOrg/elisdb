@@ -24,6 +24,7 @@ object SyncMapper {
           latitude = cliente.latitude,
           longitude = cliente.longitude,
           notas = cliente.notas,
+          ativo = cliente.ativo,
           updatedAt = cliente.updatedAt,
         ),
       fotos = fotoDtos,

@@ -441,6 +441,7 @@ class SyncCoordinator(
         latitude = server.latitude,
         longitude = server.longitude,
         notas = server.notas,
+        ativo = server.ativo,
         dataCriacao = createdAt,
         updatedAt = server.updatedAt,
         createdAt = createdAt,

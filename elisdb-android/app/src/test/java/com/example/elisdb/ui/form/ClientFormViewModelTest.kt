@@ -253,6 +253,23 @@ class ClientFormViewModelTest {
     assertNull(viewModel.uiState.value.latitude)
     assertEquals("Não foi possível obter a localização atual.", viewModel.uiState.value.message)
   }
+
+  @Test
+  fun uiState_novoClienteComecaAtivo() = runTest(dispatcher) {
+    val viewModel = ClientFormViewModel(FakeClientRepository(), { null }, null)
+    assertTrue(viewModel.uiState.value.ativo)
+  }
+
+  @Test
+  fun save_clienteDesativadoEnviaAtivoFalso() = runTest(dispatcher) {
+    val repo = FakeClientRepository(savedId = "45")
+    val viewModel = ClientFormViewModel(repo, { null }, null)
+    viewModel.onNomeChange("Maria")
+    viewModel.onAtivoChange(false)
+    viewModel.save()
+    dispatcher.scheduler.advanceUntilIdle()
+    assertFalse(repo.savedDraft?.ativo ?: true)
+  }
 }
 
 private class FakeClientRepository(

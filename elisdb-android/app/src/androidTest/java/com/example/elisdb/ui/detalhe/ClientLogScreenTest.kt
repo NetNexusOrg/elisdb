@@ -95,6 +95,31 @@ class ClientLogScreenTest {
   }
 
   @Test
+  fun detalhesMostramAlteracaoDeEstadoComoAcao() {
+    val entries =
+      listOf(
+        AuditEntryDto(
+          action = "edit",
+          username = "Joao",
+          keyId = "k2",
+          ts = epoch(2026, Calendar.AUGUST, 17, 9, 10),
+          details =
+            AuditDetailsDto(
+              fields = listOf(AuditFieldDto(field = "ativo", old = "Ativo", new = "Inativo"))
+            ),
+        )
+      )
+    setContent(
+      ClientLogViewModel(FakeLogScreenRepository(ClienteComFotos(cliente(), emptyList())), "5") {
+        entries
+      }
+    )
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Desativou o cliente").assertExists()
+  }
+
+  @Test
   fun detalhesResumemAsFotos() {
     val entries =
       listOf(

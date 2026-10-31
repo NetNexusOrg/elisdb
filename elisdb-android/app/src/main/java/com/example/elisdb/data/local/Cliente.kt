@@ -11,6 +11,8 @@ data class Cliente(
   val latitude: Double? = null,
   val longitude: Double? = null,
   val notas: String? = null,
+  /** Inactive clients are kept (and synced) but marked as out of service. */
+  val ativo: Boolean = true,
   val dataCriacao: Long,
   val updatedAt: Long,
   val createdAt: Long = 0,

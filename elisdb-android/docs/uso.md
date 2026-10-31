@@ -65,14 +65,19 @@ de continuar a trabalhar.
 
 Fluxos principais:
 
-- **Lista de clientes** — o ecrã inicial; pesquisa e ordenação.
-- **Novo/editar cliente** — formulário com nome, contrato, coordenadas, notas.
+- **Lista de clientes** — o ecrã inicial; pesquisa e ordenação. O contrato
+  aparece por baixo do nome e os clientes inativos têm a etiqueta **Inativo** e
+  o texto atenuado.
+- **Novo/editar cliente** — formulário com nome, contrato, coordenadas, notas e
+  o interruptor **Cliente ativo**.
 - **Mapa** — escolher/indicar a localização (Picker).
 - **Fotos** — capturar e associar imagens; ver em ecrã inteiro.
-- **Detalhe do cliente** — mapa, navegação, notas e fotos; no menu (⋮) podes
+- **Detalhe do cliente** — mapa, navegação, notas e fotos; um cliente inativo
+  mostra a etiqueta **Inativo** ao lado do nome; no menu (⋮) podes
   editar, apagar ou abrir o **Log**, uma página com o histórico de alterações
   agrupado por dia: quem alterou, a que horas, que campos mudaram (valor antigo
-  e novo) e que fotos foram adicionadas, removidas ou reordenadas. As
+  e novo), quando o cliente foi ativado ou desativado, e que fotos foram
+  adicionadas, removidas ou reordenadas. As
   miniaturas das fotos adicionadas aparecem quando ainda existem neste
   dispositivo.
 - **Configuração** — o ecrã único de sincronização e servidor: estado, resumo do que falta sincronizar, totais de clientes na app e no servidor e o botão **Sincronizar** (envia e recebe os dados); abaixo, o cartão **Servidor** com o URL, a chave mascarada e o utilizador associado; sem configuração mostra **Importar configuração do servidor**, e depois de configurado mostra apenas **Remover configuração**. O estado pendente é verificado automaticamente ao abrir o ecrã.

@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
   entities = [Cliente::class, Foto::class, SyncMeta::class],
-  version = 9,
+  version = 10,
   exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -190,6 +190,15 @@ abstract class AppDatabase : RoomDatabase() {
           // second resolution, so an edit made in the same second as the push
           // looked identical to the snapshot that was sent.
           db.execSQL("ALTER TABLE clientes ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
+        }
+      }
+
+    val MIGRATION_9_10: Migration =
+      object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+          // Active/inactive status. Existing clients default to active, so the
+          // migration never changes what the user already sees.
+          db.execSQL("ALTER TABLE clientes ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1")
         }
       }
   }

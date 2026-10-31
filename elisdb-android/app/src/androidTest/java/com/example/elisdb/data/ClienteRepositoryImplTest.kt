@@ -73,6 +73,19 @@ class ClienteRepositoryImplTest {
   }
 
   @Test
+  fun saveGuardaEstadoAtivoEInativo() = runBlocking {
+    val id = repository.save(ClienteDraft(nome = "Ana", latitude = 1.0, longitude = 2.0))
+    assertTrue(repository.getCliente(id)!!.cliente.ativo)
+
+    repository.save(
+      ClienteDraft(id = id, nome = "Ana", latitude = 1.0, longitude = 2.0, ativo = false)
+    )
+
+    assertFalse(repository.getCliente(id)!!.cliente.ativo)
+    assertEquals("ANA", repository.getCliente(id)!!.cliente.nome)
+  }
+
+  @Test
   fun deleteClienteMarcaComoPendenteEApagaDaLista() = runBlocking {
     val id = repository.save(ClienteDraft(nome = "Bruno", latitude = 0.0, longitude = 0.0))
 

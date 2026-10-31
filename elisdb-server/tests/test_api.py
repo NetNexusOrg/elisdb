@@ -295,3 +295,49 @@ def test_pull_carries_the_delivery_timestamp(server):
     assert tombstone["id"] == "2"
     assert tombstone["deleted_at"] == 500
     assert tombstone["delivery_ts"] > client_row["delivery_ts"]
+
+
+def test_client_status_defaults_to_active(server):
+    client, _db = server
+    pushed = client.post("/api/push", _body([_record(id="1", nome="Ana", updated_at=1000)]))
+    assert pushed.json()[0]["status"] == "accepted"
+
+    stored = client.get("/api/pull").json()["records"][0]["client"]
+    assert stored["ativo"] is True
+
+
+def test_inactive_status_roundtrips_and_appears_in_history(server):
+    client, _db = server
+    client.post("/api/push", _body([_record(id="1", nome="Ana", updated_at=1000)]))
+    accepted = client.post(
+        "/api/push",
+        _body([_record(id="1", nome="Ana", updated_at=2000, ativo=False)]),
+    )
+    assert accepted.json()[0]["status"] == "accepted"
+
+    stored = client.get("/api/pull").json()["records"][0]["client"]
+    assert stored["ativo"] is False
+
+    entries = client.get("/api/clients/1/history").json()
+    assert entries[-1]["action"] == "edit"
+    assert entries[-1]["details"]["fields"] == [
+        {"field": "ativo", "old": "Ativo", "new": "Inativo", "truncated": False}
+    ]
+
+
+def test_activation_appears_in_history(server):
+    client, _db = server
+    client.post(
+        "/api/push",
+        _body([_record(id="1", nome="Ana", updated_at=1000, ativo=False)]),
+    )
+    accepted = client.post(
+        "/api/push",
+        _body([_record(id="1", nome="Ana", updated_at=2000, ativo=True)]),
+    )
+    assert accepted.json()[0]["status"] == "accepted"
+
+    entries = client.get("/api/clients/1/history").json()
+    assert entries[-1]["details"]["fields"] == [
+        {"field": "ativo", "old": "Inativo", "new": "Ativo", "truncated": False}
+    ]

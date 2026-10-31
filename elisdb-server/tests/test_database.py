@@ -336,3 +336,55 @@ def test_history_entries_written_before_details_stay_compatible(tmp_path):
     conn.close()
 
     assert db.client_history("a")[0]["details"] is None
+
+
+def test_legacy_client_without_status_becomes_active(tmp_path):
+    db_path = str(tmp_path / "legacy-status.db")
+    conn = connect(db_path)
+    conn.execute("ALTER TABLE clientes DROP COLUMN ativo")
+    conn.execute("INSERT INTO clientes (id, nome, updated_at) VALUES ('1', 'ANA', 1000)")
+    conn.commit()
+
+    _apply_schema(conn)
+    assert conn.execute("SELECT ativo FROM clientes WHERE id='1'").fetchone()[0] == 1
+
+    _apply_schema(conn)  # idempotent: the column is not re-added or reset
+    conn.execute("UPDATE clientes SET ativo = 0 WHERE id='1'")
+    conn.commit()
+    _apply_schema(conn)
+    assert conn.execute("SELECT ativo FROM clientes WHERE id='1'").fetchone()[0] == 0
+    conn.close()
+
+
+def test_status_survives_the_coordinate_rebuild(tmp_path):
+    db_path = str(tmp_path / "legacy-coords.db")
+    conn = connect(db_path)
+    conn.execute("ALTER TABLE clientes DROP COLUMN ativo")
+    # A legacy table that still declares the coordinates as NOT NULL forces the
+    # rebuild migration; the status must be preserved across it.
+    conn.executescript(
+        """
+        CREATE TABLE clientes_old (
+            id TEXT PRIMARY KEY,
+            nome TEXT NOT NULL,
+            contrato TEXT,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            notas TEXT,
+            updated_at INTEGER NOT NULL
+        );
+        DROP TABLE clientes;
+        ALTER TABLE clientes_old RENAME TO clientes;
+        CREATE UNIQUE INDEX idx_clientes_nome ON clientes (nome COLLATE NOCASE);
+        INSERT INTO clientes (id, nome, latitude, longitude, updated_at)
+            VALUES ('1', 'ANA', 1.5, 2.5, 1000);
+        """
+    )
+    conn.commit()
+
+    _apply_schema(conn)
+    row = conn.execute(
+        "SELECT latitude, longitude, ativo FROM clientes WHERE id='1'"
+    ).fetchone()
+    assert tuple(row) == (1.5, 2.5, 1)
+    conn.close()

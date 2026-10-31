@@ -218,6 +218,15 @@ private fun ChangeDetails(details: AuditDetailsDto, photoUris: Map<String, Strin
 /** "Nome: ~~JOAO~~ → JOAO SILVA", with long values ellipsized. */
 @Composable
 private fun FieldChangeRow(change: AuditFieldDto) {
+  // The status reads better as an action than as "Ativo → Inativo", which would
+  // make the reader work out which way round the change went.
+  if (change.field == "ativo") {
+    Text(
+      text = if (change.new == "Ativo") "Ativou o cliente" else "Desativou o cliente",
+      style = MaterialTheme.typography.bodySmall,
+    )
+    return
+  }
   Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
     Text(
       text = fieldLabel(change.field),

@@ -8,6 +8,16 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [Não publicado]
+
+### Novidades
+
+- **Clientes ativos e inativos.** Cada cliente tem agora um interruptor
+  **Cliente ativo** no formulário. Os inativos continuam guardados e
+  sincronizados, mas aparecem com a etiqueta **Inativo** na lista e no detalhe,
+  para distinguir quem já não está em serviço sem apagar o histórico. O servidor
+  guarda o estado e regista a ativação/desativação no histórico de alterações.
+
 ## [1.6.1] - 2026-10-26
 
 ### Novidades

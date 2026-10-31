@@ -39,6 +39,19 @@ class ClientListScreenTest {
     )
 
   @Test
+  fun lista_clienteInativoMostraEtiqueta() {
+    val inativo =
+      ClienteComFotos(
+        cliente = Cliente(id = "3", nome = "Rui", ativo = false, latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        fotos = emptyList(),
+      )
+    setListContent(listOf(inativo))
+
+    composeTestRule.onNodeWithText("Rui").assertExists()
+    composeTestRule.onNodeWithText("Inativo").assertExists()
+  }
+
+  @Test
   fun lista_pesquisaFiltraLinhas() {
     setListContent(clientes)
     composeTestRule.onNodeWithText("Maria").assertExists()

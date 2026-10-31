@@ -31,6 +31,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
@@ -112,6 +113,7 @@ fun ClientFormScreen(
           onNomeChange = viewModel::onNomeChange,
           onContratoChange = viewModel::onContratoChange,
           onNotasChange = viewModel::onNotasChange,
+          onAtivoChange = viewModel::onAtivoChange,
           onLocationChange = viewModel::onLocationChange,
           onUseCurrentLocation = viewModel::useCurrentLocation,
           onPickPhoto = viewModel::onPhotoPicked,
@@ -133,6 +135,7 @@ private fun ClientFormContent(
   onNomeChange: (String) -> Unit,
   onContratoChange: (String) -> Unit,
   onNotasChange: (String) -> Unit,
+  onAtivoChange: (Boolean) -> Unit,
   onLocationChange: (Double, Double) -> Unit,
   onUseCurrentLocation: () -> Unit,
   onPickPhoto: (Uri) -> Unit,
@@ -183,6 +186,23 @@ private fun ClientFormContent(
       minLines = 2,
       modifier = Modifier.fillMaxWidth(),
     )
+
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Column(Modifier.weight(1f)) {
+        Text("Cliente ativo", style = MaterialTheme.typography.titleMedium)
+        Text(
+          if (state.ativo) "O cliente está em serviço."
+          else "Cliente inativo: fica guardado, mas marcado como fora de serviço.",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      Switch(checked = state.ativo, onCheckedChange = onAtivoChange)
+    }
 
     Text("Localização", style = MaterialTheme.typography.titleMedium)
     var showMapPicker by remember { mutableStateOf(false) }

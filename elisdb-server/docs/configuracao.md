@@ -125,6 +125,12 @@ Consequências que valem a pena saber ao diagnosticar:
 - A resposta do push traz `missing_photos`: fotos referenciadas cujo ficheiro não
   existe no servidor. Não são gravadas e o cliente volta a enviá-las; nunca são
   dadas como enviadas.
+- O estado **`ativo`** (booleano, por omissão `true`) faz parte do registo e
+  participa no last-write-wins como os restantes campos. Um payload antigo sem o
+  campo é guardado como ativo; o histórico regista a passagem como
+  `details.fields` com `field: "ativo"` e os valores `Ativo`/`Inativo`. Atualiza
+  primeiro o servidor: uma app antiga ignora o campo e volta a enviá-lo como
+  ativo.
 
 ## Primeira execução
 

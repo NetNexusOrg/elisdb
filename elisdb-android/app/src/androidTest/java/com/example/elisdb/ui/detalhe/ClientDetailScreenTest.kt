@@ -53,6 +53,23 @@ class ClientDetailScreenTest {
   }
 
   @Test
+  fun detalhe_clienteInativoMostraEtiqueta() {
+    val cliente =
+      Cliente(id = "5", nome = "Carlos", ativo = false, latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
+    setDetailContent(cliente)
+
+    composeTestRule.onNodeWithText("Inativo").assertExists()
+  }
+
+  @Test
+  fun detalhe_clienteAtivoNaoMostraEtiqueta() {
+    val cliente = Cliente(id = "6", nome = "Diana", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
+    setDetailContent(cliente)
+
+    composeTestRule.onNodeWithText("Inativo").assertDoesNotExist()
+  }
+
+  @Test
   fun detalhe_semLocalizacaoNaoMostraMapaNemNavegacao() {
     val cliente = Cliente(id = "3", nome = "Ana", latitude = null, longitude = null, dataCriacao = 0, updatedAt = 0)
     setDetailContent(cliente)

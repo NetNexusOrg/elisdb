@@ -1,6 +1,7 @@
 package com.example.elisdb.ui.cliente
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -198,7 +200,36 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {
         }
       }
       Spacer(Modifier.width(12.dp))
-      Text(cliente.nome, style = MaterialTheme.typography.titleMedium)
+      Column(modifier = Modifier.weight(1f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Text(
+            text = cliente.nome,
+            style = MaterialTheme.typography.titleMedium,
+            color =
+              if (cliente.ativo) MaterialTheme.colorScheme.onSurface
+              else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp).basicMarquee(),
+          )
+          if (!cliente.ativo) {
+            Text(
+              text = "Inativo",
+              style = MaterialTheme.typography.labelSmall,
+              color = MaterialTheme.colorScheme.error,
+            )
+          }
+        }
+        val contrato = cliente.contrato?.takeIf { it.isNotBlank() }
+        if (contrato != null) {
+          Text(
+            text = contrato,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
+      }
     }
   }
 }

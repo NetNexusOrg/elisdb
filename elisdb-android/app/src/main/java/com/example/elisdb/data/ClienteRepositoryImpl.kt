@@ -27,6 +27,7 @@ data class ClienteDraft(
   val latitude: Double? = null,
   val longitude: Double? = null,
   val notas: String? = null,
+  val ativo: Boolean = true,
   val fotos: List<Foto> = emptyList(),
 )
 
@@ -94,6 +95,7 @@ class ClienteRepositoryImpl(
                 latitude = draft.latitude,
                 longitude = draft.longitude,
                 notas = draft.notas?.takeIf { it.isNotBlank() },
+                ativo = draft.ativo,
                 dataCriacao = now,
                 updatedAt = now,
                 createdAt = now,
@@ -112,6 +114,7 @@ class ClienteRepositoryImpl(
                 latitude = draft.latitude,
                 longitude = draft.longitude,
                 notas = draft.notas?.takeIf { it.isNotBlank() },
+                ativo = draft.ativo,
                 updatedAt = now,
                 pending = true,
                 revision = existing.revision + 1,

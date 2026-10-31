@@ -48,11 +48,16 @@ import com.example.elisdb.ui.components.InfoCard
 import java.util.Locale
 
 private const val APP_NAME = "ElisDB"
-private const val DEVELOPER_NAME = "Ricardo Pinto"
-private const val DEVELOPER_EMAIL = "ricardo.pinto@elis.com"
-private const val COLLABORATOR_NAME = "João Galado"
-private const val COLLABORATOR_EMAIL = "joao.galado@elis.com"
 private const val COLLABORATOR_ROLE = "Colaborador · ideias e testes"
+
+private data class TeamContact(val name: String, val role: String, val email: String)
+
+private val TEAM =
+  listOf(
+    TeamContact("Ricardo Pinto", "Desenvolvedor", "ricardo.pinto@elis.com"),
+    TeamContact("João Galado", COLLABORATOR_ROLE, "joao.galado@elis.com"),
+    TeamContact("Milton Barca", COLLABORATOR_ROLE, "milton.barca@elis.com"),
+  )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,19 +108,17 @@ fun AboutScreen(
         )
       }
       InfoCard(title = "Equipa") {
-        TeamMember(
-          name = DEVELOPER_NAME,
-          role = "Desenvolvedor",
-          email = DEVELOPER_EMAIL,
-          onEmail = { openEmail(context, DEVELOPER_EMAIL) },
-        )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        TeamMember(
-          name = COLLABORATOR_NAME,
-          role = COLLABORATOR_ROLE,
-          email = COLLABORATOR_EMAIL,
-          onEmail = { openEmail(context, COLLABORATOR_EMAIL) },
-        )
+        TEAM.forEachIndexed { index, member ->
+          if (index > 0) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+          }
+          TeamMember(
+            name = member.name,
+            role = member.role,
+            email = member.email,
+            onEmail = { openEmail(context, member.email) },
+          )
+        }
       }
     }
   }

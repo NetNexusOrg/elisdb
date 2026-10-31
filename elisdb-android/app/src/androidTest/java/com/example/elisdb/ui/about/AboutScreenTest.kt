@@ -69,8 +69,13 @@ class AboutScreenTest {
     composeTestRule.onNodeWithText("ricardo.pinto@elis.com").assertExists()
     composeTestRule.onNodeWithText("João Galado").assertExists()
     composeTestRule.onNodeWithText("joao.galado@elis.com").assertExists()
+    composeTestRule.onNodeWithText("Milton Barca").assertExists()
+    composeTestRule.onNodeWithText("milton.barca@elis.com").assertExists()
     composeTestRule
       .onNodeWithContentDescription("Enviar email para João Galado")
+      .assertExists()
+    composeTestRule
+      .onNodeWithContentDescription("Enviar email para Milton Barca")
       .assertExists()
   }
 

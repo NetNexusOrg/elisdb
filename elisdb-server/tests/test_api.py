@@ -396,3 +396,124 @@ def test_activation_appears_in_history(server):
     assert entries[-1]["details"]["fields"] == [
         {"field": "ativo", "old": "Inativo", "new": "Ativo", "truncated": False}
     ]
+
+
+def _fresh_server(tmp_path, monkeypatch, **env):
+    """Build an app with env overrides (read at create_app time)."""
+    from fastapi.testclient import TestClient
+
+    from app.database import Database
+    from app.main import create_app
+
+    from conftest import SigningClient, make_key
+
+    for name, value in env.items():
+        monkeypatch.setenv(name, str(value))
+
+    db = Database(str(tmp_path / "fresh.db"), fotos_dir=str(tmp_path / "photos"))
+    db.init()
+    private, _seed, public = make_key()
+    db.add_key("fresh-key", public, comment="fresh")
+    app = create_app(db)
+    return SigningClient(TestClient(app), private, public), db
+
+
+def test_push_record_limit_is_rejected_with_422(tmp_path, monkeypatch):
+    client, _db = _fresh_server(tmp_path, monkeypatch, ELISDB_MAX_PUSH_RECORDS=1)
+
+    response = client.post(
+        "/api/push", _body([_record(id="1"), _record(id="2", nome="Bia")])
+    )
+
+    assert response.status_code == 422
+    assert "too many records" in response.json()["detail"]
+    # Validation happens before any write.
+    assert client.get("/api/pull").json()["records"] == []
+
+
+def test_push_photo_limit_is_rejected_with_422(tmp_path, monkeypatch):
+    client, _db = _fresh_server(
+        tmp_path, monkeypatch, ELISDB_MAX_PHOTOS_PER_CLIENT=1
+    )
+    fotos = [
+        {"id": "f1", "mime": "image/jpeg", "ordem": 0},
+        {"id": "f2", "mime": "image/jpeg", "ordem": 1},
+    ]
+
+    response = client.post("/api/push", _body([_record(id="1", fotos=fotos)]))
+
+    assert response.status_code == 422
+    assert "too many photos" in response.json()["detail"]
+    assert client.get("/api/pull").json()["records"] == []
+
+
+def test_rate_limit_uses_x_forwarded_for_when_trusted(tmp_path, monkeypatch):
+    client, _db = _fresh_server(
+        tmp_path,
+        monkeypatch,
+        ELISDB_RATE_LIMIT_REQUESTS=2,
+        ELISDB_RATE_LIMIT_WINDOW_SECONDS=60,
+        ELISDB_TRUST_PROXY="true",
+    )
+    now = int(time.time())
+    first_client = {"X-Forwarded-For": "203.0.113.1, 10.0.0.2"}
+
+    assert client.get("/api/latest", timestamp=now, headers=first_client).status_code == 200
+    assert client.get("/api/latest", timestamp=now + 1, headers=first_client).status_code == 200
+    assert client.get("/api/latest", timestamp=now + 2, headers=first_client).status_code == 429
+
+    # A different forwarded client behind the same proxy has its own budget.
+    second_client = {"X-Forwarded-For": "203.0.113.2, 10.0.0.2"}
+    assert client.get("/api/latest", timestamp=now + 3, headers=second_client).status_code == 200
+
+
+def test_x_forwarded_for_is_ignored_without_trust_proxy(tmp_path, monkeypatch):
+    client, _db = _fresh_server(
+        tmp_path,
+        monkeypatch,
+        ELISDB_RATE_LIMIT_REQUESTS=2,
+        ELISDB_RATE_LIMIT_WINDOW_SECONDS=60,
+        ELISDB_TRUST_PROXY="false",
+    )
+    now = int(time.time())
+
+    # Rotating the header must not create new budgets when the proxy is not
+    # trusted: every request is attributed to the same real peer.
+    assert client.get(
+        "/api/latest", timestamp=now, headers={"X-Forwarded-For": "203.0.113.1"}
+    ).status_code == 200
+    assert client.get(
+        "/api/latest", timestamp=now + 1, headers={"X-Forwarded-For": "203.0.113.2"}
+    ).status_code == 200
+    assert client.get(
+        "/api/latest", timestamp=now + 2, headers={"X-Forwarded-For": "203.0.113.3"}
+    ).status_code == 429
+
+
+def test_startup_applies_configured_retention(tmp_path, monkeypatch):
+    from app.database import Database, connect
+    from app.main import create_app
+    from app.models import ClienteIn
+
+    from conftest import make_key
+
+    db = Database(str(tmp_path / "retention.db"), fotos_dir=str(tmp_path / "photos"))
+    db.init()
+    db.save_client(
+        ClienteIn(id="1", nome="Ana", updated_at=1000),
+        [],
+        {"id": "key-1", "comment": "tester"},
+    )
+    db.delete_client("1", deleted_at=1000)
+
+    monkeypatch.setenv("ELISDB_TOMBSTONE_RETENTION_DAYS", "1")
+    monkeypatch.setenv("ELISDB_AUDIT_RETENTION_DAYS", "1")
+    _private, _seed, public = make_key()
+    db.add_key("retention-key", public, comment="tester")
+
+    create_app(db)  # startup runs the configured retention
+
+    conn = connect(db.db_path)
+    assert conn.execute("SELECT COUNT(*) FROM tombstones").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM client_audit").fetchone()[0] == 0
+    conn.close()

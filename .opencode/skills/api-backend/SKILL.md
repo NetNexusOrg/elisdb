@@ -46,8 +46,15 @@ Base facts in `project-context`. This skill covers server development rules.
 - `ELISDB_DB`, `ELISDB_PHOTOS`, `ELISDB_LOG_LEVEL` (default INFO),
   `ELISDB_MAX_PHOTO_BYTES` (default 20 MiB), `ELISDB_SERVER_URL`,
   `ELISDB_USERS` (comma-separated auto-provision), `ELISDB_CONFIGS_DIR`.
+- Push limits: `ELISDB_MAX_PUSH_RECORDS` (default 200) and
+  `ELISDB_MAX_PHOTOS_PER_CLIENT` (default 500); excess gets `422`.
 - Rate limiting: `ELISDB_RATE_LIMIT_REQUESTS` (default 300) and
   `ELISDB_RATE_LIMIT_WINDOW_SECONDS` (default 60); excess requests get `429`.
+  Keyed by source IP. `ELISDB_TRUST_PROXY` (default false) makes it use the
+  first `X-Forwarded-For` hop, only valid behind a trusted reverse proxy.
+- Retention: `ELISDB_TOMBSTONE_RETENTION_DAYS` / `ELISDB_AUDIT_RETENTION_DAYS`
+  (default 0 = disabled); orphan-photo GC after pushes every
+  `ELISDB_PHOTO_GC_INTERVAL_SECONDS` (default 3600).
 
 ## Logging rules
 

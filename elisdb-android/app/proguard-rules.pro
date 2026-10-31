@@ -23,30 +23,26 @@
 
 # ---- Ktor client (networking stack) ----------------------------------------
 # O Ktor inspeciona plugins/serializers por reflexão; manter sem ofuscação.
+# `-keep ... { *; }` já preserva todos os membros, pelo que não é preciso um
+# `-keepclassmembers` separado.
 -keep class io.ktor.** { *; }
--keepclassmembers class io.ktor.** { *; }
 -dontwarn io.ktor.**
 
 # ---- eddsa (ed25519 signing) ---------------------------------------------
 # O Signer usa a API net.i2p/eddsa; mantida para a assinatura EdDSA e o
 # EdDSASecurityProvider registado via reflexão.
 -keep class net.i2p.crypto.eddsa.** { *; }
--keepclassmembers class net.i2p.crypto.eddsa.** { *; }
 -dontwarn net.i2p.crypto.eddsa.**
 
 # ---- osmdroid --------------------------------------------------
 # As bibliotecas do osmdroid usam reflexão (POIs, providers de tiles),
 # pelo que não devem ser ofuscadas nem encurtadas.
 -keep class org.osmdroid.** { *; }
--keepclassmembers class org.osmdroid.** { *; }
 -dontwarn org.osmdroid.**
--dontwarn org.slf4j.**
--dontwarn org.apache.commons.**
--keep class org.apache.http.** { *; }
--keep class org.apache.commons.** { *; }
--dontwarn org.apache.http.**
--keep class org.bouncycastle.** { *; }
--dontwarn org.bouncycastle.**
+# As regras para org.apache.http/commons, org.bouncycastle e org.slf4j foram
+# removidas: nenhuma dessas bibliotecas é dependência do projeto nem é
+# referenciada pelo osmdroid 6.1.20 ou pelo eddsa (verificado nas respetivas
+# classes). Eram regras sem efeito que só alargavam a configuração.
 
 # ---- CameraX ----------------------------------------------------
 # O CameraX envia as suas próprias regras, mas mantê-las à parte é seguro
@@ -59,7 +55,8 @@
 -keepclassmembers class coil3.** { *; }
 -dontwarn coil3.**
 
-# Manter a data class de localização (usada no mapa/Room)
--keep class com.example.elisdb.data.** { *; }
+# Manter as entidades Room e a camada de localização (usada no mapa).
+# As restantes classes de `com.example.elisdb.data` (repositório, encoder)
+# são instanciadas diretamente e não precisam de keep próprio.
 -keep class com.example.elisdb.data.local.** { *; }
 -keep class com.example.elisdb.location.** { *; }

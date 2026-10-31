@@ -18,7 +18,12 @@ description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-relea
 - `test` (always): checkout → `actions/setup-java` (Temurin 17) → `android-actions/setup-android`
   → `gradle/actions/setup-gradle` → `:app:testDebugUnitTest` → `:app:lintDebug` → `:app:assembleDebug`
   → uploads test reports **only when the job fails** (3-day retention, best effort).
-- `release` (only on `v*` tags, `needs: test`): extracts the release body from
+- `instrumented` (always, **release gate**): boots an emulator (API 34) and runs only
+  `AppDatabaseMigrationTest`.
+- `instrumented-suite` (always, **non-blocking**, `continue-on-error: true`): runs the
+  full `:app:connectedDebugAndroidTest` suite on the emulator for visibility. It is not
+  in `release.needs`, so a flaky UI test cannot block a release.
+- `release` (only on `v*` tags, `needs: [test, instrumented]`): extracts the release body from
   `CHANGELOG.md` (step "Extract release notes": the `## [X.Y.Z]` section matching the tag;
   a tag without that section fails before the build), decodes keystore from secret,
   `:app:assembleRelease`,

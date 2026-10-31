@@ -32,3 +32,7 @@ um cliente). Ver [Configuração](docs/configuracao.md).
 
 Guias práticos (instalação, execução, ligar telemóveis, resolução de problemas,
 [cópia de segurança e restauro](docs/backup.md)): [`docs/`](docs/index.md).
+
+Antes de partilhares o servidor com outras pessoas, lê
+[Segurança e modelo de confiança](docs/seguranca.md): o dataset é partilhado e
+qualquer chave registada pode ler, editar e apagar todos os clientes e fotos.

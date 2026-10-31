@@ -90,9 +90,11 @@ computador (mais seguro).
 4. No NPM, o "Forward Hostname / IP" será **`elisdb-server`** e o porto **`8000`**
    (ver secção seguinte).
 
-> Não precisas de publicar a porta 8000 no host (remova o `ports: 8000:8000` do
+> Não precisas de publicar a porta 8000 no host (remove o mapeamento `ports` do
 > compose do servidor, se quiseres ficar ainda mais fechado): o NPM alcança-o
-> pela rede interna.
+> pela rede interna. Se mantiveres a porta publicada, limita-a ao próprio host
+> com `ELISDB_BIND_ADDRESS=127.0.0.1` (ou no `.env` do `docker compose`): assim
+> só o proxy local lhe chega.
 
 ## 4. Criar o Proxy Host
 
@@ -110,7 +112,24 @@ computador (mais seguro).
    - **Save** e espera até o certificado ser emitido.
 
 O **TLS fica todo no NPM**: os clientes falam HTTPS com o NPM, e o NPM fala HTTP
-com o servidor ElisDB (o servidor não muda nada).
+com o servidor ElisDB.
+
+### IP real e rate limiting
+
+Atrás do proxy, o servidor vê o IP do contentor do NPM em todos os pedidos. Para
+que o limite de pedidos (`429`) seja aplicado por cliente e não por proxy,
+define no `compose.yaml` do servidor:
+
+```yaml
+environment:
+  ELISDB_TRUST_PROXY: "true"
+```
+
+O servidor passa a usar o primeiro IP de `X-Forwarded-For`, que o NPM preenche.
+**Só ligues esta opção se o servidor só for alcançável através do proxy** —
+publica a porta apenas em `127.0.0.1` (`ELISDB_BIND_ADDRESS=127.0.0.1`) ou não
+publiques a porta de todo. Se o servidor estiver diretamente acessível, um
+cliente pode forjar `X-Forwarded-For` e contornar o limite.
 
 ## 5. Verificar que funciona
 
@@ -140,10 +159,16 @@ sincroniza (menu ⋮ → **Sincronização**).
 ## 7. Segurança
 
 - **O HTTPS termina no NPM.** O servidor ElisDB continua a falar HTTP dentro da
-  tua máquina/rede — mantém-no em infraestrutura privada.
+  tua máquina/rede — mantém-no em infraestrutura privada. Publica a porta só em
+  `127.0.0.1` (`ELISDB_BIND_ADDRESS=127.0.0.1`), sobretudo quando usares
+  `ELISDB_TRUST_PROXY=true`.
 - **A autenticação do ElisDB não muda**: os pedidos continuam assinados com uma
   chave registada. Um visitante anónimo continua a receber `401` em tudo o que
   não seja `/health`.
+- **Qualquer chave registada tem acesso total ao dataset partilhado** (ler,
+  editar e apagar todos os clientes/fotos). A auditoria identifica o ator, mas
+  não impõe ownership. Para utilizadores que não confiam uns nos outros, usa
+  servidores separados — ver [Segurança e modelo de confiança](seguranca.md).
 - **Nunca exposes fora da tua infraestrutura** o ficheiro `ELISDB_DB`, a pasta
   `ELISDB_PHOTOS`, nem as chaves privadas (o seed dentro do config ou no
   ecrã Configuração da app).

@@ -5,6 +5,11 @@ Standalone — não depende da app Android nem do servidor elisdb-server.
 Lê o CSV, valida coordenadas, resolve conflitos (TIPO A/B) e gera um ficheiro
 SQLite (.db) com o schema alvo do servidor (clientes; sem fotos). Não escreve
 na base de produção.
+
+Os timestamps são escritos em **segundos** Unix (`updated_at`, `created_at`,
+`delivery_ts`), o mesmo relógio do servidor. Validação:
+
+    ../elisdb-server/.venv/bin/python -m pytest -q test_migrar_memento.py
 """
 
 import argparse
@@ -81,6 +86,9 @@ class Relatorio:
 # Geração do ficheiro SQLite
 # ---------------------------------------------------------------------------
 
+# Schema alvo do servidor para clientes. O export do Memento não representa
+# eliminações, por isso não há tabela `tombstones`: o servidor cria os
+# tombstones quando um cliente é apagado depois da importação.
 SCHEMA = """
 CREATE TABLE clientes (
     id TEXT PRIMARY KEY,
@@ -90,7 +98,9 @@ CREATE TABLE clientes (
     longitude REAL,
     notas TEXT,
     updated_at INTEGER NOT NULL,
-    created_at INTEGER NOT NULL DEFAULT 0
+    created_at INTEGER NOT NULL DEFAULT 0,
+    delivery_ts INTEGER NOT NULL DEFAULT 0,
+    ativo INTEGER NOT NULL DEFAULT 1
 );
 """
 
@@ -103,8 +113,10 @@ def gerar_db(caminho: str, clientes: list[dict]) -> None:
     conn = sqlite3.connect(caminho)
     conn.executescript(SCHEMA)
     conn.executemany(
-        "INSERT INTO clientes (id, nome, contrato, latitude, longitude, notas, updated_at, created_at) "
-        "VALUES (:id, :nome, :contrato, :latitude, :longitude, :notas, :updated_at, :created_at)",
+        "INSERT INTO clientes (id, nome, contrato, latitude, longitude, notas, "
+        "updated_at, created_at, delivery_ts, ativo) "
+        "VALUES (:id, :nome, :contrato, :latitude, :longitude, :notas, "
+        ":updated_at, :created_at, :delivery_ts, :ativo)",
         clientes,
     )
     conn.commit()
@@ -116,7 +128,12 @@ def gerar_db(caminho: str, clientes: list[dict]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def migrar(rows: list[dict], timestamp_ms: int) -> tuple[list[dict], Relatorio]:
+def migrar(rows: list[dict], timestamp_s: int) -> tuple[list[dict], Relatorio]:
+    """Converte as linhas do CSV em registos prontos para o schema do servidor.
+
+    ``timestamp_s`` é um instante Unix em **segundos** (o mesmo relógio que o
+    servidor usa em ``updated_at``/``created_at``/``delivery_ts``).
+    """
     rel = Relatorio()
     rel.linhas_processadas = len(rows)
     # Contagem total de campos Coordenadas vazios no input (25 no export atual),
@@ -163,8 +180,10 @@ def migrar(rows: list[dict], timestamp_ms: int) -> tuple[list[dict], Relatorio]:
                     "latitude": float(escolhido[0]) if escolhido else None,
                     "longitude": float(escolhido[1]) if escolhido else None,
                     "notas": notas,
-                    "updated_at": timestamp_ms,
-                    "created_at": timestamp_ms,
+                    "updated_at": timestamp_s,
+                    "created_at": timestamp_s,
+                    "delivery_ts": timestamp_s,
+                    "ativo": 1,
                 }
             )
             continue
@@ -198,8 +217,10 @@ def migrar(rows: list[dict], timestamp_ms: int) -> tuple[list[dict], Relatorio]:
                 "latitude": lat,
                 "longitude": lon,
                 "notas": notas,
-                "updated_at": timestamp_ms,
-                "created_at": timestamp_ms,
+                "updated_at": timestamp_s,
+                "created_at": timestamp_s,
+                "delivery_ts": timestamp_s,
+                "ativo": 1,
             }
         )
 
@@ -254,7 +275,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Migra ELIS.csv para o formato elisdb")
     ap.add_argument("--input", default="ELIS.csv", help="Ficheiro CSV de entrada")
     ap.add_argument("--output", default="memento-import.db", help="Ficheiro SQLite de saída")
-    ap.add_argument("--timestamp", type=int, default=None, help="Epoch millis para created/updated (default: agora)")
+    ap.add_argument(
+        "--timestamp",
+        type=int,
+        default=None,
+        help="Epoch em segundos para created/updated/delivery (default: agora)",
+    )
     args = ap.parse_args()
 
     try:
@@ -264,7 +290,7 @@ def main() -> int:
         print(f"Erro: ficheiro de entrada não encontrado: {args.input}", file=sys.stderr)
         return 1
 
-    ts = args.timestamp or int(datetime.now(timezone.utc).timestamp() * 1000)
+    ts = args.timestamp or int(datetime.now(timezone.utc).timestamp())
     clientes, rel = migrar(rows, ts)
     gerar_db(args.output, clientes)
 

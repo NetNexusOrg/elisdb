@@ -137,5 +137,28 @@ def test_output_db_schema(tmp_path):
         "notas",
         "updated_at",
         "created_at",
+        "delivery_ts",
+        "ativo",
     ]
     conn.close()
+
+
+def test_output_uses_seconds_and_current_fields(tmp_path):
+    """O schema gerado tem de casar com o relógio e os campos do servidor."""
+    from migrar_memento import gerar_db
+
+    # Um instante real em segundos (2025-09-16), não milissegundos.
+    timestamp = 1_758_000_000
+    clientes, _ = migrar([_row(nome="Ana", coord="37.1,-8.2")], timestamp)
+    db = str(tmp_path / "out.db")
+    gerar_db(db, clientes)
+
+    conn = sqlite3.connect(db)
+    row = conn.execute(
+        "SELECT updated_at, created_at, delivery_ts, ativo FROM clientes"
+    ).fetchone()
+    conn.close()
+
+    assert row == (timestamp, timestamp, timestamp, 1)
+    # Milissegundos seriam ~1000x maiores; o servidor espera segundos.
+    assert row[0] < 100_000_000_000

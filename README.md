@@ -31,6 +31,7 @@ Tudo isto está explicado passo a passo na [utilização da app](elisdb-android/
 - **App Android:** [`elisdb-android/README.md`](elisdb-android/README.md) e guias em [`elisdb-android/docs/`](elisdb-android/docs/index.md).
 - **Servidor:** [`elisdb-server/README.md`](elisdb-server/README.md) e guias em [`elisdb-server/docs/`](elisdb-server/docs/index.md).
 - **Cópias de segurança do servidor:** [backup e restauro](elisdb-server/docs/backup.md).
+- **Segurança do servidor:** [modelo de confiança e autorização](elisdb-server/docs/seguranca.md).
 
 ## Desenvolvimento
 

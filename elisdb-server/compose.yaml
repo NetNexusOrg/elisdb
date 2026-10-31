@@ -5,9 +5,18 @@ services:
     # Reinicia automaticamente após crash/reboot (mas não após `docker compose stop`).
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      # Endereço onde a porta 8000 é publicada no host. Por omissão escuta em
+      # todas as interfaces (LAN). Com um proxy TLS à frente, define
+      # ELISDB_BIND_ADDRESS=127.0.0.1 para o servidor só ser alcançável pelo
+      # proxy (ver docs/nginx-proxy-manager.md).
+      - "${ELISDB_BIND_ADDRESS:-0.0.0.0}:8000:8000"
     volumes:
       - elisdb-data:/app/data
+    # Impede que um processo dentro do contentor ganhe privilégios extra via
+    # setuid/setgid. O entrypoint continua a poder fazer chown como root antes
+    # de baixar para PUID/PGID.
+    security_opt:
+      - no-new-privileges:true
     environment:
       ELISDB_DB: /app/data/elisdb.db
       ELISDB_PHOTOS: /app/data/photos

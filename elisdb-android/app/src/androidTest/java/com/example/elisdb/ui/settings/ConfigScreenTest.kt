@@ -217,6 +217,10 @@ class ConfigScreenTest {
     composeTestRule.onNodeWithText("Remover chave").assertDoesNotExist()
     composeTestRule.onNodeWithText("Remover configuração").performClick()
     composeTestRule.waitForIdle()
+    // Removing the configuration is destructive, so it asks for confirmation.
+    composeTestRule.onNodeWithText("Remover configuração?").assertExists()
+    composeTestRule.onNodeWithText("Remover").performClick()
+    composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Não configurado").assertExists()
     composeTestRule.onNodeWithText("Não configurada").assertExists()
     // Removal restores the import entry point.

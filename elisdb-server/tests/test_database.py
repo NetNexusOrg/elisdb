@@ -511,3 +511,105 @@ def test_upload_backfills_hash_for_an_existing_placeholder(tmp_path):
     conn.close()
     assert row["hash"] == hashlib.sha256(payload).hexdigest()
     assert db.get_client_with_photos("a")["fotos"][0]["available"] is True
+
+
+def test_retention_is_disabled_by_default(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    db.save_client(_cliente(id="a", updated_at=1000), [], actor)
+    db.delete_client("a", deleted_at=1000)
+
+    # Both windows default to 0: history must survive an unconfigured server.
+    assert db.prune_old_records() == (0, 0)
+    conn = connect(db.db_path)
+    assert conn.execute("SELECT COUNT(*) FROM tombstones").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM client_audit").fetchone()[0] == 1
+    conn.close()
+
+
+def test_retention_prunes_only_rows_older_than_the_window(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    now = 1_000_000_000
+    day = 86400
+
+    # Ancient client + audit entry + tombstone.
+    db.save_client(_cliente(id="old", updated_at=1000), [], actor)
+    db.delete_client("old", deleted_at=1000)
+    # Recent client + audit entry + tombstone (one day old).
+    db.save_client(
+        _cliente(id="recent", nome="Recent", updated_at=now - day), [], actor
+    )
+    db.delete_client("recent", deleted_at=now - day)
+
+    assert db.prune_old_records(30, 30, now=now) == (1, 1)
+
+    conn = connect(db.db_path)
+    assert [r["id"] for r in conn.execute("SELECT id FROM tombstones")] == ["recent"]
+    assert conn.execute("SELECT COUNT(*) FROM client_audit").fetchone()[0] == 1
+    conn.close()
+
+    # Idempotent: nothing else is old enough.
+    assert db.prune_old_records(30, 30, now=now) == (0, 0)
+
+
+def test_tombstone_retention_uses_the_server_delivery_clock(tmp_path):
+    db = _db(tmp_path)
+    now = 1_000_000_000
+    db.save_client(_cliente(id="a", updated_at=1000), [])
+    # A newer record pushes the delivery watermark forward; the deletion of "a"
+    # carries a lagging deleted_at but a recent delivery_ts.
+    db.save_client(_cliente(id="b", nome="B", updated_at=now - 100), [])
+    db.delete_client("a", deleted_at=1000)
+
+    # Using deleted_at would expire it immediately; delivery_ts keeps it.
+    assert db.prune_old_records(tombstone_retention_days=30, now=now) == (0, 0)
+
+
+def test_write_photo_uses_a_unique_temporary_file(tmp_path, monkeypatch):
+    db = _db(tmp_path)
+    path = db._foto("p1")
+    payload = b"\xff\xd8\xff\xe0unique-temp"
+    seen = {}
+    real_replace = os.replace
+
+    def checking_replace(src, dst):
+        seen["src"] = src
+        assert os.path.dirname(src) == os.path.dirname(path)
+        assert src.endswith(".tmp")
+        assert src != f"{path}.tmp"
+        assert os.path.exists(src)
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", checking_replace)
+    db.write_photo("p1", payload)
+
+    assert seen["src"] != f"{path}.tmp"
+    with open(path, "rb") as fh:
+        assert fh.read() == payload
+    assert not [name for name in os.listdir(db.fotos_dir) if name.endswith(".tmp")]
+
+
+def test_write_photo_removes_the_temporary_file_when_replace_fails(tmp_path, monkeypatch):
+    db = _db(tmp_path)
+
+    def boom(_src, _dst):
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(os, "replace", boom)
+    with pytest.raises(OSError):
+        db.write_photo("p1", b"\xff\xd8\xff\xe0temp")
+
+    assert not [name for name in os.listdir(db.fotos_dir) if name.endswith(".tmp")]
+
+
+def test_gc_orphan_photos_can_skip_recent_uploads(tmp_path):
+    db = _db(tmp_path)
+    db.write_photo("just-uploaded", b"data")
+
+    # A periodic sweep must not delete an upload whose push has not committed.
+    assert db.gc_orphan_photos(min_age_seconds=3600) == 0
+    assert os.path.exists(db._foto("just-uploaded"))
+
+    assert db.gc_orphan_photos(min_age_seconds=0) == 1
+    assert not os.path.exists(db._foto("just-uploaded"))

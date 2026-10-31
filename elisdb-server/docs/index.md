@@ -25,6 +25,7 @@ ficheiro que a app precisa para ficar ligada ao servidor.
 4. [Utilização](uso.md) — como funciona a sincronização e como resolver problemas
 5. [Cópia de segurança e restauro](backup.md) — proteger e recuperar a base de dados e as fotos
 6. [Nginx Proxy Manager](nginx-proxy-manager.md) — expor o servidor na internet com um domínio HTTPS
+7. [Segurança e modelo de confiança](seguranca.md) — quem pode ler e alterar os dados (leitura recomendada antes de partilhar o servidor)
 
 ## Início rápido (resumo)
 

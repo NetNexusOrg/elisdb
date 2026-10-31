@@ -1,9 +1,10 @@
 """In-memory fixed-window rate limiter (single-process).
 
 The sync server runs as a single uvicorn worker (see ``Dockerfile``), so a
-process-local counter is sufficient. Each identifier (an authenticated key or a
-client IP) gets a budget of requests per fixed window; excess requests are
-rejected by the caller with HTTP 429.
+process-local counter is sufficient. Each identifier (currently a client IP,
+optionally taken from a trusted proxy's X-Forwarded-For) gets a budget of
+requests per fixed window; excess requests are rejected by the caller with
+HTTP 429.
 """
 
 import threading

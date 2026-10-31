@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import tempfile
 import threading
 import time
 
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS client_audit (
     details TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_client_audit_cliente ON client_audit (cliente_id);
+CREATE INDEX IF NOT EXISTS idx_client_audit_ts ON client_audit (ts);
 CREATE TABLE IF NOT EXISTS keys (
     id TEXT PRIMARY KEY,
     public_key TEXT NOT NULL,
@@ -802,12 +804,31 @@ class Database:
         return row["mime"], data
 
     def write_photo(self, foto_id: str, data: bytes) -> None:
-        """Atomically write a photo's binary content to the managed directory."""
+        """Atomically write a photo's binary content to the managed directory.
+
+        The content is staged in a unique temporary file next to the destination
+        and moved into place with ``os.replace``. A fixed ``<path>.tmp`` would
+        let two concurrent uploads of the same photo overwrite each other's
+        partial write, leaving truncated bytes for a reader that wins the race.
+        """
         path = self._foto(foto_id)
-        tmp = f"{path}.tmp"
-        with open(tmp, "wb") as fh:
-            fh.write(data)
-        os.replace(tmp, path)
+        fd, tmp = tempfile.mkstemp(
+            dir=os.path.dirname(path),
+            prefix=f".{os.path.basename(path)}.",
+            suffix=".tmp",
+        )
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(data)
+            os.replace(tmp, path)
+        except BaseException:
+            # Never leave a half-written staging file behind (the orphan sweep
+            # ignores .tmp files, so it would linger until the next restart).
+            try:
+                os.remove(tmp)
+            except FileNotFoundError:
+                pass
+            raise
         digest = hashlib.sha256(data).hexdigest()
         conn = self._conn()
         try:
@@ -816,7 +837,7 @@ class Database:
         finally:
             conn.close()
 
-    def gc_orphan_photos(self) -> int:
+    def gc_orphan_photos(self, min_age_seconds: int = 0) -> int:
         """Delete photo files on disk that have no matching ``fotos`` row.
 
         Reclaims space from photos removed via client edits and from
@@ -824,7 +845,10 @@ class Database:
         Returns the number of files removed.
 
         Only files inside the managed photos directory are considered, and
-        temporary ``.tmp`` files are ignored.
+        temporary ``.tmp`` files are ignored. ``min_age_seconds`` skips files
+        modified more recently than that: a periodic sweep can run while an
+        upload is in flight and its ``fotos`` row is not committed yet, so
+        young files get a grace period before they can be treated as orphans.
         """
         if not os.path.isdir(self.fotos_dir):
             return 0
@@ -836,6 +860,7 @@ class Database:
             }
         finally:
             conn.close()
+        now = time.time()
         removed = 0
         for name in os.listdir(self.fotos_dir):
             if name.endswith(".tmp"):
@@ -845,13 +870,62 @@ class Database:
             # mean deleting a whole tree, which this pass must never do.
             if not os.path.isfile(path):
                 continue
-            if path not in stored:
+            if path in stored:
+                continue
+            if min_age_seconds > 0:
                 try:
-                    os.remove(path)
-                    removed += 1
+                    if now - os.path.getmtime(path) < min_age_seconds:
+                        continue
                 except FileNotFoundError:
-                    pass
+                    continue
+            try:
+                os.remove(path)
+                removed += 1
+            except FileNotFoundError:
+                pass
         return removed
+
+    def prune_old_records(
+        self,
+        tombstone_retention_days: int = 0,
+        audit_retention_days: int = 0,
+        now: int | None = None,
+    ) -> tuple[int, int]:
+        """Delete tombstones and audit entries older than the retention windows.
+
+        Retention is opt-in per table: a value of 0 (or negative) disables that
+        table, which is the default. Nothing is ever discarded unless an
+        operator configures a window through the environment.
+
+        Tombstone age is measured by ``delivery_ts`` (assigned by the server)
+        rather than ``deleted_at`` (sent by the device): a device with a lagging
+        clock must not make a tombstone expire before it had time to propagate.
+        Audit age uses ``ts``, the device edit time stored with the entry.
+
+        Returns ``(tombstones_removed, audit_entries_removed)``. The operation
+        is idempotent: a second run with the same clock removes nothing.
+        """
+        if tombstone_retention_days <= 0 and audit_retention_days <= 0:
+            return 0, 0
+        now = int(time.time()) if now is None else now
+        tombstones_removed = 0
+        audit_removed = 0
+        conn = self._conn()
+        try:
+            if tombstone_retention_days > 0:
+                cutoff = now - tombstone_retention_days * 86400
+                cur = conn.execute(
+                    "DELETE FROM tombstones WHERE delivery_ts < ?", (cutoff,)
+                )
+                tombstones_removed = cur.rowcount
+            if audit_retention_days > 0:
+                cutoff = now - audit_retention_days * 86400
+                cur = conn.execute("DELETE FROM client_audit WHERE ts < ?", (cutoff,))
+                audit_removed = cur.rowcount
+            conn.commit()
+        finally:
+            conn.close()
+        return tombstones_removed, audit_removed
 
     @staticmethod
     def _delivery_watermark(conn: sqlite3.Connection) -> int:

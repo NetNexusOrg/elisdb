@@ -47,6 +47,8 @@ que o servidor está vivo.
 | `duplicate` ao enviar | Já existe um cliente com o mesmo nome | Normal — a app funde com o registo existente |
 | `stale` ao enviar | O registo enviado é mais antigo que o guardado | Nada a fazer; o servidor manteve o mais recente |
 | `400` ao enviar | O pedido é mal formado (ex.: cliente sem nome) | Verifica os dados no telemóvel |
+| `422` ao enviar | O lote excede `ELISDB_MAX_PUSH_RECORDS` ou um cliente tem mais fotos que `ELISDB_MAX_PHOTOS_PER_CLIENT` | Divide o push ou aumenta os limites no servidor (ver [Configuração](configuracao.md)) |
+| `429` ao sincronizar | Demasiados pedidos do mesmo IP na janela configurada | Espera a janela terminar; atrás de um proxy configura `ELISDB_TRUST_PROXY=true` para limitar pelo IP real |
 
 ## Expor o servidor para a internet (leitura obrigatória)
 
@@ -55,7 +57,10 @@ a autenticação é por assinatura dos pedidos. Está pensado para uso privado/l
 numa rede de confiança. Se quiseres expô-lo publicamente, põe-no atrás de um
 proxy com TLS (ex.: nginx, Caddy) — e nunca expões a chave privada de um
 telemóvel fora do ecrã Configuração da tua app. Para um passo a passo com o Nginx
-Proxy Manager, vê [Expor o servidor com NPM](nginx-proxy-manager.md).
+Proxy Manager, vê [Expor o servidor com NPM](nginx-proxy-manager.md). Antes de
+partilhares o servidor com outras pessoas, lê
+[Segurança e modelo de confiança](seguranca.md): qualquer chave registada pode
+ler e alterar todos os dados.
 
 ## Passo seguinte
 

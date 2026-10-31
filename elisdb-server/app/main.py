@@ -7,9 +7,9 @@ last-write-wins on updated_at, and clients/photos live in a single SQLite file.
 import asyncio
 import logging
 import os
-from pathlib import Path
-
+import threading
 import time
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
@@ -66,6 +66,47 @@ def _env_int(name: str, default: int) -> int:
         logger.warning("invalid %s=%r; using default %d", name, raw, default)
         return default
     return value
+
+
+def _env_non_negative_int(name: str, default: int = 0) -> int:
+    """Read a non-negative integer env var (0 is meaningful: disabled)."""
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning("invalid %s=%r; using default %d", name, raw, default)
+        return default
+    if value < 0:
+        logger.warning("invalid %s=%r; using default %d", name, raw, default)
+        return default
+    return value
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    """Read a boolean env var (1/true/yes/on vs 0/false/no/off)."""
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    logger.warning("invalid %s=%r; using default %s", name, raw, default)
+    return default
+
+
+# Periodic maintenance intervals. The orphan-photo sweep scans the photos
+# directory, so it runs in a background thread at most this often; retention
+# pruning is indexed and runs synchronously but throttled to the same order of
+# magnitude. Startup still performs both unconditionally.
+PHOTO_GC_INTERVAL_SECONDS = 3600
+MAINTENANCE_INTERVAL_SECONDS = 3600
+# Periodic sweeps leave recently written files alone: a PUT upload may still be
+# waiting for the push that creates its fotos row.
+ORPHAN_PHOTO_GRACE_SECONDS = 300
 
 
 db = Database(
@@ -212,13 +253,111 @@ def create_app(database: Database | None = None) -> FastAPI:
     removed = store.gc_orphan_photos()
     if removed:
         logger.info("startup cleanup removed %d orphaned photo file(s)", removed)
+
+    # Retention is opt-in: both windows default to 0 (disabled) so an upgrade
+    # never starts deleting history on its own.
+    tombstone_retention_days = _env_non_negative_int(
+        "ELISDB_TOMBSTONE_RETENTION_DAYS", 0
+    )
+    audit_retention_days = _env_non_negative_int("ELISDB_AUDIT_RETENTION_DAYS", 0)
+    removed_tombstones, removed_audit = store.prune_old_records(
+        tombstone_retention_days, audit_retention_days
+    )
+    if removed_tombstones or removed_audit:
+        logger.info(
+            "startup retention removed %d tombstone(s) and %d audit entries",
+            removed_tombstones,
+            removed_audit,
+        )
+
+    max_push_records = _env_int("ELISDB_MAX_PUSH_RECORDS", 200)
+    max_photos_per_client = _env_int("ELISDB_MAX_PHOTOS_PER_CLIENT", 500)
+    photo_gc_interval = _env_int("ELISDB_PHOTO_GC_INTERVAL_SECONDS", PHOTO_GC_INTERVAL_SECONDS)
+
     app.state.store = store
     auth_dep = Depends(require_auth)
+
+    # Startup already ran both maintenance passes; the throttles below only
+    # decide when the next periodic run is due.
+    maintenance_state = {"last": time.monotonic()}
+    maintenance_lock = threading.Lock()
+    gc_state = {"last": time.monotonic()}
+    gc_lock = threading.Lock()
+
+    def _maybe_prune() -> None:
+        """Run retention pruning at most once per interval (cheap no-op when off)."""
+        if tombstone_retention_days <= 0 and audit_retention_days <= 0:
+            return
+        now = time.monotonic()
+        if now - maintenance_state["last"] < MAINTENANCE_INTERVAL_SECONDS:
+            return
+        maintenance_state["last"] = now
+        if not maintenance_lock.acquire(blocking=False):
+            return
+        try:
+            tombstones, audit = store.prune_old_records(
+                tombstone_retention_days, audit_retention_days
+            )
+            if tombstones or audit:
+                logger.info(
+                    "retention removed %d tombstone(s) and %d audit entries",
+                    tombstones,
+                    audit,
+                )
+        except Exception:  # never fail a push because maintenance failed
+            logger.exception("retention maintenance failed")
+        finally:
+            maintenance_lock.release()
+
+    def _maybe_gc_photos() -> None:
+        """Schedule the orphan-photo sweep at most once per interval.
+
+        The sweep lists and stats the photos directory, so it runs in a daemon
+        thread: a push never waits for it, and the lock prevents overlapping
+        sweeps. A sweep racing an upload is safe because only files without a
+        ``fotos`` row are removed.
+        """
+        now = time.monotonic()
+        if now - gc_state["last"] < photo_gc_interval:
+            return
+        gc_state["last"] = now
+        if not gc_lock.acquire(blocking=False):
+            return
+
+        def run() -> None:
+            try:
+                removed_files = store.gc_orphan_photos(
+                    min_age_seconds=ORPHAN_PHOTO_GRACE_SECONDS
+                )
+                if removed_files:
+                    logger.info(
+                        "periodic cleanup removed %d orphaned photo file(s)",
+                        removed_files,
+                    )
+            except Exception:
+                logger.exception("orphan photo cleanup failed")
+            finally:
+                gc_lock.release()
+
+        threading.Thread(target=run, name="elisdb-photo-gc", daemon=True).start()
 
     rate_limiter = RateLimiter(
         max_requests=_env_int("ELISDB_RATE_LIMIT_REQUESTS", 300),
         window_seconds=_env_int("ELISDB_RATE_LIMIT_WINDOW_SECONDS", 60),
     )
+    # Only trust X-Forwarded-For when an operator explicitly says a reverse
+    # proxy sets it; otherwise any client could rotate the header to get a new
+    # rate-limit budget on every request.
+    trust_proxy = _env_bool("ELISDB_TRUST_PROXY", False)
+
+    def _client_ip(request: Request) -> str:
+        if trust_proxy:
+            forwarded = request.headers.get("x-forwarded-for")
+            if forwarded:
+                first = forwarded.split(",", 1)[0].strip()
+                if first:
+                    return first
+        return request.client.host if request.client else "unknown"
 
     logging.basicConfig(
         level=getattr(logging, os.environ.get("ELISDB_LOG_LEVEL", "INFO").upper(), logging.INFO),
@@ -248,17 +387,13 @@ def create_app(database: Database | None = None) -> FastAPI:
 
     @app.middleware("http")
     async def _rate_limit(request: Request, call_next):
-        # Limit by authenticated key when the client identifies itself, and by
-        # client IP in all cases, so omitting the key header cannot bypass the
-        # limit and open endpoints are still throttled by source address.
-        identifiers = [f"ip:{request.client.host if request.client else 'unknown'}"]
-        key_header = request.headers.get(auth.KEY_HEADER)
-        if key_header:
-            identifiers.append(f"key:{key_header}")
-        for identifier in identifiers:
-            if not rate_limiter.allow(identifier):
-                logger.warning("rate limit exceeded for %s", identifier.split(":", 1)[0])
-                return Response(status_code=429, content=b"too many requests")
+        # Limit by source address only. The X-Elisdb-Key header is not verified
+        # at this point (and is optional), so using it as a budget key would let
+        # a client rotate keys to bypass the limit.
+        identifier = f"ip:{_client_ip(request)}"
+        if not rate_limiter.allow(identifier):
+            logger.warning("rate limit exceeded for ip")
+            return Response(status_code=429, content=b"too many requests")
         return await call_next(request)
 
     # Added last so it is the outermost middleware: the body is capped before
@@ -287,6 +422,26 @@ def create_app(database: Database | None = None) -> FastAPI:
 
     @app.post("/api/push", response_model=list[PushResult], dependencies=[auth_dep])
     def push(request: Request, req: PushRequest) -> list[PushResult]:
+        # Validate batch limits before writing anything: a partially applied
+        # push followed by a 422 would be harder for the client to reason about.
+        if len(req.records) > max_push_records:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"too many records in one push "
+                    f"({len(req.records)} > {max_push_records})"
+                ),
+            )
+        for record in req.records:
+            if len(record.fotos) > max_photos_per_client:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"client {record.client.id} has too many photos "
+                        f"({len(record.fotos)} > {max_photos_per_client})"
+                    ),
+                )
+
         actor = getattr(request.state, "authenticated_key", None)
         results: list[PushResult] = []
         for record in req.records:
@@ -310,6 +465,10 @@ def create_app(database: Database | None = None) -> FastAPI:
                     missing_photos=missing,
                 )
             )
+        # A successful push is a natural checkpoint: reclaim abandoned uploads
+        # and expire history without adding work to every request.
+        _maybe_prune()
+        _maybe_gc_photos()
         return results
 
     @app.get("/api/pull", response_model=None, dependencies=[auth_dep])

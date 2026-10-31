@@ -53,19 +53,28 @@ class SigningClient:
         self.private = private
         self.public_b64 = public_b64
 
-    def request(self, method: str, path: str, body: bytes = b"", timestamp: int | None = None):
+    def request(
+        self,
+        method: str,
+        path: str,
+        body: bytes = b"",
+        timestamp: int | None = None,
+        headers: dict | None = None,
+    ):
         if isinstance(body, str):
             body = body.encode("utf-8")
         ts = int(time.time()) if timestamp is None else timestamp
         message = auth.build_message(method, path, body, ts)
         signature = auth.sign(message, self.private)
-        headers = {
+        all_headers = {
             auth.TIMESTAMP_HEADER: str(ts),
             auth.SIGNATURE_HEADER: signature,
             auth.KEY_HEADER: self.public_b64,
             "Content-Type": "application/json",
         }
-        return self.client.request(method, path, content=body, headers=headers)
+        if headers:
+            all_headers.update(headers)
+        return self.client.request(method, path, content=body, headers=all_headers)
 
     def get(self, path: str, **kwargs):
         return self.request("GET", path, b"", **kwargs)

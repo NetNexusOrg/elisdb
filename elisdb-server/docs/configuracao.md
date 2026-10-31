@@ -89,6 +89,16 @@ Então:
 | `ELISDB_PHOTOS`    | Pasta para os ficheiros de fotos                   | `data/photos` ao lado da base de dados |
 | `ELISDB_SERVER_URL` | URL pelo qual a app alcança este servidor (usado por `app.keys issue` quando não passas `--server-url`) | — (obrigatória para emitir) |
 | `ELISDB_USERS`     | Utilizadores a provisionar no arranque (lista separada por vírgulas). Se vazio ou ausente, todas as chaves auto-provisionadas são revogadas. | — |
+| `ELISDB_MAX_PUSH_RECORDS` | Máximo de registos num único `POST /api/push`; acima disto responde `422` | `200` |
+| `ELISDB_MAX_PHOTOS_PER_CLIENT` | Máximo de fotos referenciadas por cliente num push; acima disto responde `422` | `500` |
+| `ELISDB_MAX_PHOTO_BYTES` | Tamanho máximo de cada upload de foto (bytes) | `20971520` (20 MiB) |
+| `ELISDB_RATE_LIMIT_REQUESTS` | Pedidos permitidos por IP em cada janela; acima disto responde `429` | `300` |
+| `ELISDB_RATE_LIMIT_WINDOW_SECONDS` | Duração da janela do rate limit (segundos) | `60` |
+| `ELISDB_TRUST_PROXY` | Usar o primeiro IP de `X-Forwarded-For` como origem do pedido. **Só ligar atrás de um proxy de confiança** | `false` |
+| `ELISDB_TOMBSTONE_RETENTION_DAYS` | Apaga tombstones mais antigos que N dias (`0` desativa) | `0` (desativado) |
+| `ELISDB_AUDIT_RETENTION_DAYS` | Apaga entradas de auditoria mais antigas que N dias (`0` desativa) | `0` (desativado) |
+| `ELISDB_PHOTO_GC_INTERVAL_SECONDS` | Intervalo mínimo entre limpezas de fotos órfãs depois de um push | `3600` |
+| `ELISDB_BIND_ADDRESS` | (só `compose.yaml`) Interface do host onde a porta 8000 é publicada | `0.0.0.0` |
 
 Dentro do `compose.yaml`, as variáveis vão na secção `environment`. Exemplo:
 
@@ -102,6 +112,58 @@ environment:
 
 > Usa sempre o mesmo valor de `ELISDB_DB` também nos comandos `app.keys` — as
 > chaves registadas vivem nesse mesmo ficheiro de dados.
+
+## Limites de push e fotos
+
+Um push demasiado grande é recusado com `422` **antes** de qualquer escrita, para
+que o cliente não fique com metade do lote aplicado:
+
+- `ELISDB_MAX_PUSH_RECORDS` (omissão `200`) limita o número de registos num
+  `POST /api/push`;
+- `ELISDB_MAX_PHOTOS_PER_CLIENT` (omissão `500`) limita as fotos que um registo
+  pode referenciar.
+
+Cada upload de foto continua limitado por `ELISDB_MAX_PHOTO_BYTES` (omissão
+20 MiB), com `413` acima do limite.
+
+## Retenção e manutenção
+
+Por omissão o servidor **nunca apaga histórico**. A retenção é opt-in e faz-se
+com duas variáveis independentes:
+
+- `ELISDB_TOMBSTONE_RETENTION_DAYS=N` remove tombstones com mais de N dias. A
+  idade é medida pelo `delivery_ts` atribuído pelo servidor, não pelo
+  `deleted_at` do telemóvel, para que um relógio atrasado não faça expirar o
+  tombstone cedo demais.
+- `ELISDB_AUDIT_RETENTION_DAYS=N` remove entradas de `client_audit` com mais de
+  N dias (medidos pelo `ts` do registo).
+
+A limpeza corre no arranque e, no máximo, uma vez por hora após um push
+bem-sucedido; é idempotente e segura. **Atenção:** um telemóvel que fique
+offline durante mais tempo do que a retenção de tombstones pode ressuscitar um
+cliente apagado ao sincronizar, porque o tombstone que bloqueava esse push já
+não existe. Mantém a janela superior ao período máximo em que um dispositivo
+pode estar offline, ou deixa a retenção desativada.
+
+As fotos órfãs (uploads que nenhum push referenciou) são limpas no arranque e,
+depois, no máximo uma vez por hora após um push. O varrimento corre numa thread
+em segundo plano (`ELISDB_PHOTO_GC_INTERVAL_SECONDS`, omissão `3600`) para não
+atrasar pedidos; só remove ficheiros sem linha na tabela `fotos` e com mais de
+5 minutos (margem para uploads cujo push ainda está a decorrer).
+
+## Rate limiting e proxy
+
+O limite de pedidos é aplicado **por IP**. O header `X-Elisdb-Key` não é usado
+para o orçamento porque é opcional e não está verificado nesse ponto — usá-lo
+permitiria rodar chaves para contornar o limite.
+
+Atrás de um proxy inverso, o IP que o servidor vê é o do proxy. Para limitar
+pelo IP real do cliente, define `ELISDB_TRUST_PROXY=true`: o servidor passa a
+usar o primeiro IP de `X-Forwarded-For`. **Só atives esta opção se o servidor
+só for alcançável através do proxy** (por exemplo, com
+`ELISDB_BIND_ADDRESS=127.0.0.1`); caso contrário, qualquer cliente pode forjar
+o header e obter um orçamento novo. Ver
+[Nginx Proxy Manager](nginx-proxy-manager.md).
 
 ## Contrato de sincronização (referência)
 

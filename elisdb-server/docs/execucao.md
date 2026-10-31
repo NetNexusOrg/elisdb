@@ -18,7 +18,9 @@ rede) o alcançar, usa o **IP da máquina do servidor** (ex.:
 próprio telemóvel.
 
 > Se a porta 8000 já estiver ocupada no teu computador, muda o mapeamento
-> `8000:8000` para outra porta no `compose.yaml`.
+> `8000:8000` para outra porta no `compose.yaml`. Para limitar a interface onde
+> a porta é publicada, define `ELISDB_BIND_ADDRESS` (ex.: `127.0.0.1` quando
+> usares um proxy TLS — ver [Nginx Proxy Manager](nginx-proxy-manager.md)).
 
 ## Como saber se está a funcionar
 

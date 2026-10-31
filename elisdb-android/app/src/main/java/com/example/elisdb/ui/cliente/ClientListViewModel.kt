@@ -42,6 +42,9 @@ data class ClientListItem(
 /** Which clients the list shows, independent of the search term. */
 enum class ClientStatusFilter { ALL, ACTIVE, INACTIVE }
 
+/** How the visible clients are ordered. */
+enum class ClientSortOrder { NAME, RECENT }
+
 sealed interface ClientListUiState {
   data object Loading : ClientListUiState
 
@@ -49,6 +52,7 @@ sealed interface ClientListUiState {
     val clientes: List<ClientListItem>,
     val query: String = "",
     val filtro: ClientStatusFilter = ClientStatusFilter.ALL,
+    val ordem: ClientSortOrder = ClientSortOrder.NAME,
   ) : ClientListUiState
 }
 
@@ -60,6 +64,9 @@ class ClientListViewModel(repository: ClienteRepository) : ViewModel() {
   private val _filtro = MutableStateFlow(ClientStatusFilter.ALL)
   val filtro: StateFlow<ClientStatusFilter> = _filtro.asStateFlow()
 
+  private val _ordem = MutableStateFlow(ClientSortOrder.NAME)
+  val ordem: StateFlow<ClientSortOrder> = _ordem.asStateFlow()
+
   fun onQueryChange(value: String) {
     _query.value = value
   }
@@ -68,8 +75,12 @@ class ClientListViewModel(repository: ClienteRepository) : ViewModel() {
     _filtro.value = value
   }
 
+  fun onOrdemChange(value: ClientSortOrder) {
+    _ordem.value = value
+  }
+
   val uiState: StateFlow<ClientListUiState> =
-    combine(repository.clientesComFotos, query, filtro) { clientes, q, f ->
+    combine(repository.clientesComFotos, query, filtro, ordem) { clientes, q, f, o ->
         val byStatus =
           when (f) {
             ClientStatusFilter.ALL -> clientes
@@ -77,9 +88,24 @@ class ClientListViewModel(repository: ClienteRepository) : ViewModel() {
             ClientStatusFilter.INACTIVE -> clientes.filterNot { it.cliente.ativo }
           }
         val filtered = if (q.isBlank()) byStatus else byStatus.filter { matchesQuery(it, q) }
+        // Names are stored uppercase, but sorting here (not only in the DAO query)
+        // keeps the order deterministic when the user switches it at runtime.
+        val ordered =
+          when (o) {
+            ClientSortOrder.NAME ->
+              filtered.sortedWith(
+                compareBy({ it.cliente.nome.uppercase(Locale.ROOT) }, { it.cliente.id })
+              )
+            ClientSortOrder.RECENT ->
+              filtered.sortedWith(
+                compareByDescending<ClienteComFotos> { it.cliente.dataCriacao }
+                  .thenBy { it.cliente.nome.uppercase(Locale.ROOT) }
+                  .thenBy { it.cliente.id }
+              )
+          }
         ClientListUiState.Success(
           clientes =
-            filtered.map {
+            ordered.map {
               ClientListItem(
                 id = it.cliente.id,
                 nome = it.cliente.nome,
@@ -90,6 +116,7 @@ class ClientListViewModel(repository: ClienteRepository) : ViewModel() {
             },
           query = q,
           filtro = f,
+          ordem = o,
         )
       }
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ClientListUiState.Loading)

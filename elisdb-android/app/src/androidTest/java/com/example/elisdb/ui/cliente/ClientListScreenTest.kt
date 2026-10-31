@@ -61,12 +61,26 @@ class ClientListScreenTest {
       )
     setListContent(listOf(ativo, inativo))
 
-    composeTestRule.onNodeWithContentDescription("Filtrar por estado").performClick()
+    composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
     composeTestRule.onNodeWithText("Só clientes inativos").performClick()
     composeTestRule.waitForIdle()
 
     composeTestRule.onNodeWithText("Rui").assertExists()
     composeTestRule.onNodeWithText("Maria").assertDoesNotExist()
+  }
+
+  @Test
+  fun lista_ordemMaisRecentesMostraAsOpcoesDeOrdenacao() {
+    setListContent(clientes)
+
+    composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("Ordem alfabética").assertExists()
+    composeTestRule.onNodeWithText("Mais recentes primeiro").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Maria").assertExists()
+    composeTestRule.onNodeWithText("João").assertExists()
   }
 
   @Test

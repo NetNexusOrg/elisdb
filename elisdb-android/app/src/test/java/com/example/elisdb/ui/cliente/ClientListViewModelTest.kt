@@ -142,7 +142,7 @@ class ClientListViewModelTest {
     dispatcher.scheduler.advanceUntilIdle()
 
     val state = viewModel.uiState.value as ClientListUiState.Success
-    assertEquals(listOf("Maria", "João"), state.clientes.map { it.nome })
+    assertEquals(listOf("João", "Maria"), state.clientes.map { it.nome })
   }
 
   @Test
@@ -182,7 +182,51 @@ class ClientListViewModelTest {
     state =
       viewModel.uiState.first { it is ClientListUiState.Success && it.filtro == ClientStatusFilter.ALL }
         as ClientListUiState.Success
-    assertEquals(listOf("Maria", "João"), state.clientes.map { it.nome })
+    assertEquals(listOf("João", "Maria"), state.clientes.map { it.nome })
+  }
+
+  @Test
+  fun uiState_ordemRecenteMostraMaisNovosPrimeiro() = runTest(dispatcher) {
+    val repo =
+      FakeClientRepository(
+        clientesComFotosFlow =
+          flowOf(
+            listOf(
+              ClienteComFotos(
+                cliente =
+                  Cliente(id = "1", nome = "Ana", dataCriacao = 100, updatedAt = 500),
+                fotos = emptyList(),
+              ),
+              ClienteComFotos(
+                cliente =
+                  Cliente(id = "2", nome = "Zé", dataCriacao = 300, updatedAt = 300),
+                fotos = emptyList(),
+              ),
+              ClienteComFotos(
+                cliente =
+                  Cliente(id = "3", nome = "Bruno", dataCriacao = 200, updatedAt = 900),
+                fotos = emptyList(),
+              ),
+            )
+          )
+      )
+    val viewModel = ClientListViewModel(repo)
+    viewModel.uiState.first { it is ClientListUiState.Success }
+
+    var state = viewModel.uiState.value as ClientListUiState.Success
+    assertEquals(listOf("Ana", "Bruno", "Zé"), state.clientes.map { it.nome })
+
+    viewModel.onOrdemChange(ClientSortOrder.RECENT)
+    state =
+      viewModel.uiState.first { it is ClientListUiState.Success && it.ordem == ClientSortOrder.RECENT }
+        as ClientListUiState.Success
+    assertEquals(listOf("Zé", "Bruno", "Ana"), state.clientes.map { it.nome })
+
+    viewModel.onOrdemChange(ClientSortOrder.NAME)
+    state =
+      viewModel.uiState.first { it is ClientListUiState.Success && it.ordem == ClientSortOrder.NAME }
+        as ClientListUiState.Success
+    assertEquals(listOf("Ana", "Bruno", "Zé"), state.clientes.map { it.nome })
   }
 
   @Test

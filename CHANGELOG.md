@@ -12,6 +12,9 @@ e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
 ### Novidades
 
+- **Lista por ordem à escolha.** No menu de controlos da pesquisa podes agora
+  ordenar os clientes por **Ordem alfabética** (predefinição) ou por **Mais
+  recentes primeiro**, sem perder o filtro por estado nem a pesquisa.
 - **Configuração mais clara.** O ecrã passou a mostrar o estado da sincronização
   como uma etiqueta no cartão, a última sincronização com data e hora e, nos
   dados, se a app e o servidor estão em sincronia. Sem servidor configurado, a

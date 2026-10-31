@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -70,6 +71,7 @@ fun ClientListScreen(
     onAddClick = onAddClick,
     onQueryChange = viewModel::onQueryChange,
     onFiltroChange = viewModel::onFiltroChange,
+    onOrdemChange = viewModel::onOrdemChange,
     onConfigClick = onConfigClick,
     onAboutClick = onAboutClick,
     modifier = modifier,
@@ -84,6 +86,7 @@ internal fun ClientListScreen(
   onAddClick: () -> Unit,
   onQueryChange: (String) -> Unit,
   onFiltroChange: (ClientStatusFilter) -> Unit,
+  onOrdemChange: (ClientSortOrder) -> Unit,
   onConfigClick: () -> Unit,
   onAboutClick: () -> Unit,
   modifier: Modifier = Modifier,
@@ -144,9 +147,11 @@ internal fun ClientListScreen(
                   IconButton(onClick = { filtroOpen = true }) {
                     Icon(
                       Icons.Default.Tune,
-                      contentDescription = "Filtrar por estado",
+                      contentDescription = "Filtrar e ordenar",
                       tint =
-                        if (state.filtro == ClientStatusFilter.ALL) {
+                        if (state.filtro == ClientStatusFilter.ALL &&
+                          state.ordem == ClientSortOrder.NAME
+                        ) {
                           MaterialTheme.colorScheme.onSurfaceVariant
                         } else {
                           MaterialTheme.colorScheme.primary
@@ -163,6 +168,23 @@ internal fun ClientListScreen(
                         },
                         leadingIcon = {
                           if (option == state.filtro) {
+                            Icon(Icons.Default.Check, contentDescription = null)
+                          } else {
+                            Spacer(Modifier.size(24.dp))
+                          }
+                        },
+                      )
+                    }
+                    HorizontalDivider()
+                    ClientSortOrder.entries.forEach { option ->
+                      DropdownMenuItem(
+                        text = { Text(option.label()) },
+                        onClick = {
+                          filtroOpen = false
+                          onOrdemChange(option)
+                        },
+                        leadingIcon = {
+                          if (option == state.ordem) {
                             Icon(Icons.Default.Check, contentDescription = null)
                           } else {
                             Spacer(Modifier.size(24.dp))
@@ -282,4 +304,10 @@ private fun ClientStatusFilter.label(): String =
     ClientStatusFilter.ALL -> "Todos os clientes"
     ClientStatusFilter.ACTIVE -> "Só clientes ativos"
     ClientStatusFilter.INACTIVE -> "Só clientes inativos"
+  }
+
+private fun ClientSortOrder.label(): String =
+  when (this) {
+    ClientSortOrder.NAME -> "Ordem alfabética"
+    ClientSortOrder.RECENT -> "Mais recentes primeiro"
   }

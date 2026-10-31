@@ -38,6 +38,12 @@ The system SHALL show a list of all clients, each row displaying the client's na
 - **THEN** the list SHALL show only clients whose name, contract or notes contain the term
 - **AND** the comparison SHALL ignore letter case and diacritics
 
+#### Scenario: Filter the list by status
+- **WHEN** the user opens the status filter from the search field and chooses active or inactive
+- **THEN** the list SHALL show only clients with that status
+- **AND** the filter control SHALL indicate that a filter is applied
+- **AND** the default selection SHALL show every client regardless of status
+
 #### Scenario: Search matches no client
 - **WHEN** the search term does not match any client
 - **THEN** the system SHALL indicate that no clients were found

@@ -21,6 +21,7 @@
 - [x] 3.3 `ClientDetailScreen`: chip “Inativo” ao lado do nome quando o cliente está inativo.
 - [x] 3.4 `ClientListScreen`/`ClientListViewModel`: `ativo` no `ClientListItem`, etiqueta “Inativo” e conteúdo atenuado no cartão, sem toggle.
 - [x] 3.5 `ClientLogScreen`: mostrar “Ativou o cliente” / “Desativou o cliente” a partir de `details.fields`.
+- [x] 3.6 Filtro de estado na caixa de pesquisa (ícone de controlos): todos por predefinição, só ativos ou só inativos.
 
 ## 4. Testes
 

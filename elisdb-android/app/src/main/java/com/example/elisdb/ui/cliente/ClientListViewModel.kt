@@ -39,12 +39,16 @@ data class ClientListItem(
   val ativo: Boolean = true,
 )
 
+/** Which clients the list shows, independent of the search term. */
+enum class ClientStatusFilter { ALL, ACTIVE, INACTIVE }
+
 sealed interface ClientListUiState {
   data object Loading : ClientListUiState
 
   data class Success(
     val clientes: List<ClientListItem>,
     val query: String = "",
+    val filtro: ClientStatusFilter = ClientStatusFilter.ALL,
   ) : ClientListUiState
 }
 
@@ -53,13 +57,26 @@ class ClientListViewModel(repository: ClienteRepository) : ViewModel() {
   private val _query = MutableStateFlow("")
   val query: StateFlow<String> = _query.asStateFlow()
 
+  private val _filtro = MutableStateFlow(ClientStatusFilter.ALL)
+  val filtro: StateFlow<ClientStatusFilter> = _filtro.asStateFlow()
+
   fun onQueryChange(value: String) {
     _query.value = value
   }
 
+  fun onFiltroChange(value: ClientStatusFilter) {
+    _filtro.value = value
+  }
+
   val uiState: StateFlow<ClientListUiState> =
-    combine(repository.clientesComFotos, query) { clientes, q ->
-        val filtered = if (q.isBlank()) clientes else clientes.filter { matchesQuery(it, q) }
+    combine(repository.clientesComFotos, query, filtro) { clientes, q, f ->
+        val byStatus =
+          when (f) {
+            ClientStatusFilter.ALL -> clientes
+            ClientStatusFilter.ACTIVE -> clientes.filter { it.cliente.ativo }
+            ClientStatusFilter.INACTIVE -> clientes.filterNot { it.cliente.ativo }
+          }
+        val filtered = if (q.isBlank()) byStatus else byStatus.filter { matchesQuery(it, q) }
         ClientListUiState.Success(
           clientes =
             filtered.map {
@@ -72,6 +89,7 @@ class ClientListViewModel(repository: ClienteRepository) : ViewModel() {
               )
             },
           query = q,
+          filtro = f,
         )
       }
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ClientListUiState.Loading)

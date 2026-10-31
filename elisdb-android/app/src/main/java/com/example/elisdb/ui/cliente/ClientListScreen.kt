@@ -30,12 +30,14 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +69,7 @@ fun ClientListScreen(
     onClienteClick = onClienteClick,
     onAddClick = onAddClick,
     onQueryChange = viewModel::onQueryChange,
+    onFiltroChange = viewModel::onFiltroChange,
     onConfigClick = onConfigClick,
     onAboutClick = onAboutClick,
     modifier = modifier,
@@ -80,6 +83,7 @@ internal fun ClientListScreen(
   onClienteClick: (String) -> Unit,
   onAddClick: () -> Unit,
   onQueryChange: (String) -> Unit,
+  onFiltroChange: (ClientStatusFilter) -> Unit,
   onConfigClick: () -> Unit,
   onAboutClick: () -> Unit,
   modifier: Modifier = Modifier,
@@ -129,9 +133,44 @@ internal fun ClientListScreen(
             placeholder = { Text("Pesquisar clientes…") },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
-              if (state.query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }) {
-                  Icon(Icons.Default.Clear, contentDescription = "Limpar pesquisa")
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                if (state.query.isNotEmpty()) {
+                  IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Default.Clear, contentDescription = "Limpar pesquisa")
+                  }
+                }
+                var filtroOpen by remember { mutableStateOf(false) }
+                Box {
+                  IconButton(onClick = { filtroOpen = true }) {
+                    Icon(
+                      Icons.Default.Tune,
+                      contentDescription = "Filtrar por estado",
+                      tint =
+                        if (state.filtro == ClientStatusFilter.ALL) {
+                          MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                          MaterialTheme.colorScheme.primary
+                        },
+                    )
+                  }
+                  DropdownMenu(expanded = filtroOpen, onDismissRequest = { filtroOpen = false }) {
+                    ClientStatusFilter.entries.forEach { option ->
+                      DropdownMenuItem(
+                        text = { Text(option.label()) },
+                        onClick = {
+                          filtroOpen = false
+                          onFiltroChange(option)
+                        },
+                        leadingIcon = {
+                          if (option == state.filtro) {
+                            Icon(Icons.Default.Check, contentDescription = null)
+                          } else {
+                            Spacer(Modifier.size(24.dp))
+                          }
+                        },
+                      )
+                    }
+                  }
                 }
               }
             },
@@ -144,10 +183,10 @@ internal fun ClientListScreen(
               contentAlignment = Alignment.Center,
             ) {
               Text(
-                if (state.query.isBlank()) {
-                  "Ainda não há clientes guardados."
-                } else {
-                  "Nenhum cliente corresponde à pesquisa."
+                when {
+                  state.query.isNotBlank() -> "Nenhum cliente corresponde à pesquisa."
+                  state.filtro != ClientStatusFilter.ALL -> "Nenhum cliente corresponde ao filtro."
+                  else -> "Ainda não há clientes guardados."
                 }
               )
             }
@@ -168,8 +207,7 @@ internal fun ClientListScreen(
 }
 
 @Composable
-private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {
-  Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
     Row(
       modifier = Modifier.padding(12.dp),
       verticalAlignment = Alignment.CenterVertically,
@@ -233,3 +271,10 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {
     }
   }
 }
+
+private fun ClientStatusFilter.label(): String =
+  when (this) {
+    ClientStatusFilter.ALL -> "Todos os clientes"
+    ClientStatusFilter.ACTIVE -> "Só clientes ativos"
+    ClientStatusFilter.INACTIVE -> "Só clientes inativos"
+  }

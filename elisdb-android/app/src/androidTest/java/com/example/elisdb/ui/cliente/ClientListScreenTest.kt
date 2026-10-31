@@ -52,6 +52,24 @@ class ClientListScreenTest {
   }
 
   @Test
+  fun lista_filtroDeEstadoMostraApenasOEstadoEscolhido() {
+    val ativo = clientes.first()
+    val inativo =
+      ClienteComFotos(
+        cliente = Cliente(id = "3", nome = "Rui", ativo = false, latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        fotos = emptyList(),
+      )
+    setListContent(listOf(ativo, inativo))
+
+    composeTestRule.onNodeWithContentDescription("Filtrar por estado").performClick()
+    composeTestRule.onNodeWithText("Só clientes inativos").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Rui").assertExists()
+    composeTestRule.onNodeWithText("Maria").assertDoesNotExist()
+  }
+
+  @Test
   fun lista_pesquisaFiltraLinhas() {
     setListContent(clientes)
     composeTestRule.onNodeWithText("Maria").assertExists()

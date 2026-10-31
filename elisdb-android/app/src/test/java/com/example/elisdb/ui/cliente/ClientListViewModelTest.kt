@@ -146,6 +146,46 @@ class ClientListViewModelTest {
   }
 
   @Test
+  fun uiState_filtroDeEstadoMostraSoOEstadoEscolhido() = runTest(dispatcher) {
+    val repo =
+      FakeClientRepository(
+        clientesComFotosFlow =
+          flowOf(
+            listOf(
+              ClienteComFotos(
+                cliente = Cliente(id = "1", nome = "Maria", ativo = true, latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              ),
+              ClienteComFotos(
+                cliente = Cliente(id = "2", nome = "João", ativo = false, latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              ),
+            )
+          )
+      )
+    val viewModel = ClientListViewModel(repo)
+    viewModel.uiState.first { it is ClientListUiState.Success }
+
+    viewModel.onFiltroChange(ClientStatusFilter.INACTIVE)
+    var state =
+      viewModel.uiState.first { it is ClientListUiState.Success && it.filtro == ClientStatusFilter.INACTIVE }
+        as ClientListUiState.Success
+    assertEquals(listOf("João"), state.clientes.map { it.nome })
+
+    viewModel.onFiltroChange(ClientStatusFilter.ACTIVE)
+    state =
+      viewModel.uiState.first { it is ClientListUiState.Success && it.filtro == ClientStatusFilter.ACTIVE }
+        as ClientListUiState.Success
+    assertEquals(listOf("Maria"), state.clientes.map { it.nome })
+
+    viewModel.onFiltroChange(ClientStatusFilter.ALL)
+    state =
+      viewModel.uiState.first { it is ClientListUiState.Success && it.filtro == ClientStatusFilter.ALL }
+        as ClientListUiState.Success
+    assertEquals(listOf("Maria", "João"), state.clientes.map { it.nome })
+  }
+
+  @Test
   fun uiState_querySemCorrespondenciaDevolveVazio() = runTest(dispatcher) {
     val repo =
       FakeClientRepository(

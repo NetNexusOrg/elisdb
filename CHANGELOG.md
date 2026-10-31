@@ -15,8 +15,10 @@ e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 - **Clientes ativos e inativos.** Cada cliente tem agora um interruptor
   **Cliente ativo** no formulário. Os inativos continuam guardados e
   sincronizados, mas aparecem com a etiqueta **Inativo** na lista e no detalhe,
-  para distinguir quem já não está em serviço sem apagar o histórico. O servidor
-  guarda o estado e regista a ativação/desativação no histórico de alterações.
+  para distinguir quem já não está em serviço sem apagar o histórico. A lista
+  pode ser filtrada por estado através do ícone de controlos na caixa de
+  pesquisa. O servidor guarda o estado e regista a ativação/desativação no
+  histórico de alterações.
 
 ## [1.6.1] - 2026-10-26
 

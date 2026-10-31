@@ -86,8 +86,8 @@ Fluxos principais:
   miniaturas das fotos adicionadas aparecem quando ainda existem neste
   dispositivo.
 - **Configuração** — o ecrã único de sincronização e servidor: estado, resumo do que falta sincronizar, totais de clientes na app e no servidor e o botão **Sincronizar** (envia e recebe os dados); abaixo, o cartão **Servidor** com o URL, a chave mascarada e o utilizador associado; sem configuração mostra **Importar configuração do servidor**, e depois de configurado mostra apenas **Remover configuração**. O estado pendente é verificado automaticamente ao abrir o ecrã.
-- **Sobre** — informação sobre a app (nome, versão, descrição), o cartão
-  **Atualizações** e o desenvolvedor.
+- **Sobre** — cabeçalho com o ícone, o nome e a versão da app, o cartão
+  **Atualizações** e a equipa com os contactos.
 
 ### Atualizar a app
 

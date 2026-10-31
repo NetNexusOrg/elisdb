@@ -3,6 +3,7 @@ package com.example.elisdb.ui.about
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.example.elisdb.BuildConfig
@@ -52,17 +53,25 @@ class AboutScreenTest {
     composeTestRule.onNodeWithText("Sobre").assertExists()
     composeTestRule.onNodeWithText("ElisDB").assertExists()
     composeTestRule
-      .onNodeWithText("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+      .onNodeWithText("Versão ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
       .assertExists()
-    composeTestRule.onNodeWithText("Gestão de clientes offline-first", substring = true).assertExists()
+    composeTestRule.onNodeWithContentDescription("ElisDB").assertExists()
+    composeTestRule
+      .onNodeWithText("Gestão de clientes offline-first", substring = true)
+      .assertDoesNotExist()
   }
 
   @Test
-  fun sobre_mostraInformacaoDoDesenvolvedor() {
+  fun sobre_mostraInformacaoDaEquipa() {
     setContent()
-    composeTestRule.onNodeWithText("Desenvolvedor").assertExists()
-    composeTestRule.onNodeWithText("RP").assertExists()
-    composeTestRule.onNodeWithText("kadu247@protonmail.com").assertExists()
+    composeTestRule.onNodeWithText("Equipa").assertExists()
+    composeTestRule.onNodeWithText("Ricardo Pinto").assertExists()
+    composeTestRule.onNodeWithText("ricardo.pinto@elis.com").assertExists()
+    composeTestRule.onNodeWithText("João Galado").assertExists()
+    composeTestRule.onNodeWithText("joao.galado@elis.com").assertExists()
+    composeTestRule
+      .onNodeWithContentDescription("Enviar email para João Galado")
+      .assertExists()
   }
 
   @Test

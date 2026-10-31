@@ -12,6 +12,9 @@ e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
 ### Novidades
 
+- **Ecrã Sobre renovado.** A informação da app aparece agora como um cabeçalho
+  com o ícone, o nome e a versão, em vez de um cartão com uma descrição longa, e
+  o cartão da equipa mostra os contactos de cada membro.
 - **Abrir a app sincroniza.** Ao arrancar, a app faz uma sincronização em segundo
   plano (uma vez por arranque e apenas se houver servidor configurado), para
   receber novidades de outros dispositivos e enviar o que ficou pendente. Sem

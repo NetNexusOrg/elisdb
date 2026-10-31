@@ -74,6 +74,14 @@ class AboutScreenTest {
   }
 
   @Test
+  fun sobre_mostraAcessoAoGrupoDeTelegram() {
+    setContent()
+    composeTestRule.onNodeWithText("Comunidade").assertExists()
+    composeTestRule.onNodeWithContentDescription("QR code do grupo de Telegram").assertExists()
+    composeTestRule.onNodeWithText("Abrir no Telegram").assertExists()
+  }
+
+  @Test
   fun sobre_procuraAtualizacoesEMostraVersaoNova() {
     setContent(fetchRelease = { release(11) })
 

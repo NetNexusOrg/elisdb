@@ -41,3 +41,23 @@ The system SHALL provide an about screen, reached from the client list menu, tha
 #### Scenario: Updates are available from the about screen
 - **WHEN** the user opens the about screen
 - **THEN** the screen SHALL offer the action to look for app updates
+
+### Requirement: Community group access
+
+The about screen SHALL show a community section with a QR code for the app's Telegram
+group and an action that opens the invite link on the device. The QR code SHALL be
+bundled with the app so it is shown without a network connection.
+
+#### Scenario: Community invite is shown
+- **WHEN** the user opens the about screen
+- **THEN** the screen SHALL show a community section
+- **AND** the section SHALL show a QR code that encodes the group invite link
+
+#### Scenario: Open the invite on the device
+- **WHEN** the user taps the action to open the community link
+- **THEN** the system SHALL hand the invite link to an external app that can open it
+- **AND** a device without such an app SHALL remain on the about screen without crashing
+
+#### Scenario: Invite is available offline
+- **WHEN** the device has no network connection and the user opens the about screen
+- **THEN** the QR code SHALL still be shown

@@ -18,7 +18,8 @@ e **Correções**. Não incluir secrets, dados de clientes nem fotos.
   importação do ficheiro aparece logo como a primeira ação, em vez de repetir
   avisos.
 - **Ecrã Sobre renovado.** A informação da app aparece agora como um cabeçalho
-  com o ícone, o nome e a versão, em vez de um cartão com uma descrição longa.
+  com o ícone, o nome e a versão, em vez de um cartão com uma descrição longa, e
+  o ecrã inclui o QR code do grupo de Telegram da app.
 - **Abrir a app sincroniza.** Ao arrancar, a app faz uma sincronização em segundo
   plano (uma vez por arranque e apenas se houver servidor configurado), para
   receber novidades de outros dispositivos e enviar o que ficou pendente. Sem

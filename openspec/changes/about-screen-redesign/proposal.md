@@ -14,8 +14,10 @@ pouco apelativa para um ecrã institucional.
 - Separar o cabeçalho dos restantes cartões com um divisor subtil.
 - Remover o cartão da equipa/desenvolvedor: os contactos foram considerados
   informação desnecessária no ecrã por agora.
+- Acrescentar um cartão “Comunidade” com o QR code do grupo de Telegram e um botão
+  que abre o convite no telemóvel.
 - Alinhar a spec `client-about` (deixa de exigir a descrição e a informação do
-  desenvolvedor).
+  desenvolvedor, passa a exigir o acesso à comunidade).
 
 ## Capabilities
 
@@ -26,8 +28,8 @@ Nenhuma.
 ### Modified Capabilities
 
 - `client-about`: o ecrã deixa de mostrar a descrição e a informação do
-  desenvolvedor; passa a apresentar um cabeçalho com ícone, nome e versão e o
-  cartão de atualizações.
+  desenvolvedor; passa a apresentar um cabeçalho com ícone, nome e versão, o
+  cartão de atualizações e o acesso ao grupo de Telegram.
 
 ## Impact
 

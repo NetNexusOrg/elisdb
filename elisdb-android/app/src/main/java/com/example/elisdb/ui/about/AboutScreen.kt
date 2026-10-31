@@ -1,5 +1,8 @@
 package com.example.elisdb.ui.about
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -44,6 +47,7 @@ import com.example.elisdb.ui.components.InfoCard
 import java.util.Locale
 
 private const val APP_NAME = "ElisDB"
+private const val TELEGRAM_INVITE_URL = "https://t.me/+G9YShkVuXvU3ZTI0"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,7 +97,45 @@ fun AboutScreen(
           },
         )
       }
+      InfoCard(title = "Comunidade") {
+        Text(
+          "Entra no grupo de Telegram para acompanhar novidades, tirar dúvidas e sugerir melhorias.",
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Image(
+          painter = painterResource(R.drawable.telegram_qr),
+          contentDescription = "QR code do grupo de Telegram",
+          modifier =
+            Modifier
+              .align(Alignment.CenterHorizontally)
+              .size(180.dp)
+              .clip(RoundedCornerShape(16.dp)),
+        )
+        Text(
+          "Também podes abrir o convite neste telemóvel:",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(
+          onClick = { openTelegramGroup(context) },
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          Text("Abrir no Telegram")
+        }
+      }
     }
+  }
+}
+
+/** Opens the community invite in an external app, ignoring devices without one. */
+private fun openTelegramGroup(context: Context) {
+  runCatching {
+    context.startActivity(
+      Intent(Intent.ACTION_VIEW, Uri.parse(TELEGRAM_INVITE_URL)).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+    )
   }
 }
 

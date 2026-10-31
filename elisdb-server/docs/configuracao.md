@@ -141,9 +141,9 @@ chave, os telemóveis recebem `401` ao tentar sincronizar.
 
 Podes consultar as chaves registadas com os endereços autenticados:
 
-- `GET /health` — estado do servidor, versão de release e `api_version`. A app
-  usa a `api_version` para avisar quando o servidor é antigo; sobe-a sempre que
-  uma alteração de contrato importe para clientes antigos.
+- `GET /health` — estado do servidor, versão de release e `api_version`. A
+  `api_version` serve para diagnóstico: sobe-a sempre que uma alteração de
+  contrato importe para clientes antigos. Não é mostrada ao utilizador da app.
 - `GET /api/latest` — além de `latest_updated_at` e `client_count`, devolve a
   mesma `api_version`.
 - `GET /api/keys` — lista todas as chaves (id, chave pública, comentário).

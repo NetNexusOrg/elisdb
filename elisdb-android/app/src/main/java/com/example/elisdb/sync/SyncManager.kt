@@ -71,15 +71,6 @@ class SyncManager(
   /** Number of clients the server stores, or null when never fetched/unreachable. */
   val serverClienteCount: StateFlow<Int?> = _serverClienteCount.asStateFlow()
 
-  private val _serverOutdated = MutableStateFlow(false)
-
-  /**
-   * True when the server reports an API version older than
-   * [MIN_SERVER_API_VERSION], or no version at all. Best-effort, like
-   * [serverClienteCount]: a failed fetch keeps the last value.
-   */
-  val serverOutdated: StateFlow<Boolean> = _serverOutdated.asStateFlow()
-
   private val _lastSuccessAt = MutableStateFlow(lastSyncStore?.getLastSuccessAt())
 
   /** Epoch seconds of the last successful sync, or null when never completed. */
@@ -118,7 +109,6 @@ class SyncManager(
       null
     } ?: return
     _serverClienteCount.value = info.clientCount
-    _serverOutdated.value = (info.apiVersion ?: 0) < MIN_SERVER_API_VERSION
     val current = watermark.get()
     // With no local watermark (fresh install / never pulled), any server data
     // (latest > 0) is still to be received. Once a watermark exists, only a
@@ -139,7 +129,6 @@ class SyncManager(
     _lastResult.value = null
     _lastSuccessAt.value = null
     _serverClienteCount.value = null
-    _serverOutdated.value = false
     _hasPendingDownloads.value = false
   }
 

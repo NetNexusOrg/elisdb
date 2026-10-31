@@ -8,14 +8,6 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
-## [Não publicado]
-
-### Novidades
-
-- **Aviso de servidor desatualizado.** O servidor passou a indicar a versão da
-  API em `/health` e `/api/latest`; a Configuração avisa quando o servidor é
-  anterior ao que a app precisa, para não perder alterações em silêncio.
-
 ## [1.6.2] - 2026-10-31
 
 ### Novidades

@@ -88,7 +88,7 @@ Fluxos principais:
   adicionadas, removidas ou reordenadas. As
   miniaturas das fotos adicionadas aparecem quando ainda existem neste
   dispositivo.
-- **Configuração** — o ecrã único de sincronização e servidor: estado com etiqueta, última sincronização, resumo do que falta sincronizar, totais de clientes na app e no servidor e o botão **Sincronizar** (envia e recebe os dados); abaixo, o cartão **Servidor** com o URL, a chave mascarada e o utilizador associado. Sem configuração, o cartão de sincronização mostra **Importar configuração do servidor** como ação principal; depois de configurado, o cartão do servidor mostra apenas **Remover configuração**. O estado pendente é verificado automaticamente ao abrir o ecrã. Se o servidor for anterior à versão de API exigida pela app, aparece um aviso a pedir para o atualizar.
+- **Configuração** — o ecrã único de sincronização e servidor: estado com etiqueta, última sincronização, resumo do que falta sincronizar, totais de clientes na app e no servidor e o botão **Sincronizar** (envia e recebe os dados); abaixo, o cartão **Servidor** com o URL, a chave mascarada e o utilizador associado. Sem configuração, o cartão de sincronização mostra **Importar configuração do servidor** como ação principal; depois de configurado, o cartão do servidor mostra apenas **Remover configuração**.
 - **Sobre** — cabeçalho com o ícone, o nome e a versão da app, o cartão
   **Atualizações** e a **Comunidade**, com o QR code do grupo de Telegram e o
   botão **Abrir no Telegram**.

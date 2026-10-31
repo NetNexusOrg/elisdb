@@ -48,7 +48,7 @@ class ConfigScreenTest {
     )
   }
 
-  private fun syncManagerWithServerInfo(latest: Long, clientCount: Int, apiVersion: Int? = null) =
+  private fun syncManagerWithServerInfo(latest: Long, clientCount: Int) =
     SyncManager(
       SyncCoordinatorProvider { throw RuntimeException("no network in config screen test") },
       pullWatermark =
@@ -59,19 +59,8 @@ class ConfigScreenTest {
 
           override suspend fun clear() = Unit
         },
-      fetchServerInfo = { ServerInfo(latest, clientCount, apiVersion) },
+      fetchServerInfo = { ServerInfo(latest, clientCount) },
     )
-
-  @Test
-  fun config_avisaQuandoOServidorEstaDesatualizado() {
-    val store = store()
-    configure(store)
-    setContent(store, manager = syncManagerWithServerInfo(100L, 1, apiVersion = 1))
-    composeTestRule.waitForIdle()
-    composeTestRule
-      .onNodeWithText("O servidor está desatualizado.", substring = true)
-      .assertExists()
-  }
 
   @Test
   fun config_mostraTituloEAcaoDeSincronizar() {

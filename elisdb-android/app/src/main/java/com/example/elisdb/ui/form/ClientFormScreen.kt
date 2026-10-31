@@ -33,6 +33,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -96,6 +97,9 @@ fun ClientFormScreen(
             Icon(Icons.Default.Close, contentDescription = "Fechar")
           }
         },
+        actions = {
+          TextButton(onClick = viewModel::save, enabled = !state.saving) { Text("Guardar") }
+        },
       )
     },
   ) { innerPadding ->
@@ -119,7 +123,6 @@ fun ClientFormScreen(
           onPickPhoto = viewModel::onPhotoPicked,
           onTakePhoto = viewModel::showCamera,
           onRemoveFoto = viewModel::onRemoveFoto,
-          onSave = viewModel::save,
         )
       }
       if (state.saving) {
@@ -141,7 +144,6 @@ private fun ClientFormContent(
   onPickPhoto: (Uri) -> Unit,
   onTakePhoto: () -> Unit,
   onRemoveFoto: (Foto) -> Unit,
-  onSave: () -> Unit,
 ) {
   val context = LocalContext.current
   val photoPicker =
@@ -281,13 +283,6 @@ private fun ClientFormContent(
       PhotoGrid(fotos = state.fotos, onRemove = onRemoveFoto)
     }
 
-    Button(
-      onClick = onSave,
-      enabled = !state.saving,
-      modifier = Modifier.fillMaxWidth(),
-    ) {
-      Text("Guardar")
-    }
     Spacer(Modifier.height(24.dp))
   }
 }

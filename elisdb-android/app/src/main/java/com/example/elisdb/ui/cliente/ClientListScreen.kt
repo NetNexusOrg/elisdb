@@ -247,25 +247,30 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  C
               if (cliente.ativo) MaterialTheme.colorScheme.onSurface
               else MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
-            modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp).basicMarquee(),
+            modifier = Modifier.weight(1f).basicMarquee(),
           )
-          if (!cliente.ativo) {
-            Text(
-              text = "Inativo",
-              style = MaterialTheme.typography.labelSmall,
-              color = MaterialTheme.colorScheme.error,
-            )
-          }
         }
         val contrato = cliente.contrato?.takeIf { it.isNotBlank() }
-        if (contrato != null) {
-          Text(
-            text = contrato,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-          )
+        if (contrato != null || !cliente.ativo) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            if (!cliente.ativo) {
+              Text(
+                text = "Inativo",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(end = 6.dp),
+              )
+            }
+            if (contrato != null) {
+              Text(
+                text = contrato,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+            }
+          }
         }
       }
     }

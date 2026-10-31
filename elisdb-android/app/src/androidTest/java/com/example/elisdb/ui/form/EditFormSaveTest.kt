@@ -5,7 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -51,7 +50,7 @@ class EditFormSaveTest {
     composeTestRule.onNodeWithText("SMOKE TEST").assertExists()
 
     composeTestRule.onNodeWithText("SMOKE TEST").performTextReplacement("Cliente Editado")
-    composeTestRule.onNodeWithText("Guardar").performScrollTo().performClick()
+    composeTestRule.onNodeWithText("Guardar").performClick()
     composeTestRule.waitForIdle()
 
     assertTrue(saved)

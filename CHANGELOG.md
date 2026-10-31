@@ -12,6 +12,10 @@ e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
 ### Novidades
 
+- **Abrir a app sincroniza.** Ao arrancar, a app faz uma sincronização em segundo
+  plano (uma vez por arranque e apenas se houver servidor configurado), para
+  receber novidades de outros dispositivos e enviar o que ficou pendente. Sem
+  configuração nada é tentado e não aparece erro.
 - **Guardar sincroniza logo.** Ao guardar um cliente novo ou uma edição, a app
   começa a sincronizar em segundo plano, sem teres de abrir a Configuração. A
   navegação continua imediata e, se não houver rede, o cliente fica guardado e

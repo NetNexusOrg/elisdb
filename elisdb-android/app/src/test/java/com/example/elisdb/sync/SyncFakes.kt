@@ -281,6 +281,7 @@ fun serverItem(
   latitude: Double? = 0.0,
   longitude: Double? = 0.0,
   fotos: List<FotoOutDto> = emptyList(),
+  photosComplete: Boolean = true,
   deliveryTs: Long? = null,
 ): ClienteComFotosDto =
   ClienteComFotosDto(
@@ -295,6 +296,7 @@ fun serverItem(
         deliveryTs = deliveryTs,
       ),
     fotos = fotos,
+    photosComplete = photosComplete,
   )
 /** Base64-decodes [dataB64] into bytes. */
 fun decoded(dataB64: String): ByteArray = java.util.Base64.getDecoder().decode(dataB64)

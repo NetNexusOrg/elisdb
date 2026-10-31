@@ -39,6 +39,11 @@ data class FotoOutDto(
   val mime: String,
   val ordem: Int = 0,
   val hash: String? = null,
+  /**
+   * False when the server still knows the photo but has lost its bytes. The
+   * client must keep any local copy instead of treating it as deleted.
+   */
+  val available: Boolean = true,
 )
 
 @Serializable
@@ -64,6 +69,12 @@ data class ClienteOutDto(
 data class ClienteComFotosDto(
   val client: ClienteOutDto,
   val fotos: List<FotoOutDto> = emptyList(),
+  /**
+   * False when [fotos] may be partial. Older servers omit the field; the
+   * conservative default prevents clients from deleting photos just because a
+   * response did not list them.
+   */
+  @SerialName("photos_complete") val photosComplete: Boolean = false,
 )
 
 /** Server-side deletion marker returned by pull. */

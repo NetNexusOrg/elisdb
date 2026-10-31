@@ -92,6 +92,14 @@ class SyncStatusBarTest {
   }
 
   @Test
+  fun errorComPendencias_mostraErroEmVezDePendente() {
+    setBar(SyncStatus.ERROR, SyncFault.AUTH, hasPendingUploads = true)
+    composeTestRule.onNodeWithText("Servidor rejeitou a sincronização (chave não registada).")
+      .assertIsDisplayed()
+    composeTestRule.onNodeWithText("Alterações por sincronizar").assertDoesNotExist()
+  }
+
+  @Test
   fun semAcaoDeVerificacao() {
     // The check-for-updates action was removed; the screen checks on open instead.
     setBar(SyncStatus.SUCCESS)

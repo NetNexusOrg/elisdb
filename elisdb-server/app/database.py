@@ -493,8 +493,9 @@ class Database:
         None for any other status.
 
         `missing_photos` lists the photo ids the push referenced but whose bytes
-        are not on the server. They are not stored, and the client is told so it
-        uploads them again instead of assuming they are safe.
+        are not on the server. Their rows are kept (or created) as placeholders
+        so the photo is never silently forgotten; the client is told to upload
+        the bytes again instead of assuming they are safe.
         """
         nome = normalize_nome(cliente.nome)
         if not nome:
@@ -563,7 +564,9 @@ class Database:
                         cliente.id,
                     ),
                 )
-                kept_ids, missing_ids = self._replace_fotos(conn, cliente.id, fotos)
+                kept_ids, missing_ids, files_to_remove = self._replace_fotos(
+                    conn, cliente.id, fotos
+                )
                 details = build_audit_details(
                     before,
                     {
@@ -584,6 +587,10 @@ class Database:
                         conn, cliente.id, actor, "edit", cliente.updated_at, details
                     )
                 conn.commit()
+                # Files are removed only after the commit: a rollback must not
+                # leave fotos rows pointing at missing files.
+                for path in files_to_remove:
+                    self._remove_file(path)
                 return "accepted", None, None, missing_ids
 
             try:
@@ -612,7 +619,9 @@ class Database:
                     return "duplicate", None, None, []
                 canonical = self._canonical_from_conn(conn, other["id"])
                 return "duplicate", other["id"], canonical, []
-            kept_ids, missing_ids = self._replace_fotos(conn, cliente.id, fotos)
+            kept_ids, missing_ids, files_to_remove = self._replace_fotos(
+                conn, cliente.id, fotos
+            )
             details = build_audit_details(
                 None,
                 {
@@ -630,6 +639,10 @@ class Database:
                 conn, cliente.id, actor, "create", cliente.updated_at, details
             )
             conn.commit()
+            # Files are removed only after the commit: a rollback must not
+            # leave fotos rows pointing at missing files.
+            for path in files_to_remove:
+                self._remove_file(path)
             return "accepted", None, None, missing_ids
         finally:
             conn.close()
@@ -670,19 +683,21 @@ class Database:
 
     def _replace_fotos(
         self, conn: sqlite3.Connection, cliente_id: str, fotos: list[FotoIn]
-    ) -> tuple[list[str], list[str]]:
+    ) -> tuple[list[str], list[str], list[str]]:
         """Merge a client's photos into the store.
 
         Photos are referenced by id and their binary content is uploaded to the
-        photo endpoint separately; only rows pointing at an existing file are
-        recorded. Photos owned by another client are rejected rather than
-        reassigned. Stored photos the push no longer lists are removed as before.
+        photo endpoint separately. Every photo the push lists gets a row, even
+        when its file is missing: the row is a placeholder so the photo is not
+        silently forgotten, and its id is reported in `missing_ids` so the
+        client uploads the bytes again. Photos owned by another client are
+        rejected rather than reassigned. Stored photos the push no longer lists
+        are removed from the database; their files are returned to the caller so
+        they can be deleted only after the transaction commits.
 
-        Returns (kept_ids, missing_ids): the kept photo ids in display order (the
-        canonical set, which the audit uses to describe what was added or
-        removed) and the ids the push referenced whose file is absent. The
-        missing ones are reported back so the client uploads them again instead
-        of recording them as already pushed.
+        Returns (kept_ids, missing_ids, files_to_remove): the canonical photo ids
+        in display order, the ids whose file is absent, and the paths that are no
+        longer referenced.
         """
         incoming = sorted(fotos, key=lambda f: f.ordem)
         kept_ids: list[str] = []
@@ -695,14 +710,14 @@ class Database:
                 raise ValueError(
                     f"photo id {foto.id} already belongs to another client"
                 )
-            if os.path.exists(self._foto(foto.id)):
-                kept_ids.append(foto.id)
-            else:
+            kept_ids.append(foto.id)
+            if not os.path.exists(self._foto(foto.id)):
                 missing_ids.append(foto.id)
 
         # The client's canonical photo set is exactly what the push lists.
-        # Remove rows no longer present, deleting their files from disk too so
-        # storage does not grow from orphaned photo files.
+        # Remove rows no longer present, but defer deleting their files until the
+        # caller commits: a rollback must not leave rows pointing at missing
+        # files.
         if kept_ids:
             remove_rows = conn.execute(
                 "SELECT caminho FROM fotos WHERE cliente_id = ? AND id NOT IN (%s)"
@@ -713,8 +728,7 @@ class Database:
             remove_rows = conn.execute(
                 "SELECT caminho FROM fotos WHERE cliente_id = ?", (cliente_id,)
             ).fetchall()
-        for row in remove_rows:
-            self._remove_file(row["caminho"])
+        files_to_remove = [row["caminho"] for row in remove_rows]
         if kept_ids:
             conn.execute(
                 "DELETE FROM fotos WHERE cliente_id = ? AND id NOT IN (%s)"
@@ -725,8 +739,6 @@ class Database:
             conn.execute("DELETE FROM fotos WHERE cliente_id = ?", (cliente_id,))
 
         for foto in incoming:
-            if foto.id not in kept_ids:
-                continue
             conn.execute(
                 "INSERT INTO fotos (id, cliente_id, mime, caminho, ordem) "
                 "VALUES (?, ?, ?, ?, ?) "
@@ -734,7 +746,7 @@ class Database:
                 "cliente_id=excluded.cliente_id, mime=excluded.mime, caminho=excluded.caminho, ordem=excluded.ordem",
                 (foto.id, cliente_id, foto.mime, self._foto(foto.id), foto.ordem),
             )
-        return kept_ids, missing_ids
+        return kept_ids, missing_ids, files_to_remove
 
     def _foto(self, foto_id: str) -> str:
         candidate = os.path.abspath(os.path.join(self.fotos_dir, foto_id))
@@ -906,19 +918,23 @@ class Database:
         foto_out = []
         for f in fotos:
             data = self._read_foto(f["caminho"])
-            if data is None:
-                continue
+            # A row whose file is missing is still returned. Omitting it would
+            # make every device interpret the absence as a deletion and drop its
+            # own copy; `available=False` tells clients the metadata exists but
+            # the bytes need repair/upload.
             foto_out.append(
                 {
                     "id": f["id"],
                     "mime": f["mime"],
-                    "hash": hashlib.sha256(data).hexdigest(),
+                    "hash": hashlib.sha256(data).hexdigest() if data is not None else None,
                     "ordem": f["ordem"],
+                    "available": data is not None,
                 }
             )
         return {
             "client": dict(row),
             "fotos": foto_out,
+            "photos_complete": True,
         }
 
     def pull_all(

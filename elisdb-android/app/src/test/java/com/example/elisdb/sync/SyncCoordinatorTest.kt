@@ -433,7 +433,7 @@ class SyncCoordinatorTest {
   }
 
   @Test
-  fun `push marks missing-file photos as pending delete and warns`() = runBlocking {
+  fun `push defers a client when a photo file is missing and warns`() = runBlocking {
     val dao = FakeClienteDao(listOf(cliente("1", pending = true, nome = "Ana")))
     val ok = Foto(id = "f1", clienteId = "1", uriLocal = "file:/ok.jpg")
     val gone = Foto(id = "f2", clienteId = "1", uriLocal = "file:/gone.jpg")
@@ -455,13 +455,72 @@ class SyncCoordinatorTest {
 
     c.sync()
 
-    assertTrue("missing-file photo marked pending delete", fotoDao.data.first { it.id == "f2" }.deletePending)
+    assertFalse("missing-file photo must not be marked for deletion", fotoDao.data.first { it.id == "f2" }.deletePending)
     assertFalse("present photo not marked", fotoDao.data.first { it.id == "f1" }.deletePending)
     assertEquals("one warning logged", 1, warnings)
-    val pushedFotoIds = api.pushed.single().flatMap { it.fotos.map { f -> f.id } }
-    assertEquals("only the readable photo is pushed", listOf("f1"), pushedFotoIds)
-    assertTrue("client kept locally", dao.data.any { it.id == "1" && !it.pending })
+    assertTrue("client push deferred", api.pushed.isEmpty())
+    assertEquals("no push call for the blocked client", 0, api.pushCalls)
+    assertTrue("client remains pending", dao.data.first { it.id == "1" }.pending)
     assertEquals("no watermark advance on empty delta pull", 5L, watermark.value)
+  }
+
+  @Test
+  fun `unavailable server photo keeps the local copy and skips download`() = runBlocking {
+    val local = cliente("1", nome = "Ana", updatedAt = 1L)
+    val foto = Foto(id = "f1", clienteId = "1", uriLocal = "file:/local.webp", mime = "image/webp")
+    val dao = FakeClienteDao(listOf(local))
+    val fotoDao = FakeFotoDao(listOf(foto))
+    val photoStore = FakePhotoStore().apply { stage("file:/local.webp", "aGk=") }
+    val api =
+      FakeSyncApi().apply {
+        pullResponse =
+          pullResponseOf(
+            serverItem(
+              id = "1",
+              nome = "Ana",
+              updatedAt = 100L,
+              fotos = listOf(FotoOutDto(id = "f1", mime = "image/webp", available = false)),
+            )
+          )
+      }
+    val c = coord(clienteDao = dao, fotoDao = fotoDao, api = api, photoStore = photoStore)
+
+    c.sync()
+
+    assertEquals(0, api.photoDownloadCalls)
+    assertTrue("local photo row preserved", fotoDao.data.any { it.id == "f1" })
+    assertTrue("local photo file preserved", photoStore.files.contains("file:/local.webp"))
+  }
+
+  @Test
+  fun `incomplete server photo list preserves absent local photos`() = runBlocking {
+    val local = cliente("1", nome = "Ana", updatedAt = 1L)
+    val foto = Foto(id = "f1", clienteId = "1", uriLocal = "file:/local.webp", mime = "image/webp")
+    val dao = FakeClienteDao(listOf(local))
+    val fotoDao = FakeFotoDao(listOf(foto))
+    val photoStore = FakePhotoStore().apply { stage("file:/local.webp", "aGk=") }
+    var warnings = 0
+    val api =
+      FakeSyncApi().apply {
+        pullResponse =
+          pullResponseOf(
+            serverItem(id = "1", nome = "Ana", updatedAt = 100L, fotos = emptyList(), photosComplete = false)
+          )
+      }
+    val c =
+      SyncCoordinator(
+        api = api,
+        clienteDao = dao,
+        fotoDao = fotoDao,
+        photoStore = photoStore,
+        onWarning = { warnings++ },
+      )
+
+    c.sync()
+
+    assertEquals("one warning for the incomplete list", 1, warnings)
+    assertTrue("local photo row preserved", fotoDao.data.any { it.id == "f1" })
+    assertTrue("local photo file preserved", photoStore.files.contains("file:/local.webp"))
   }
 
   @Test
@@ -953,6 +1012,20 @@ class SyncCoordinatorTest {
       emptyMap<String, String>(),
       state.getHashes("1"),
     )
+    assertTrue("client stays pending until the photo is stored", dao.data.first { it.id == "1" }.pending)
+    assertEquals("one push attempt", 1, api.pushCalls)
+
+    // The next sync retries the upload; once the server stores it, the client
+    // is acknowledged and the hash is recorded.
+    api.pushResult = { records -> records.map { PushResultDto(it.client.id, "accepted") } }
+    api.pullResponse = pullResponseOf(serverItem(id = "1", nome = "C1", updatedAt = 100))
+
+    c.sync()
+
+    assertEquals("photo re-uploaded on retry", 1, api.uploaded.size)
+    assertEquals("retry push", 2, api.pushCalls)
+    assertFalse("client acknowledged after retry", dao.data.first { it.id == "1" }.pending)
+    assertEquals(setOf("p1"), state.getHashes("1").keys)
   }
 
   @Test

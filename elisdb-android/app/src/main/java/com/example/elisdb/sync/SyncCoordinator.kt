@@ -109,33 +109,43 @@ class SyncCoordinator(
     if (pending.isEmpty()) return Pair(emptyList(), null)
 
     val records = mutableListOf<com.example.elisdb.remote.RecordDto>()
-    val photosToMark = mutableListOf<Foto>()
     val hashesByCliente = mutableMapOf<String, Map<String, String>>()
     for (cliente in pending) {
       val fotos = fotoDao.getByCliente(cliente.id).filter { !it.deletePending }
       val available = mutableListOf<Foto>()
       val hashesById = mutableMapOf<String, String>()
-      val knownHashes = photoPushState?.getHashes(cliente.id).orEmpty()
+      val bytesById = mutableListOf<Pair<Foto, ByteArray>>()
+      var missing: Foto? = null
       for (foto in fotos) {
         val bytes = photoStore.readBytes(foto.uriLocal)
         if (bytes == null) {
-          photosToMark.add(foto)
-          onWarning("Foto ${foto.id} (cliente ${cliente.id}) sem ficheiro; marcada para eliminação")
-        } else {
-          val hash = PhotoHashes.sha256(bytes)
-          if (knownHashes[foto.id] != hash) {
-            api.uploadPhoto(foto.id, bytes, timestamp = normalizedEpochSeconds())
-          }
-          hashesById[foto.id] = hash
-          available.add(foto)
+          missing = foto
+          break
         }
+        bytesById.add(foto to bytes)
+      }
+      if (missing != null) {
+        // Never push a record that silently omits a photo: the server would
+        // treat the omission as a removal and every device would delete its
+        // copy. Keep the client pending and retry on a later sync.
+        onWarning(
+          "Foto ${missing.id} (cliente ${cliente.id}) sem ficheiro; sincronização do cliente adiada"
+        )
+        continue
+      }
+      val knownHashes = photoPushState?.getHashes(cliente.id).orEmpty()
+      for ((foto, bytes) in bytesById) {
+        val hash = PhotoHashes.sha256(bytes)
+        if (knownHashes[foto.id] != hash) {
+          api.uploadPhoto(foto.id, bytes, timestamp = normalizedEpochSeconds())
+        }
+        hashesById[foto.id] = hash
+        available.add(foto)
       }
       hashesByCliente[cliente.id] = hashesById
       records.add(SyncMapper.toRecord(cliente, available))
     }
-    if (photosToMark.isNotEmpty()) {
-      runInTransaction { photosToMark.forEach { fotoDao.update(it.copy(deletePending = true)) } }
-    }
+    if (records.isEmpty()) return emptyList<String>() to null
 
     val results = api.push(records, timestamp = normalizedEpochSeconds())
     val byId = results.associateBy { it.id }
@@ -174,14 +184,20 @@ class SyncCoordinator(
           // conflict resolution, so clear pending and let pull reconcile. Only
           // clear it while the row is still the version that was sent; an edit
           // made during the push stays pending for the next sync.
-          if (clienteDao.markSynced(cliente.id, cliente.revision) == 1) {
-            // Photos the server reported as missing were not stored, so they
-            // must not be recorded as uploaded or they would never be retried.
-            val missing = result.missingPhotos.toSet()
+          val missing = result.missingPhotos.toSet()
+          if (missing.isNotEmpty()) {
+            // The server kept a placeholder row but has no bytes. Keep the
+            // client pending so the next sync retries the upload, and do not
+            // record the missing photos as already uploaded.
             recordPushedHashes(
               cliente.id,
               hashesByCliente[cliente.id].orEmpty().filterKeys { it !in missing },
             )
+            onWarning(
+              "O servidor não tem as fotos ${missing.joinToString()} do cliente ${cliente.id}; serão reenviadas"
+            )
+          } else if (clienteDao.markSynced(cliente.id, cliente.revision) == 1) {
+            recordPushedHashes(cliente.id, hashesByCliente[cliente.id].orEmpty())
           }
         }
       }
@@ -213,12 +229,16 @@ class SyncCoordinator(
     val materializer = PhotoMaterializer(photoStore)
     val existingCanonicalFotos = fotoDao.getByCliente(existingId)
     val canonicalUpserts = mutableListOf<Foto>()
-    val canonicalKeptIds = mutableSetOf<String>()
     val filesToDeleteAfterCommit = mutableSetOf<String>()
     for (fotoDto in result.fotos) {
       val existing = existingCanonicalFotos.firstOrNull { it.id == fotoDto.id }
+      if (!fotoDto.available) {
+        // The server still knows the photo but has lost the bytes. Keep any
+        // local copy instead of interpreting the response as a removal.
+        continue
+      }
       when (val m = materializer.materialize(existing, fotoDto, download = { downloadPhoto(it) })) {
-        is MaterializeResult.Keep -> canonicalKeptIds += fotoDto.id
+        is MaterializeResult.Keep -> Unit
         is MaterializeResult.Repointed -> {
           canonicalUpserts +=
             Foto(
@@ -229,17 +249,14 @@ class SyncCoordinator(
               ordem = fotoDto.ordem,
             )
           if (existing != null) {
-            canonicalKeptIds += existing.id
             filesToDeleteAfterCommit += existing.uriLocal
           }
         }
       }
     }
-    // Local photos of the canonical record the server no longer carries are
-    // removed together with their rows and files.
-    val canonicalRemoved = existingCanonicalFotos.filter { it.id !in canonicalKeptIds }
-    val removedRows = canonicalRemoved.map { it.id }
-    canonicalRemoved.forEach { filesToDeleteAfterCommit += it.uriLocal }
+    // Do not delete canonical photos that the duplicate response does not list:
+    // a partial/incomplete response must never destroy a local copy. Explicit
+    // removals arrive through the normal pull path with a complete photo list.
 
     val localFotos = fotoDao.getByCliente(cliente.id).filter { !it.deletePending }
     val now = normalizedEpochSeconds()
@@ -256,7 +273,6 @@ class SyncCoordinator(
       )
       canonicalUpserts.forEach { fotoDao.insert(it) }
       localFotos.forEach { fotoDao.insert(it.copy(clienteId = existingId)) }
-      if (removedRows.isNotEmpty()) fotoDao.deleteByIds(removedRows)
       clienteDao.delete(cliente)
     }
     // Old files are returned (not deleted here): the enclosing push transaction
@@ -458,6 +474,12 @@ class SyncCoordinator(
     // Compare + materialize files outside the transaction.
     for (fotoDto in serverItem.fotos) {
       val existing = existingFotos.firstOrNull { it.id == fotoDto.id }
+      if (!fotoDto.available) {
+        // The server still knows the photo but has lost the bytes. Preserve the
+        // local copy; do not download or treat it as removed.
+        if (existing != null) keptIds += existing.id
+        continue
+      }
       when (val result = materializer.materialize(existing, fotoDto, download = { downloadPhoto(it) })) {
         is MaterializeResult.Keep ->
           if (existing != null) keptIds += existing.id
@@ -478,8 +500,21 @@ class SyncCoordinator(
       }
     }
 
-    // Local photos the server no longer carries are removed with their rows.
-    val removedRows = existingFotos.filter { it.id !in keptIds }
+    // Only an explicitly complete server photo list can justify deleting local
+    // photos the response does not mention. An incomplete list (older server or
+    // partial response) must never be interpreted as a removal.
+    val absentLocally = existingFotos.filter { it.id !in keptIds }
+    val removedRows =
+      if (serverItem.photosComplete) {
+        absentLocally
+      } else {
+        if (absentLocally.isNotEmpty()) {
+          onWarning(
+            "Lista de fotos incompleta para ${cliente.nome}; fotos locais preservadas"
+          )
+        }
+        emptyList()
+      }
     removedRows.forEach { filesToDeleteAfterCommit += it.uriLocal }
 
     var applied = true

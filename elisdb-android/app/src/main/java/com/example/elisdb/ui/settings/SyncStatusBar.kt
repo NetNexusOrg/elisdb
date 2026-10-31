@@ -88,9 +88,11 @@ internal fun statusColors(
   return when {
     syncStatus == SyncStatus.IN_PROGRESS -> scheme.tertiaryContainer to scheme.onTertiaryContainer
     !hasConfig -> scheme.surfaceVariant to scheme.onSurfaceVariant
+    // An error is actionable even when there is pending work; do not hide it
+    // behind the "pending" state.
+    syncStatus == SyncStatus.ERROR -> scheme.errorContainer to scheme.onErrorContainer
     hasPendingUploads || hasPendingDownloads ->
       scheme.tertiaryContainer to scheme.onTertiaryContainer
-    syncStatus == SyncStatus.ERROR -> scheme.errorContainer to scheme.onErrorContainer
     else -> scheme.primaryContainer to scheme.onPrimaryContainer
   }
 }
@@ -105,10 +107,6 @@ internal fun syncMessage(
   when {
     syncStatus == SyncStatus.IN_PROGRESS -> Icons.Default.Sync to "A sincronizar…"
     !hasConfig -> Icons.Default.CloudOff to "Não configurado"
-    hasPendingUploads && hasPendingDownloads -> Icons.Default.Sync to "Alterações por sincronizar"
-    hasPendingUploads -> Icons.Default.CloudUpload to "Alterações por sincronizar"
-    hasPendingDownloads -> Icons.Default.CloudDownload to "Alterações por sincronizar"
-    syncStatus == SyncStatus.SUCCESS -> Icons.Default.CloudDone to "Sincronizado"
     syncStatus == SyncStatus.ERROR ->
       when (syncFault) {
         SyncFault.CONFIG -> Icons.Default.CloudOff to "Não configurado"
@@ -117,5 +115,9 @@ internal fun syncMessage(
         SyncFault.NETWORK -> Icons.Default.CloudOff to "Falha na sincronização. Verifique a ligação."
         null -> Icons.Default.CloudOff to "Falha na sincronização."
       }
+    hasPendingUploads && hasPendingDownloads -> Icons.Default.Sync to "Alterações por sincronizar"
+    hasPendingUploads -> Icons.Default.CloudUpload to "Alterações por sincronizar"
+    hasPendingDownloads -> Icons.Default.CloudDownload to "Alterações por sincronizar"
+    syncStatus == SyncStatus.SUCCESS -> Icons.Default.CloudDone to "Sincronizado"
     else -> Icons.Default.CloudDone to "Sincronizado"
   }

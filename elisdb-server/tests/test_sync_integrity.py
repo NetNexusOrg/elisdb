@@ -8,7 +8,8 @@ Each test pins one of the failures that could lose or hide data:
 * deletions stamped before another device's watermark never travelled;
 * the delivery clock leaked into `updated_at`, so a slow device's edits were
   rejected as stale;
-* photos referenced by a push but missing on the server were dropped silently.
+* photos referenced by a push but missing on the server were dropped silently
+  (now kept as an unavailable placeholder so clients do not delete their copy).
 """
 
 import os
@@ -145,7 +146,17 @@ def test_push_reports_photos_missing_on_the_server(tmp_path):
 
     assert status == "accepted"
     assert missing == ["absent"]
-    assert db.get_client_with_photos("1")["fotos"] == []
+    stored = db.get_client_with_photos("1")
+    assert stored["photos_complete"] is True
+    assert stored["fotos"] == [
+        {
+            "id": "absent",
+            "mime": "image/jpeg",
+            "ordem": 0,
+            "hash": None,
+            "available": False,
+        }
+    ]
 
 
 def test_latest_timestamp_covers_deletions(tmp_path):

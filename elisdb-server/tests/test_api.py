@@ -120,6 +120,25 @@ def test_oversized_photo_is_rejected_with_413(server, monkeypatch):
     assert response.status_code == 413
 
 
+def test_oversized_push_body_is_rejected_before_parsing(server, monkeypatch):
+    client, _db = server
+    monkeypatch.setattr("app.main.MAX_PHOTO_BYTES", 100)
+    response = client.post("/api/push", b"x" * 200)
+    assert response.status_code == 413
+
+
+def test_oversized_chunked_push_body_is_rejected(server, monkeypatch):
+    client, _db = server
+    monkeypatch.setattr("app.main.MAX_PHOTO_BYTES", 100)
+
+    def chunks():
+        yield b"x" * 80
+        yield b"x" * 80
+
+    response = client.client.post("/api/push", content=chunks())
+    assert response.status_code == 413, response.text
+
+
 def test_delete_client_and_missing_returns_404(server):
     client, db = server
     client.post("/api/push", _body([_record(id="1", updated_at=1000)]))
@@ -274,7 +293,16 @@ def test_push_reports_photos_missing_on_the_server(server):
     assert result["fotos"] == []
 
     pulled = client.get("/api/pull").json()["records"]
-    assert pulled[0]["fotos"] == []
+    assert pulled[0]["photos_complete"] is True
+    assert pulled[0]["fotos"] == [
+        {
+            "id": "never-uploaded",
+            "mime": "image/jpeg",
+            "ordem": 0,
+            "hash": None,
+            "available": False,
+        }
+    ]
 
 
 def test_pull_carries_the_delivery_timestamp(server):

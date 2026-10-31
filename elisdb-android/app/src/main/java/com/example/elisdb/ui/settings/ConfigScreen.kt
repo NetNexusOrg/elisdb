@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,8 +46,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -82,6 +85,7 @@ fun ConfigScreen(
   val syncing = state.syncStatus == SyncStatus.IN_PROGRESS
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
+  var showClearConfigDialog by remember { mutableStateOf(false) }
   val importConfigLauncher =
     rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
       if (uri != null) {
@@ -301,7 +305,7 @@ fun ConfigScreen(
         if (configured) {
           HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
           OutlinedButton(
-            onClick = serverViewModel::clearConfig,
+            onClick = { showClearConfigDialog = true },
             modifier = Modifier.fillMaxWidth(),
             colors =
               ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
@@ -318,6 +322,34 @@ fun ConfigScreen(
         }
       }
     }
+  }
+
+  if (showClearConfigDialog) {
+    AlertDialog(
+      onDismissRequest = { showClearConfigDialog = false },
+      title = { Text("Remover configuração?") },
+      text = {
+        Text(
+          "A URL e a chave de assinatura serão removidas deste dispositivo. " +
+            "Terás de importar novamente o ficheiro de configuração para sincronizar."
+        )
+      },
+      confirmButton = {
+        TextButton(
+          onClick = {
+            showClearConfigDialog = false
+            serverViewModel.clearConfig()
+          }
+        ) {
+          Text("Remover")
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { showClearConfigDialog = false }) {
+          Text("Cancelar")
+        }
+      },
+    )
   }
 }
 

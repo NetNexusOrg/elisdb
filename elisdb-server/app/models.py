@@ -52,7 +52,10 @@ class FotoOut(BaseModel):
     id: str
     mime: str
     ordem: int = 0
-    hash: str
+    hash: str | None = None
+    # False when the metadata row exists but the server has lost the bytes.
+    # Clients must keep their local copy instead of treating it as a deletion.
+    available: bool = True
 
 
 class ClienteOut(BaseModel):
@@ -75,6 +78,9 @@ class ClienteOut(BaseModel):
 class ClienteComFotosOut(BaseModel):
     client: ClienteOut
     fotos: list[FotoOut] = []
+    # False would mean the photo list may be partial. Current server always
+    # returns the full metadata set, including placeholders for missing bytes.
+    photos_complete: bool = True
 
 
 class TombstoneOut(BaseModel):

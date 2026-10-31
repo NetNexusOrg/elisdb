@@ -1,6 +1,8 @@
 """Unit tests for the SQLite persistence layer (LWW, duplicates, tombstones,
 migrations, photo hygiene and the timestamp-unit normalization)."""
 
+import os
+
 import pytest
 
 from app.database import Database, _apply_schema, connect
@@ -388,3 +390,85 @@ def test_status_survives_the_coordinate_rebuild(tmp_path):
     ).fetchone()
     assert tuple(row) == (1.5, 2.5, 1)
     conn.close()
+
+
+def test_pull_reports_missing_photo_file_as_unavailable(tmp_path):
+    db = _db(tmp_path)
+    db.write_photo("p1", b"1")
+    db.save_client(
+        _cliente(id="a", updated_at=1000),
+        [FotoIn(id="p1", mime="image/jpeg")],
+    )
+    os.remove(db._foto("p1"))
+
+    stored = db.get_client_with_photos("a")
+
+    assert stored["photos_complete"] is True
+    assert stored["fotos"] == [
+        {
+            "id": "p1",
+            "mime": "image/jpeg",
+            "ordem": 0,
+            "hash": None,
+            "available": False,
+        }
+    ]
+
+
+def test_push_with_missing_photo_file_keeps_placeholder_row(tmp_path):
+    db = _db(tmp_path)
+
+    status, _, _, missing = db.save_client(
+        _cliente(id="a"), [FotoIn(id="p1", mime="image/jpeg")]
+    )
+
+    assert status == "accepted"
+    assert missing == ["p1"]
+    conn = connect(db.db_path)
+    assert conn.execute("SELECT id FROM fotos WHERE id = 'p1'").fetchone() is not None
+    conn.close()
+
+    # A later push still reports the missing bytes but keeps the row alive.
+    status, _, _, missing = db.save_client(
+        _cliente(id="a", updated_at=1001), [FotoIn(id="p1", mime="image/jpeg")]
+    )
+    assert status == "accepted"
+    assert missing == ["p1"]
+    assert db.get_client_with_photos("a")["fotos"][0]["available"] is False
+
+
+def test_removed_photo_file_survives_a_failed_commit(tmp_path, monkeypatch):
+    db = _db(tmp_path)
+    db.write_photo("p1", b"1")
+    db.save_client(
+        _cliente(id="a", updated_at=1000),
+        [FotoIn(id="p1", mime="image/jpeg")],
+    )
+    path = db._foto("p1")
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("audit failed")
+
+    monkeypatch.setattr(db, "_record_audit", boom)
+    with pytest.raises(RuntimeError):
+        db.save_client(
+            _cliente(id="a", updated_at=1001), [], {"id": "k", "comment": "u"}
+        )
+
+    assert os.path.exists(path)
+    assert [f["id"] for f in db.get_client_with_photos("a")["fotos"]] == ["p1"]
+
+
+def test_removed_photo_file_is_deleted_after_commit(tmp_path):
+    db = _db(tmp_path)
+    db.write_photo("p1", b"1")
+    db.save_client(
+        _cliente(id="a", updated_at=1000),
+        [FotoIn(id="p1", mime="image/jpeg")],
+    )
+    path = db._foto("p1")
+
+    db.save_client(_cliente(id="a", updated_at=1001), [])
+
+    assert not os.path.exists(path)
+    assert db.get_client_with_photos("a")["fotos"] == []

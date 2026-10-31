@@ -4,6 +4,7 @@ Duplicates are refused by normalized name, conflicts are resolved by
 last-write-wins on updated_at, and clients/photos live in a single SQLite file.
 """
 
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -133,6 +134,74 @@ async def require_auth(request: Request) -> None:
     raise HTTPException(status_code=401, detail="invalid signature")
 
 
+class _BodyLimitMiddleware:
+    """Reject request bodies larger than MAX_PHOTO_BYTES before parsing.
+
+    FastAPI parses Pydantic bodies before running endpoint dependencies, so the
+    check in ``require_auth`` is too late for ``POST /api/push``. This pure-ASGI
+    middleware buffers the body (bounded by the limit) and replays it to the app,
+    so the cap applies even to chunked requests that omit Content-Length.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers") or [])
+        declared = headers.get(b"content-length")
+        if declared is not None:
+            try:
+                declared_size = int(declared)
+            except ValueError:
+                declared_size = None
+            if declared_size is not None and declared_size > MAX_PHOTO_BYTES:
+                await Response(
+                    status_code=413, content=b"request body too large"
+                )(scope, receive, send)
+                return
+
+        body = bytearray()
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                # The client went away; let the app observe the disconnect.
+                async def replay_disconnect():
+                    return message
+
+                await self.app(scope, replay_disconnect, send)
+                return
+            if message["type"] != "http.request":
+                continue
+            body.extend(message.get("body", b""))
+            if len(body) > MAX_PHOTO_BYTES:
+                await Response(
+                    status_code=413, content=b"request body too large"
+                )(scope, receive, send)
+                return
+            if not message.get("more_body", False):
+                break
+
+        replayed = False
+        # Starlette's streaming responses listen for a client disconnect while
+        # sending. Returning `http.disconnect` here would cancel a FileResponse
+        # immediately after the request body, so block instead; the listener is
+        # cancelled when the response finishes.
+        disconnected = asyncio.Event()
+
+        async def replay():
+            nonlocal replayed
+            if not replayed:
+                replayed = True
+                return {"type": "http.request", "body": bytes(body), "more_body": False}
+            await disconnected.wait()
+
+        await self.app(scope, replay, send)
+
+
 def create_app(database: Database | None = None) -> FastAPI:
     version = _read_version()
     app = FastAPI(title="ElisDB Server", version=version)
@@ -191,6 +260,10 @@ def create_app(database: Database | None = None) -> FastAPI:
                 logger.warning("rate limit exceeded for %s", identifier.split(":", 1)[0])
                 return Response(status_code=429, content=b"too many requests")
         return await call_next(request)
+
+    # Added last so it is the outermost middleware: the body is capped before
+    # rate limiting, logging, or FastAPI body parsing can consume it.
+    app.add_middleware(_BodyLimitMiddleware)
 
     @app.get("/health")
     def health() -> dict:

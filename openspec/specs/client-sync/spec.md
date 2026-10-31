@@ -3,10 +3,9 @@
 Enables the app to exchange client and photo data with the server's push/pull/delete API over authenticated HTTP and coordinates offline-first syncing: queue local changes, transmit pending records when online, pull the authoritative server state, and apply clears — without the app deciding conflicts, which the server owns.
 
 ## Requirements
-
 ### Requirement: Push records to the server
 
-The system SHALL send local client and photo records to the server via the push endpoint, returning a per-record status, and SHALL represent unsynced records as base64 photos.
+The system SHALL send local client and photo records to the server via the push endpoint, returning a per-record status, and SHALL represent unsynced records as base64 photos. Each record SHALL remain pending until the server acknowledges its state, and the acknowledgement SHALL NOT write record content: a record edited while the request was in flight SHALL stay pending with the user's edit intact. Photos the server reports as missing SHALL be uploaded again instead of being remembered as delivered.
 
 #### Scenario: Push returns per-record status
 - **WHEN** the app sends a batch of client and photo records to the server
@@ -22,6 +21,21 @@ The system SHALL send local client and photo records to the server via the push 
 - **WHEN** a push cannot complete (no connectivity or transient error)
 - **THEN** the pending records SHALL be kept
 - **AND** the app SHALL retry later without data loss
+
+#### Scenario: Edit during the push is not overwritten
+- **WHEN** the user edits a record while its push is in flight
+- **THEN** the edit SHALL be kept
+- **AND** the record SHALL remain pending
+
+#### Scenario: Stale ack does not discard the local edit
+- **WHEN** the server reports a pushed record as stale and the record was not edited during the push
+- **THEN** the app SHALL clear its pending flag
+- **AND** the server's version SHALL be applied by the following pull
+
+#### Scenario: Missing photos are pushed again
+- **WHEN** the push result names photos the server does not have
+- **THEN** the app SHALL NOT record them as delivered
+- **AND** SHALL upload them on the next push
 
 ### Requirement: Pull the authoritative dataset
 
@@ -93,7 +107,7 @@ The system SHALL expose a synchronization status (e.g. idle, in-progress, error)
 
 ### Requirement: Clock offset measured from the server
 
-The system SHALL measure the difference between the device clock and the server clock using the server-reported time, persist it, and use it to normalize timestamps so records compare fairly in last-write-wins regardless of device clock drift.
+The system SHALL measure the difference between the device clock and the server clock, persist it and use it to normalize timestamps so records compare fairly in last-write-wins. The offset SHALL be refreshed from the `Date` header of every server response and at app start, and a signed request rejected as stale SHALL be retried once with a corrected timestamp. A skew of 120 seconds or more SHALL be shown to the user with a correction action.
 
 #### Scenario: Offset measured and applied on a successful sync
 - **WHEN** a sync succeeds and the server reported its current time
@@ -107,6 +121,30 @@ The system SHALL measure the difference between the device clock and the server 
 #### Scenario: Stale offset is refreshed
 - **WHEN** a sync runs and the server reports its current time
 - **THEN** the persisted clock offset SHALL be refreshed to the newly measured value
+
+#### Scenario: Offset refreshed from every response
+- **WHEN** any server response carries a `Date` header
+- **THEN** the persisted offset SHALL be updated from it without an extra request
+
+#### Scenario: Offset measured at app start
+- **WHEN** the app starts with a server configuration available
+- **THEN** the offset SHALL be measured before the first sync of that session
+
+#### Scenario: Stale timestamp retried once
+- **WHEN** the server rejects a signed request because the timestamp is stale
+- **THEN** the app SHALL correct the offset from the server time
+- **AND** repeat the request once with a freshly signed timestamp
+- **AND** only report a clock fault if the retry is also rejected
+
+#### Scenario: Invalid key is not retried
+- **WHEN** the server rejects a signed request because the key or signature is invalid
+- **THEN** the app SHALL report the auth failure without retrying
+
+#### Scenario: Large skew surfaced with a correction action
+- **WHEN** the measured device↔server skew is 120 seconds or more
+- **THEN** the configuration screen SHALL show how far off the clock is and in which direction
+- **AND** offer an action that re-measures the offset immediately
+- **AND** the skew warning SHALL disappear once the skew is below the threshold
 
 ### Requirement: Stale push surfaced to the user
 
@@ -132,7 +170,7 @@ The app SHALL send the deleting device's timestamp with a delete, and SHALL reco
 
 ### Requirement: Pull applies tombstones locally
 
-The app SHALL drop local records whose identifier appears in the pull response's tombstones, unless the record has pending local edits.
+The app SHALL drop local records whose identifier appears in the pull response's tombstones, unless the record has pending local edits. Tombstones are delivered by delivery timestamp, so a deletion made by a device with a slow clock still reaches devices whose watermark is ahead of the deletion timestamp.
 
 #### Scenario: Tombstoned local record removed
 - **WHEN** a pull returns a tombstone for a locally stored record with no pending edits
@@ -141,6 +179,10 @@ The app SHALL drop local records whose identifier appears in the pull response's
 #### Scenario: Tombstoned record with pending edits kept
 - **WHEN** a pull returns a tombstone for a locally stored record that has pending edits
 - **THEN** the app SHALL keep the record locally pending for the next push
+
+#### Scenario: Deletion from a slow device still arrives
+- **WHEN** a record is deleted with a timestamp older than the local watermark
+- **THEN** the next pull SHALL still return its tombstone
 
 ### Requirement: Push omits unchanged photos
 
@@ -185,131 +227,6 @@ The system SHALL NOT synchronize automatically on a schedule; data transfers (pu
 - **WHEN** the user opens the settings screen
 - **THEN** the app SHALL check pending uploads and downloads without transferring client/photo data
 
-### Requirement: Dedicated synchronization screen
-
-The system SHALL provide a synchronization screen, separate from the server configuration screen, reached from the client list menu. The screen SHALL show the current sync status (icon and message for each state) and SHALL provide two distinct actions: a "check for updates" action in the sync status row, which queries the server for updates without transferring data, and a prominent full-width manual sync control, which performs the actual data transfer. The screen SHALL show the time of the last successful synchronization, or indicate that no synchronization has completed yet. The screen SHALL show the total number of clients stored on the device (excluding clients pending deletion) and explicit rows for pending uploads (with a count) and pending downloads. When the synchronization screen is opened, the system SHALL check for pending uploads (local changes) and pending downloads (server data newer than the pull watermark) and present the result as a "synchronization available" message. The sync status row SHALL always show a message.
-
-#### Scenario: Synchronization screen is opened from the client list menu
-- **WHEN** the user opens the client list menu and taps the synchronization action
-- **THEN** the system SHALL open the synchronization screen
-- **AND** the server configuration screen SHALL NOT be shown
-
-#### Scenario: Two distinct actions are offered
-- **WHEN** the synchronization screen is shown
-- **THEN** the screen SHALL offer a check-for-updates action and a full-width manual sync control
-- **AND** the check-for-updates action SHALL only query the server and update the displayed indicators, without transferring client data
-- **AND** the full-width manual sync control SHALL perform the data transfer
-
-#### Scenario: Sync status is shown
-- **WHEN** the user opens the synchronization screen
-- **THEN** the screen SHALL show the current sync status
-- **AND** when a sync is in progress the screen SHALL indicate that a sync is in progress
-- **AND** when a sync has just succeeded the screen SHALL indicate the last successful sync
-- **AND** when a sync has just failed the screen SHALL indicate a sync error
-
-#### Scenario: Total client count is shown
-- **WHEN** the user opens the synchronization screen
-- **THEN** the screen SHALL show the total number of clients stored on the device
-- **AND** clients pending deletion SHALL NOT be counted
-
-#### Scenario: Last successful sync time is shown
-- **WHEN** the user opens the synchronization screen and at least one sync has completed successfully
-- **THEN** the screen SHALL show the date and time of the last successful synchronization
-- **AND** the shown time SHALL be the one persisted from the last successful sync, surviving app restarts
-
-#### Scenario: Never synchronised is shown
-- **WHEN** the user opens the synchronization screen and no sync has ever completed successfully
-- **THEN** the screen SHALL indicate that no synchronization has completed yet
-
-#### Scenario: Pending uploads row shows a count
-- **WHEN** the user opens the synchronization screen
-- **THEN** the screen SHALL show a row with the number of local records still awaiting upload (including records pending deletion)
-
-#### Scenario: Pending downloads row shows availability
-- **WHEN** the user opens the synchronization screen
-- **THEN** the screen SHALL show a row indicating whether there is server data still to be received
-
-#### Scenario: Prominent manual sync control
-- **WHEN** the synchronization screen is shown
-- **THEN** a full-width manual sync control SHALL be available
-- **AND** while a sync is in progress the control SHALL indicate that a sync is in progress and SHALL NOT start a second synchronisation
-
-#### Scenario: No configuration shows not configured
-- **WHEN** no server configuration is loaded
-- **THEN** the sync status row SHALL indicate that the server is not configured, without requiring a sync attempt
-
-#### Scenario: Missing server configuration is shown
-- **WHEN** a sync fails because the server is not configured
-- **THEN** the sync status row SHALL indicate that the server is not configured, using a short message ("Não configurado")
-
-#### Scenario: Nothing to sync is shown
-- **WHEN** the synchronization screen is opened, a server configuration is loaded, and there are no pending uploads and no pending downloads
-- **THEN** the sync status row SHALL indicate that the data is synchronized
-
-#### Scenario: Send-only is shown
-- **WHEN** the synchronization screen is opened and there are pending uploads but no pending downloads
-- **THEN** the sync status row SHALL indicate that a synchronization is available to send
-
-#### Scenario: Receive-only is shown
-- **WHEN** the synchronization screen is opened and there are pending downloads but no pending uploads
-- **THEN** the sync status row SHALL indicate that a synchronization is available to receive
-
-#### Scenario: Send and receive is shown
-- **WHEN** the synchronization screen is opened and there are both pending uploads and pending downloads
-- **THEN** the sync status row SHALL indicate that a synchronization is available to send and receive
-
-#### Scenario: Sync fault messages are actionable
-- **WHEN** a sync has failed
-- **THEN** the synchronization screen SHALL show a message explaining the failure (missing server configuration, unregistered key, or network problem) in the same place as the sync status
-
-#### Scenario: Manual sync from the synchronization screen
-- **WHEN** a sync is not in progress and the user taps the full-width manual sync control
-- **THEN** the system SHALL start a synchronisation
-- **AND** the screen SHALL move to a "sync in progress" state until it completes
-
-#### Scenario: Repeated trigger is ignored while syncing
-- **WHEN** the user taps the full-width manual sync control while a sync is already in progress
-- **THEN** the system SHALL NOT start a second synchronisation
-
-### Requirement: Check for updates action
-
-The system SHALL provide a check-for-updates action in the synchronization screen's sync status row. The action SHALL query the server for newer data and refresh the displayed pending indicators and status message, and SHALL NOT transfer client data (no push, no pull of records). The action SHALL show an in-progress indicator while checking and SHALL NOT allow a second check to start while one is in progress. The action SHALL be disabled when no server is configured.
-
-#### Scenario: Check queries without transferring data
-- **WHEN** the user taps the check-for-updates action
-- **THEN** the system SHALL query the server for updates and refresh the pending indicators
-- **AND** the system SHALL NOT push or pull client records
-
-#### Scenario: Check shows progress
-- **WHEN** a check is in progress
-- **THEN** the check action SHALL show an in-progress indicator and SHALL be disabled
-
-#### Scenario: Repeated check is ignored while checking
-- **WHEN** the user taps the check action while a check is already in progress
-- **THEN** the system SHALL NOT start a second check
-
-#### Scenario: Check is disabled without configuration
-- **WHEN** no server is configured
-- **THEN** the check action SHALL be disabled
-
-### Requirement: Check action stays in a fixed position
-
-The system SHALL keep the check-for-updates action (icon) in the synchronization screen's sync status row at the same position regardless of the current sync state or check state, so the user can always find and tap it without it moving.
-
-#### Scenario: Check action position is stable across states
-- **WHEN** the synchronization screen shows the sync status row in any state (idle, in progress, succeeded, failed)
-- **THEN** the check action SHALL occupy the same position in the row in every state
-- **AND** the status message and icon SHALL NOT displace the check action
-
-#### Scenario: Check action position is stable when a message is present
-- **WHEN** the sync status row shows a status message or icon alongside the check action
-- **THEN** the check action SHALL remain in its fixed position
-- **AND** the message SHALL be laid out so it does not shift the check action
-
-#### Scenario: Check in-progress indicator stays in place
-- **WHEN** a check is in progress and the check action shows an in-progress indicator
-- **THEN** the in-progress indicator SHALL appear in the same position as the check action
-
 ### Requirement: Pending sync state shown on the synchronization screen
 
 The system SHALL show pending synchronization states in the synchronization screen's sync status row — "synchronization pending" when there are local changes not yet acknowledged by the server, and "updates to receive" when the server holds data newer than this device's last pull — instead of showing a stale success or error from an earlier sync.
@@ -334,7 +251,7 @@ The system SHALL show pending synchronization states in the synchronization scre
 
 ### Requirement: Edit history fetched from the server
 
-The system SHALL fetch a client's edit history from the server so the app can display who created and edited the client and when.
+The system SHALL fetch a client's edit history from the server, including what changed in each entry, so the app can display who created and edited the client, when, and which fields or photos were affected.
 
 #### Scenario: History loaded for the detail screen
 - **WHEN** the user opens the client detail and requests the log
@@ -346,9 +263,14 @@ The system SHALL fetch a client's edit history from the server so the app can di
 - **THEN** the app SHALL show the detail screen without the log data
 - **AND** SHALL inform the user that the history could not be loaded
 
+#### Scenario: History carries change details
+- **WHEN** the server returns history entries recorded with change details
+- **THEN** the app SHALL keep those details available to the log view
+- **AND** SHALL still handle entries returned without details
+
 ### Requirement: Pull exhausts pagination
 
-The app SHALL follow the server's pagination cursor returned by the pull endpoint: after each page it SHALL inspect `next_since` (and `next_since_id` when present) and, when a cursor is returned, SHALL request the next page, accumulating records across all pages, before reconciling local data. The app SHALL NOT delete or drop local client records based on a single, partial page of a pull. A local-record sweep (removing clients absent from the server) SHALL run only after the full set of pages has been received, or never for an incremental (delta) pull.
+The app SHALL follow the server's pagination cursor returned by the pull endpoint: after each page it SHALL inspect `next_since` (and `next_since_id` when present) and, when a cursor is returned, SHALL request the next page, accumulating records across all pages, before reconciling local data. The app SHALL NOT delete or drop local client records based on a single, partial page of a pull. A local-record sweep (removing clients absent from the server) SHALL run only after the full set of pages has been received, or never for an incremental (delta) pull. The watermark SHALL NOT advance past a record the app deliberately skipped because it had pending edits.
 
 #### Scenario: Multi-page pull is fully consumed
 - **WHEN** a pull returns a page together with a `next_since` cursor
@@ -363,6 +285,11 @@ The app SHALL follow the server's pagination cursor returned by the pull endpoin
 #### Scenario: Watermark advances from the last page
 - **WHEN** a paginated pull completes
 - **THEN** the app SHALL set its pull watermark from the cursor of the final page
+
+#### Scenario: Skipped record holds the watermark back
+- **WHEN** a page contains a record skipped because it has pending edits
+- **THEN** the watermark SHALL stay below that record's delivery timestamp
+- **AND** the next pull SHALL request it again
 
 ### Requirement: HTTP client lifecycle
 
@@ -383,10 +310,10 @@ The app SHALL reuse a single long-lived HTTP client (e.g. one Ktor `HttpClient`)
 
 ### Requirement: Server and device client totals shown
 
-The synchronization screen SHALL show the number of clients stored on the server alongside the number stored on the device. When the server total is unknown, the screen SHALL show a placeholder instead of a misleading zero. The server total SHALL be refreshed by the status check that refreshes the pending-downloads indicator, without transferring client records.
+The configuration screen SHALL show the number of clients stored on the server alongside the number stored on the device. When the server total is unknown, the screen SHALL show a placeholder instead of a misleading zero. The server total SHALL be refreshed by the check that runs when the screen opens, without transferring client records.
 
 #### Scenario: Both totals are shown
-- **WHEN** the user opens the synchronization screen with a configured server and a reachable connection
+- **WHEN** the user opens the configuration screen with a configured server and a reachable connection
 - **THEN** the screen SHALL show how many clients are stored on the server
 - **AND** the screen SHALL show how many clients are stored on the device
 
@@ -395,10 +322,139 @@ The synchronization screen SHALL show the number of clients stored on the server
 - **THEN** the server row SHALL show a placeholder rather than `0`
 
 #### Scenario: Server total refreshes without transferring data
-- **WHEN** the user opens the screen or taps the check-for-updates action
+- **WHEN** the user opens the configuration screen
 - **THEN** the screen SHALL refresh the server client total
 - **AND** it SHALL NOT push or pull client records
 
 #### Scenario: Server total updates after a sync
 - **WHEN** a sync completes successfully
 - **THEN** the screen SHALL show the server client total as of that sync
+
+### Requirement: Configuration screen
+
+The system SHALL provide a single configuration screen, reached from the client list menu, combining the sync summary, the data counts and the server configuration: the last successful sync as a caption, device and server client totals side by side, the pending work in the summary's detail line, and the server URL, masked key and associated user, with an import action while unconfigured and only removal once configured.
+
+#### Scenario: Configuration screen is opened from the client list menu
+- **WHEN** the user opens the client list menu and taps the configuration action
+- **THEN** the system SHALL open the configuration screen
+- **AND** the menu SHALL NOT offer separate synchronization and server entries
+
+#### Scenario: Total client count is shown
+- **WHEN** the user opens the configuration screen
+- **THEN** the screen SHALL show the total number of clients stored on the device
+- **AND** clients pending deletion SHALL NOT be counted
+- **AND** the device total SHALL be shown alongside the server total for comparison
+
+#### Scenario: Last successful sync time is shown
+- **WHEN** the user opens the configuration screen and at least one sync has completed successfully
+- **THEN** the screen SHALL show the date and time of the last successful synchronization as a caption of the sync summary
+- **AND** the shown time SHALL be the one persisted from the last successful sync, surviving app restarts
+
+#### Scenario: Never synchronised is shown
+- **WHEN** the user opens the configuration screen and no sync has ever completed successfully
+- **THEN** the screen SHALL indicate that no synchronization has completed yet
+
+#### Scenario: Pending work is reported by the summary
+- **WHEN** there are local records awaiting upload or server changes to receive
+- **THEN** the sync summary SHALL name the pending work in its detail line, with the number of records awaiting upload
+- **AND** the data card SHALL show only the device and server client totals
+
+#### Scenario: Server configuration is shown
+- **WHEN** the user opens the configuration screen and a server configuration is loaded
+- **THEN** the screen SHALL show the server URL, the signing key masked, and the user associated with the key
+- **AND** the key SHALL NOT be shown in full
+
+#### Scenario: Configuration is imported on the same screen
+- **WHEN** the user taps the import configuration action and picks a valid configuration file
+- **THEN** the screen SHALL show the imported URL and masked key
+- **AND** the system SHALL start a synchronisation
+
+#### Scenario: Configuration can be removed
+- **WHEN** the user taps the remove configuration action
+- **THEN** the URL and the key SHALL be shown as not configured
+- **AND** the stored configuration SHALL be cleared
+
+#### Scenario: Import is not offered once configured
+- **GIVEN** a configuration is already present
+- **THEN** the server card SHALL offer the removal action and SHALL NOT offer to import another configuration
+
+#### Scenario: Invalid configuration file is rejected
+- **WHEN** the picked file is not a valid configuration
+- **THEN** the screen SHALL show an error explaining the expected format
+- **AND** the current configuration SHALL be kept
+
+### Requirement: Sync summary and manual sync control
+
+The sync summary SHALL be the screen's prominent block: a state icon, a short state title, and a detail line naming the pending work. A single full-width manual sync control SHALL be the only sync action; when no server is configured the summary SHALL state that synchronization is not available instead of offering an action.
+
+#### Scenario: Sync status is shown
+- **WHEN** the user opens the configuration screen
+- **THEN** the screen SHALL show the current sync status as an icon and a short title, formatted more prominently than the surrounding detail rows
+- **AND** when a sync is in progress the title SHALL indicate that a sync is in progress
+- **AND** when a sync has just succeeded the title SHALL indicate that the data is synchronized
+- **AND** when a sync has just failed the title SHALL indicate the failure
+
+#### Scenario: Pending work is summarised in one line
+- **WHEN** the screen shows pending uploads, pending downloads, or both
+- **THEN** the sync summary SHALL show a detail line with what is pending (the number of changes to send and/or the availability of updates to receive)
+- **AND** the screen SHALL NOT need to be read row by row to know whether a sync is worth running
+
+#### Scenario: A single sync action is offered
+- **WHEN** the configuration screen is shown
+- **THEN** the screen SHALL offer a single, full-width manual sync control
+- **AND** SHALL NOT offer a separate check-for-updates action
+- **AND** the manual sync control SHALL perform the data transfer
+
+#### Scenario: Prominent manual sync control
+- **WHEN** the configuration screen is shown
+- **THEN** a full-width manual sync control SHALL be available
+- **AND** while a sync is in progress the control SHALL indicate that a sync is in progress and SHALL NOT start a second synchronisation
+
+#### Scenario: No configuration shows not configured
+- **WHEN** no server configuration is loaded
+- **THEN** the sync summary SHALL indicate that the server is not configured, without requiring a sync attempt
+- **AND** it SHALL state that synchronization is not available
+- **AND** the import action SHALL be offered only in the server card, as a single entry point
+- **AND** no control in the summary SHALL start a synchronisation
+
+#### Scenario: Missing server configuration is shown
+- **WHEN** a sync fails because the server is not configured
+- **THEN** the sync summary SHALL indicate that the server is not configured, using a short message ("Não configurado")
+
+#### Scenario: Nothing to sync is shown
+- **WHEN** the configuration screen is opened, a server configuration is loaded, and there are no pending uploads and no pending downloads
+- **THEN** the sync summary SHALL indicate that the data is synchronized
+
+#### Scenario: Send-only is shown
+- **WHEN** the configuration screen is opened and there are pending uploads but no pending downloads
+- **THEN** the sync summary SHALL indicate that there are changes to send
+
+#### Scenario: Receive-only is shown
+- **WHEN** the configuration screen is opened and there are pending downloads but no pending uploads
+- **THEN** the sync summary SHALL indicate that there are updates to receive
+
+#### Scenario: Send and receive is shown
+- **WHEN** the configuration screen is opened and there are both pending uploads and pending downloads
+- **THEN** the sync summary SHALL indicate that there are changes to send and updates to receive
+
+#### Scenario: Sync fault messages are actionable
+- **WHEN** a sync has failed
+- **THEN** the configuration screen SHALL show a message explaining the failure (missing server configuration, unregistered key, or network problem) in the same place as the sync status
+
+#### Scenario: Manual sync from the configuration screen
+- **WHEN** a sync is not in progress and the user taps the full-width manual sync control
+- **THEN** the system SHALL start a synchronisation
+- **AND** the screen SHALL move to a "sync in progress" state until it completes
+
+#### Scenario: Repeated trigger is ignored while syncing
+- **WHEN** the user taps the full-width manual sync control while a sync is already in progress
+- **THEN** the system SHALL NOT start a second synchronisation
+
+### Requirement: Pending state refreshed on open
+
+When the configuration screen opens, the system SHALL refresh the pending-upload and pending-download indicators and the server client total by querying the server without transferring data.
+
+#### Scenario: Pending state is checked when the screen opens
+- **WHEN** the user opens the configuration screen
+- **THEN** the system SHALL query the server for the pending indicators and the server client total
+- **AND** the system SHALL NOT transfer client records while doing so

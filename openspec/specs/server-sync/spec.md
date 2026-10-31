@@ -3,7 +3,6 @@
 Provides a minimal, standalone database server that persists clients and their photos in a single shared store, rejects duplicate records, and resolves edit conflicts by last-write-wins so that offline-first clients can sync their data through a simple push/pull HTTP API.
 
 ## Requirements
-
 ### Requirement: Authoritative remote store
 
 The server SHALL act as the authoritative, persistent store for client records and their associated photos, and SHALL own all database management responsibilities including persistence, duplicate detection and conflict resolution.
@@ -18,7 +17,7 @@ The server SHALL act as the authoritative, persistent store for client records a
 
 ### Requirement: Push changes
 
-The server SHALL accept a push of client and photo changes from a client and persist them. Pushing a client SHALL also push its photos together with the client. A push SHALL be processed record by record: an invalid record SHALL NOT abort the batch, and the response SHALL carry a per-record result indicating whether each record was accepted, found duplicate, found stale, or rejected as invalid.
+The server SHALL accept a push of client and photo changes from a client and persist them. Pushing a client SHALL also push its photos together with the client. A push SHALL be processed record by record: an invalid record SHALL NOT abort the batch, and the response SHALL carry a per-record result indicating whether each record was accepted, found duplicate, found stale, or rejected as invalid. A record whose photos are referenced but missing from storage SHALL still be accepted, and the result SHALL name those photos so the client sends them again.
 
 #### Scenario: Client pushes new records
 - **WHEN** a client pushes a batch of new or updated client records with their photos
@@ -33,10 +32,10 @@ The server SHALL accept a push of client and photo changes from a client and per
 - **THEN** the server SHALL process the remaining records normally
 - **AND** SHALL return a per-record result marking the invalid record as rejected
 
-#### Scenario: Status is persisted with the record
-- **WHEN** a client pushes a client record marked inactive
-- **THEN** the server SHALL store it as inactive
-- **AND** a payload without a status SHALL be stored as active
+#### Scenario: Missing photos are reported back
+- **WHEN** a pushed record references a photo whose file is not stored
+- **THEN** the record SHALL be accepted
+- **AND** the result SHALL list that photo as missing so the client uploads it again
 
 ### Requirement: Pull changes
 
@@ -65,7 +64,7 @@ The server SHALL reject records that represent the same real-world entity as an 
 
 ### Requirement: Conflict resolution
 
-The server SHALL resolve edit conflicts between records referencing the same stored client by last-write-wins, where the record with the most recent modification timestamp wins and overwrites the stored value.
+The server SHALL resolve edit conflicts between records referencing the same stored client by last-write-wins, where the record with the most recent modification timestamp wins and overwrites the stored value. Only the timestamps sent by the clients SHALL decide a conflict: the delivery timestamp is the server's own cursor for incremental pulls and SHALL NOT make an otherwise newer edit lose.
 
 #### Scenario: Newer update wins
 - **WHEN** a client record is updated whose modification timestamp is newer than the stored record's
@@ -75,6 +74,10 @@ The server SHALL resolve edit conflicts between records referencing the same sto
 - **WHEN** a client record is pushed whose modification timestamp is older than the stored record's
 - **THEN** the server SHALL keep the newer stored values
 - **AND** the stale payload SHALL NOT overwrite the stored record
+
+#### Scenario: Delivery timestamp does not decide conflicts
+- **WHEN** a push carries a modification timestamp newer than the stored record's but older than that record's delivery timestamp
+- **THEN** the push SHALL still win and replace the stored record
 
 ### Requirement: Duplicate push response carries the canonical record
 
@@ -142,20 +145,20 @@ The server SHALL store a creation timestamp on each client record, set once when
 
 ### Requirement: Incremental pull
 
-The server SHALL accept optional `since` (return only records whose `updated_at` is newer) and optional `limit` (page size) query parameters on the pull endpoint, and SHALL keep the default (no parameters) response a flat list for backward compatibility. Pagination SHALL use a cursor composed of the last record's `updated_at` and its `id` so that records sharing the same `updated_at` are never skipped. A `limit` value SHALL be at least 1 and SHALL be capped at a server maximum; a `since_id` SHALL only be honored together with a `since` value.
+The server SHALL accept optional `since` (return only records delivered after it) and optional `limit` (page size) query parameters on the pull endpoint, and SHALL keep the default (no parameters) response a flat list for backward compatibility. Pagination SHALL use a cursor composed of the last record's delivery timestamp and its `id` so that records sharing the same delivery timestamp are never skipped. A `limit` value SHALL be at least 1 and SHALL be capped at a server maximum; a `since_id` SHALL only be honored together with a `since` value. Every returned record and tombstone SHALL carry its delivery timestamp, which the client uses as its watermark.
 
 #### Scenario: Pull filtered by since
 - **WHEN** a client pulls with a `since` timestamp
-- **THEN** the server SHALL return only records whose `updated_at` is strictly newer than `since`
+- **THEN** the server SHALL return only records whose delivery timestamp is strictly newer than `since`
 
 #### Scenario: Paginated pull with cursor
 - **WHEN** a client pulls with a `limit`
-- **THEN** the server SHALL return at most `limit` records plus a cursor composed of the last record's `updated_at` and `id` when a further page exists
+- **THEN** the server SHALL return at most `limit` records plus a cursor composed of the last record's delivery timestamp and `id` when a further page exists
 - **AND** the cursor SHALL be None when the page is the last
 
 #### Scenario: Records with equal updated_at are not skipped
-- **WHEN** a client pages through records and two or more records share the same `updated_at`
-- **THEN** a subsequent page SHALL include every remaining record with that `updated_at`, ordered by `id`
+- **WHEN** a client pages through records and two or more records share the same delivery timestamp
+- **THEN** a subsequent page SHALL include every remaining record with that timestamp, ordered by `id`
 - **AND** no record SHALL be skipped at a page boundary
 
 #### Scenario: Unrestricted pull stays a flat list
@@ -169,6 +172,10 @@ The server SHALL accept optional `since` (return only records whose `updated_at`
 #### Scenario: since_id without since is rejected
 - **WHEN** a client pulls with a `since_id` but no `since`
 - **THEN** the server SHALL reject the request with a client-error response rather than silently ignoring the `since_id`
+
+#### Scenario: Records carry their delivery timestamp
+- **WHEN** a client receives a pulled record or tombstone
+- **THEN** it SHALL carry the delivery timestamp the server assigned to it
 
 ### Requirement: Client name stored in uppercase on the server
 
@@ -197,7 +204,7 @@ The server SHALL expose its current time so clients can measure their clock offs
 
 ### Requirement: Delete endpoint accepts a deletion timestamp
 
-The delete endpoint SHALL accept the deleting device's timestamp so the deletion competes in last-write-wins with concurrent edits.
+The delete endpoint SHALL accept the deleting device's timestamp so the deletion competes in last-write-wins with concurrent edits, and SHALL record a separate delivery timestamp, assigned by the server, that is strictly greater than every timestamp already delivered so the tombstone reaches clients whose watermark is ahead of the deletion.
 
 #### Scenario: Delete with device timestamp
 - **WHEN** a client is deleted with a device-supplied timestamp
@@ -208,9 +215,14 @@ The delete endpoint SHALL accept the deleting device's timestamp so the deletion
 - **WHEN** a client is deleted without a device timestamp
 - **THEN** the server SHALL store the tombstone with its own current time
 
+#### Scenario: Delete is delivered even with the device clock behind
+- **WHEN** a client deletes a record with a timestamp older than what other clients have already pulled
+- **THEN** the tombstone's delivery timestamp SHALL still be newer than their watermark
+- **AND** the deletion SHALL reach them on their next delta pull
+
 ### Requirement: Client edit history recorded on push
 
-The server SHALL record an audit entry each time a client is persisted, capturing the actor's user name (from the authenticated key's allowlist comment), the actor's key id, the timestamp, and whether the persistence created or updated the client. The actor (key id and user name) SHALL be read from the per-request `request.state` set by authentication, so concurrent requests attribute the audit entry to the correct device and never to another request's identity.
+The server SHALL record an audit entry each time a client change is accepted, capturing the actor's user name (from the authenticated key's allowlist comment), the actor's key id, the timestamp, whether the change created or updated the client, and what changed: the fields whose values differ (previous and new value) and the photos added, removed or reordered. The actor SHALL be read from the per-request `request.state` set by authentication. An accepted push that changes neither a field nor a photo SHALL NOT create an entry.
 
 #### Scenario: Create records the actor
 - **WHEN** a client is created via a push from an authenticated key whose allowlist entry has a user name
@@ -229,9 +241,26 @@ The server SHALL record an audit entry each time a client is persisted, capturin
 - **THEN** each audit entry SHALL record the key id and user name of the request that performed that push
 - **AND** no audit entry SHALL attribute a push to the other request's key
 
+#### Scenario: Edit records the changed fields
+- **WHEN** a push changes one or more of a client's fields
+- **THEN** the audit entry SHALL list each changed field with its previous value and its new value
+
+#### Scenario: Photo changes are recorded
+- **WHEN** a push adds, removes or reorders a client's photos
+- **THEN** the audit entry SHALL record the added photo ids, the removed photo ids and whether the remaining photos were reordered
+
+#### Scenario: Unchanged push records no entry
+- **WHEN** a push is accepted but changes neither a field nor a photo
+- **THEN** the server SHALL NOT create an audit entry for it
+
+#### Scenario: Create records its photos
+- **WHEN** a client is created with photos
+- **THEN** the create audit entry SHALL record the added photo ids
+- **AND** SHALL NOT list field values as changes
+
 ### Requirement: Per-client edit history endpoint
 
-The server SHALL expose an authenticated endpoint returning the audit history of a client, ordered from oldest to newest, so the app can show who created and edited the client and when.
+The server SHALL expose an authenticated endpoint returning the audit history of a client, ordered from oldest to newest, so the app can show who created and edited the client, when, and what changed. Each entry SHALL carry the actor user name when present, the key id, the timestamp, the create/edit marker, and the recorded change details, or a null details value for entries recorded before details existed.
 
 #### Scenario: History returned for a client
 - **WHEN** the app requests the edit history of a stored client
@@ -241,18 +270,27 @@ The server SHALL expose an authenticated endpoint returning the audit history of
 - **WHEN** the app requests the edit history of a client that does not exist
 - **THEN** the server SHALL return an empty history (or a not-found response), not an error with partial data
 
+#### Scenario: History carries the recorded changes
+- **WHEN** a client's history contains an entry recorded with change details
+- **THEN** the response SHALL include those details (changed fields and photo changes) for that entry
+- **AND** entries recorded before details existed SHALL return a null details value
+
 ### Requirement: Server reports its latest data timestamp
 
-The server SHALL expose its latest data timestamp (the maximum `updated_at` over stored clients and the maximum `deleted_at` over tombstones) so a client can detect work to receive without performing a full pull.
+The server SHALL expose its latest data timestamp (the maximum delivery timestamp over stored clients and tombstones) so a client can detect work to receive without performing a full pull.
 
 #### Scenario: Latest timestamp endpoint returns the newest update
 - **WHEN** a client requests the server's latest data timestamp
-- **THEN** the server SHALL return the maximum `updated_at` among all stored clients and the maximum `deleted_at` among all tombstones
+- **THEN** the server SHALL return the maximum delivery timestamp among all stored clients and all tombstones
 - **AND** the value SHALL be on the same epoch scale as client timestamps
 
 #### Scenario: Latest timestamp is comparable to the pull watermark
 - **WHEN** a client compares the returned latest timestamp with its own pull watermark
 - **THEN** a latest timestamp strictly greater than the watermark SHALL indicate that there is server data the client has not yet pulled
+
+#### Scenario: Latest timestamp reflects deletions too
+- **WHEN** the newest change is a deletion
+- **THEN** the reported timestamp SHALL be that delete's delivery timestamp
 
 ### Requirement: Concurrent access safety
 

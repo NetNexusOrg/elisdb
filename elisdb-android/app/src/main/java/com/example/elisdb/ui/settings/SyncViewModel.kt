@@ -23,6 +23,8 @@ data class SyncUiState(
   val totalClientes: Int = 0,
   /** Clients stored on the server; null when unknown (no config, offline, never fetched). */
   val serverClienteCount: Int? = null,
+  /** True when the server is older than the features this app relies on. */
+  val serverOutdated: Boolean = false,
   val pendingUploadCount: Int = 0,
   val lastSuccessAt: Long? = null,
   /** Device clock minus server clock (seconds); negative when the device is behind. */
@@ -73,6 +75,11 @@ class SyncViewModel(
     viewModelScope.launch {
       syncManager.serverClienteCount.collect { count ->
         _uiState.update { it.copy(serverClienteCount = count) }
+      }
+    }
+    viewModelScope.launch {
+      syncManager.serverOutdated.collect { outdated ->
+        _uiState.update { it.copy(serverOutdated = outdated) }
       }
     }
     viewModelScope.launch {

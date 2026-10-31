@@ -21,6 +21,7 @@ def test_health_and_time_are_open(server):
     health = client.client.get("/health")
     assert health.status_code == 200
     assert health.json()["status"] == "ok"
+    assert health.json()["api_version"] == 2
 
     now = client.client.get("/api/time")
     assert now.status_code == 200
@@ -134,6 +135,7 @@ def test_latest_timestamp_reflects_pushes(server):
     latest = client.get("/api/latest")
     assert latest.status_code == 200
     assert latest.json()["latest_updated_at"] == 4242
+    assert latest.json()["api_version"] == 2
 
 
 def test_latest_includes_live_client_count(server):

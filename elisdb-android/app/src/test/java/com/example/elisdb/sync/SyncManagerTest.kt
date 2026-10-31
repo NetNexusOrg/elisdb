@@ -252,6 +252,42 @@ class SyncManagerTest {
   }
 
   @Test
+  fun `refresh flags an outdated server`() = runBlocking {
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        pullWatermark = FakePullWatermark(value = 100L),
+        fetchServerInfo = { ServerInfo(100L, 1, apiVersion = 1) },
+      )
+    manager.refreshPendingDownloads()
+    assertTrue(manager.serverOutdated.value)
+  }
+
+  @Test
+  fun `refresh treats a missing api version as outdated`() = runBlocking {
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        pullWatermark = FakePullWatermark(value = 100L),
+        fetchServerInfo = { ServerInfo(100L, 1) },
+      )
+    manager.refreshPendingDownloads()
+    assertTrue(manager.serverOutdated.value)
+  }
+
+  @Test
+  fun `refresh keeps a current server up to date`() = runBlocking {
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        pullWatermark = FakePullWatermark(value = 100L),
+        fetchServerInfo = { ServerInfo(100L, 1, apiVersion = MIN_SERVER_API_VERSION) },
+      )
+    manager.refreshPendingDownloads()
+    assertTrue(!manager.serverOutdated.value)
+  }
+
+  @Test
   fun `server client count stays unknown when the fetch fails`() = runBlocking {
     val manager =
       SyncManager(

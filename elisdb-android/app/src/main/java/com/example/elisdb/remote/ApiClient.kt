@@ -28,6 +28,7 @@ import io.ktor.http.contentType
 import io.ktor.utils.io.jvm.javaio.toInputStream
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import java.io.File
@@ -198,7 +199,11 @@ class ApiClient(
       throw ServerException("latest fetch failed HTTP ${response.status}", response.status.value)
     }
     val dto = response.body<LatestDto>()
-    return ServerInfo(latestUpdatedAt = dto.latest_updated_at, clientCount = dto.client_count)
+    return ServerInfo(
+      latestUpdatedAt = dto.latest_updated_at,
+      clientCount = dto.client_count,
+      apiVersion = dto.api_version,
+    )
   }
 
   @kotlinx.serialization.Serializable
@@ -207,6 +212,7 @@ class ApiClient(
     // Null against an older server that predates the field: the UI then shows
     // a placeholder instead of a misleading 0.
     val client_count: Int? = null,
+    @SerialName("api_version") val api_version: Int? = null,
   )
 
   /** Fetches a client's edit history (who created/edited it and when). */

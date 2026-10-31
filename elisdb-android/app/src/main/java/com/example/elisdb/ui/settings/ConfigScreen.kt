@@ -162,6 +162,13 @@ fun ConfigScreen(
             Text("Importar configuração do servidor")
           }
         } else {
+          if (state.serverOutdated) {
+            NoticeBanner(
+              "O servidor está desatualizado. Algumas alterações, como o estado " +
+                "ativo/inativo, podem não ser guardadas. Atualiza o servidor.",
+              warning = true,
+            )
+          }
           SyncStatusBar(
             syncStatus = state.syncStatus,
             syncFault = state.syncFault,
@@ -379,10 +386,14 @@ private fun DetailRow(
 
 /** Post-sync feedback, highlighted so it reads as a result rather than as part of the status. */
 @Composable
-private fun NoticeBanner(text: String) {
+private fun NoticeBanner(text: String, warning: Boolean = false) {
   Surface(
-    color = MaterialTheme.colorScheme.secondaryContainer,
-    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    color =
+      if (warning) MaterialTheme.colorScheme.errorContainer
+      else MaterialTheme.colorScheme.secondaryContainer,
+    contentColor =
+      if (warning) MaterialTheme.colorScheme.onErrorContainer
+      else MaterialTheme.colorScheme.onSecondaryContainer,
     shape = RoundedCornerShape(12.dp),
     modifier = Modifier.fillMaxWidth(),
   ) {

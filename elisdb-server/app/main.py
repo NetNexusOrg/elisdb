@@ -29,6 +29,9 @@ from .models import (
 logger = logging.getLogger("elisdb.server")
 
 
+API_VERSION = 2
+
+
 def _read_version() -> str:
     """Read version from VERSION file or ELISDB_VERSION env var, with fallback."""
     env_version = os.environ.get("ELISDB_VERSION")
@@ -191,7 +194,7 @@ def create_app(database: Database | None = None) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict:
-        return {"status": "ok", "version": version}
+        return {"status": "ok", "version": version, "api_version": API_VERSION}
 
     @app.get("/api/time")
     def time_now() -> dict:
@@ -204,6 +207,9 @@ def create_app(database: Database | None = None) -> FastAPI:
         return {
             "latest_updated_at": store.latest_updated_at(),
             "client_count": store.client_count(),
+            # Additive too: an older client ignores it, a newer one warns when
+            # the server predates a feature the app relies on.
+            "api_version": API_VERSION,
         }
 
     @app.post("/api/push", response_model=list[PushResult], dependencies=[auth_dep])

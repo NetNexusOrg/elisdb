@@ -339,7 +339,7 @@ class ApiClientTest {
           headersOf(HttpHeaders.Date, "Tue, 14 Nov 2023 22:21:40 GMT"),
         )
       } else {
-        okJson("""{"latest_updated_at":1,"client_count":2}""")
+        okJson("""{"latest_updated_at":1,"client_count":2,"api_version":2}""")
       }
     }
     val store = InMemoryOffsetStore()
@@ -349,6 +349,7 @@ class ApiClientTest {
     val info = api.fetchServerInfo(timestamp = clock.nowSeconds())
 
     assertEquals(2, info.clientCount)
+    assertEquals(2, info.apiVersion)
     assertEquals(listOf(1_600_000_000L, serverTime), seen)
     assertEquals(100_000_500L, store.offset)
     assertEquals(-100_000_500L, clock.skewSeconds.value)

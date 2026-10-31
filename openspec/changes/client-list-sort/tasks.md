@@ -6,6 +6,7 @@
 - [x] 1.2 `ClientListScreen`: opções de ordenação no menu do ícone de filtro, com separador e marca de seleção.
 - [x] 1.3 Testes unitários da ordenação (alfabética por predefinição, recentes primeiro, desempate).
 - [x] 1.4 Teste instrumentado do menu de ordenação.
+- [x] 1.5 Ordenação por **última edição** (`updatedAt` descendente, desempate por criação e nome) e respetiva opção no menu.
 
 ## 2. Verificação e documentação
 

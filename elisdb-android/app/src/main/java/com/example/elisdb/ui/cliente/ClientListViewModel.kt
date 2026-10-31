@@ -42,8 +42,8 @@ data class ClientListItem(
 /** Which clients the list shows, independent of the search term. */
 enum class ClientStatusFilter { ALL, ACTIVE, INACTIVE }
 
-/** How the visible clients are ordered. */
-enum class ClientSortOrder { NAME, RECENT }
+/** How the filtered clients are ordered. */
+enum class ClientSortOrder { NAME, RECENT, UPDATED }
 
 sealed interface ClientListUiState {
   data object Loading : ClientListUiState
@@ -99,6 +99,13 @@ class ClientListViewModel(repository: ClienteRepository) : ViewModel() {
             ClientSortOrder.RECENT ->
               filtered.sortedWith(
                 compareByDescending<ClienteComFotos> { it.cliente.dataCriacao }
+                  .thenBy { it.cliente.nome.uppercase(Locale.ROOT) }
+                  .thenBy { it.cliente.id }
+              )
+            ClientSortOrder.UPDATED ->
+              filtered.sortedWith(
+                compareByDescending<ClienteComFotos> { it.cliente.updatedAt }
+                  .thenByDescending { it.cliente.dataCriacao }
                   .thenBy { it.cliente.nome.uppercase(Locale.ROOT) }
                   .thenBy { it.cliente.id }
               )

@@ -72,9 +72,10 @@ Fluxos principais:
   aparece por baixo do nome e os clientes inativos têm a etiqueta **Inativo** e
   o texto atenuado. O ícone de controlos dentro da caixa de pesquisa filtra por
   estado (**Todos os clientes**, **Só clientes ativos** ou **Só clientes
-  inativos**) e define a ordem: **Ordem alfabética** (predefinição) ou **Mais
-  recentes primeiro**, pelo cliente criado mais recentemente. Com um filtro ou
-  uma ordem diferentes da predefinição o ícone fica destacado.
+  inativos**) e define a ordem: **Ordem alfabética** (predefinição), **Mais
+  recentes primeiro** (pelo cliente criado mais recentemente) ou **Última edição
+  primeiro** (pelo cliente alterado mais recentemente). Com um filtro ou uma ordem
+  diferentes da predefinição o ícone fica destacado.
 - **Novo/editar cliente** — formulário com nome, contrato, coordenadas, notas e
   o interruptor **Cliente ativo**.
 - **Mapa** — escolher/indicar a localização (Picker).

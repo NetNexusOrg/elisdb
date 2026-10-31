@@ -76,7 +76,8 @@ class ClientListScreenTest {
     composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Ordem alfabética").assertExists()
-    composeTestRule.onNodeWithText("Mais recentes primeiro").performClick()
+    composeTestRule.onNodeWithText("Mais recentes primeiro").assertExists()
+    composeTestRule.onNodeWithText("Última edição primeiro").performClick()
     composeTestRule.waitForIdle()
 
     composeTestRule.onNodeWithText("Maria").assertExists()

@@ -310,4 +310,5 @@ private fun ClientSortOrder.label(): String =
   when (this) {
     ClientSortOrder.NAME -> "Ordem alfabética"
     ClientSortOrder.RECENT -> "Mais recentes primeiro"
+    ClientSortOrder.UPDATED -> "Última edição primeiro"
   }

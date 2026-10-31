@@ -8,8 +8,9 @@ tem forma de ver primeiro os mais recentes.
 
 ## What Changes
 
-- O menu do ícone de filtro passa a ter, além do filtro por estado, duas opções de
-  ordenação: **ordem alfabética** (predefinição) e **mais recentes primeiro**.
+- O menu do ícone de filtro passa a ter, além do filtro por estado, três opções
+  de ordenação: **ordem alfabética** (predefinição), **mais recentes primeiro**
+  (pela data de criação) e **última edição primeiro** (pela data de modificação).
 - A ordenação é aplicada depois do filtro e da pesquisa, sem alterar os dados
   guardados.
 - A escolha é só de sessão (não persiste entre arranques).

@@ -222,6 +222,12 @@ class ClientListViewModelTest {
         as ClientListUiState.Success
     assertEquals(listOf("Zé", "Bruno", "Ana"), state.clientes.map { it.nome })
 
+    viewModel.onOrdemChange(ClientSortOrder.UPDATED)
+    state =
+      viewModel.uiState.first { it is ClientListUiState.Success && it.ordem == ClientSortOrder.UPDATED }
+        as ClientListUiState.Success
+    assertEquals(listOf("Bruno", "Ana", "Zé"), state.clientes.map { it.nome })
+
     viewModel.onOrdemChange(ClientSortOrder.NAME)
     state =
       viewModel.uiState.first { it is ClientListUiState.Success && it.ordem == ClientSortOrder.NAME }

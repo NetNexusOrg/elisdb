@@ -17,18 +17,18 @@ description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-relea
 
 - `test` (always): checkout → `actions/setup-java` (Temurin 17) → `android-actions/setup-android`
   → `gradle/actions/setup-gradle` → `:app:testDebugUnitTest` → `:app:lintDebug` → `:app:assembleDebug`
-  → uploads `app-debug` APK + test reports.
+  → uploads test reports **only when the job fails** (3-day retention, best effort).
 - `release` (only on `v*` tags, `needs: test`): extracts the release body from
   `CHANGELOG.md` (step "Extract release notes": the `## [X.Y.Z]` section matching the tag;
   a tag without that section fails before the build), decodes keystore from secret,
   `:app:assembleRelease`,
   renames the APK to `elisdb-<versionName>-<versionCode>.apk` (`APK_NAME` in `$GITHUB_ENV`),
-  uploads `app-release` APK (best effort — `continue-on-error`, because the real
-  APK is the GitHub Release asset and a full artifact quota must not block a release),
   creates the GitHub Release via `softprops/action-gh-release` with `body_path` (the
   extracted notes — never `generate_release_notes`, which appends a "Full Changelog" link),
   then publishes the same file to the server with `rsync` (step "Publish APK to the server";
   skipped with a warning when the `DEPLOY_*` secrets are absent).
+  The APK is **not** uploaded as a workflow artifact: Release assets have their own
+  storage and do not consume the Actions artifact quota.
 
 ## Deploy guard (no branch protection)
 

@@ -20,10 +20,10 @@ jobs:
   test:
     # Named so the check is unambiguous next to the Android "Test" job.
     name: Server tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Python 3.14
         uses: actions/setup-python@v5
@@ -46,10 +46,10 @@ jobs:
     # show up on `docker compose up -d --build` on the VPS. Building the image
     # here, and importing the app inside it, catches that on the push instead.
     name: Docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build image
         working-directory: elisdb-server

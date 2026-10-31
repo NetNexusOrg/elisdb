@@ -17,6 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -30,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -95,9 +98,8 @@ fun ConfigScreen(
     importConfigLauncher.launch(arrayOf("text/plain", "application/octet-stream", "*/*"))
   }
   val formatter = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
-  val lastSyncCaption =
-    state.lastSuccessAt?.let { "Última sincronização: ${formatter.format(Date(it * 1000))}" }
-      ?: "Ainda sem sincronizações"
+  val lastSync =
+    state.lastSuccessAt?.let { formatter.format(Date(it * 1000)) } ?: "Ainda sem sincronizações"
   val pendingDetail =
     when {
       !configured -> "Importe a configuração do servidor para sincronizar."
@@ -106,6 +108,21 @@ fun ConfigScreen(
       state.hasPendingUploads -> "${state.pendingUploadCount} por enviar"
       state.hasPendingDownloads -> "Novidades por receber"
       else -> null
+    }
+  val (chipContainer, chipContent) =
+    statusColors(
+      state.syncStatus,
+      configured,
+      state.hasPendingUploads,
+      state.hasPendingDownloads,
+    )
+  val chipLabel =
+    when {
+      !configured -> "Por configurar"
+      syncing -> "A sincronizar"
+      state.syncStatus == SyncStatus.ERROR -> "Erro"
+      state.hasPendingUploads || state.hasPendingDownloads -> "Pendente"
+      else -> "Ligado"
     }
   Scaffold(
     modifier = modifier.fillMaxSize(),
@@ -129,28 +146,37 @@ fun ConfigScreen(
           .padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-      InfoCard(title = "Sincronização") {
-        SyncStatusBar(
-          syncStatus = state.syncStatus,
-          syncFault = state.syncFault,
-          hasPendingUploads = state.hasPendingUploads,
-          hasPendingDownloads = state.hasPendingDownloads,
-          hasConfig = configured,
-          detail = pendingDetail,
-        )
-        state.syncNotice?.let { notice -> NoticeBanner(notice) }
-        ClockWarning(
-          skewSeconds = state.clockSkewSeconds,
-          correcting = state.clockCorrecting,
-          onCorrect = syncViewModel::correctClock,
-        )
-        Text(
-          lastSyncCaption,
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.fillMaxWidth(),
-        )
-        if (configured) {
+      InfoCard(
+        title = "Sincronização",
+        trailing = { StatusChip(chipLabel, chipContainer, chipContent) },
+      ) {
+        if (!configured) {
+          Text(
+            "Importa o ficheiro de configuração do servidor para começares a sincronizar.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+          Button(onClick = importConfig, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Outlined.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Importar configuração do servidor")
+          }
+        } else {
+          SyncStatusBar(
+            syncStatus = state.syncStatus,
+            syncFault = state.syncFault,
+            hasPendingUploads = state.hasPendingUploads,
+            hasPendingDownloads = state.hasPendingDownloads,
+            hasConfig = true,
+            detail = pendingDetail,
+          )
+          state.syncNotice?.let { notice -> NoticeBanner(notice) }
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+          DetailRow(
+            icon = Icons.Outlined.Schedule,
+            label = "Última sincronização",
+            value = lastSync,
+          )
           Button(
             onClick = syncViewModel::manualSync,
             enabled = !syncing,
@@ -168,15 +194,12 @@ fun ConfigScreen(
             Spacer(Modifier.width(8.dp))
             Text(if (syncing) "A sincronizar…" else "Sincronizar")
           }
-        } else {
-          // Importing lives in the Servidor card; here only the unavailable notice.
-          Text(
-            "Não disponível",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-          )
         }
+        ClockWarning(
+          skewSeconds = state.clockSkewSeconds,
+          correcting = state.clockCorrecting,
+          onCorrect = syncViewModel::correctClock,
+        )
       }
       InfoCard(title = "Dados") {
         Row(
@@ -199,6 +222,31 @@ fun ConfigScreen(
               else MaterialTheme.colorScheme.onSurface,
           )
         }
+        val serverCount = state.serverClienteCount
+        if (serverCount != null) {
+          val inSync = serverCount == state.totalClientes
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Icon(
+              if (inSync) Icons.Default.CheckCircle else Icons.Default.CompareArrows,
+              contentDescription = null,
+              tint =
+                if (inSync) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+              if (inSync) "Em sincronia" else "Dados diferentes do servidor",
+              style = MaterialTheme.typography.bodySmall,
+              color =
+                if (inSync) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+        }
       }
       InfoCard(title = "Servidor") {
         DetailRow(
@@ -209,6 +257,7 @@ fun ConfigScreen(
             if (configured) MaterialTheme.colorScheme.onSurface
             else MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         DetailRow(
           icon = Icons.Outlined.Key,
           label = "Chave de assinatura",
@@ -247,15 +296,10 @@ fun ConfigScreen(
             valueColor = userColor,
           )
         }
-        // Importing only makes sense before a configuration exists; once it does,
-        // the only action left is removing it.
-        if (!configured) {
-          OutlinedButton(onClick = importConfig, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Outlined.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Importar configuração do servidor")
-          }
-        } else {
+        // Importing lives in the Sincronização card, where it is the first action
+        // until a server exists; here only removal applies.
+        if (configured) {
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
           OutlinedButton(
             onClick = serverViewModel::clearConfig,
             modifier = Modifier.fillMaxWidth(),
@@ -346,6 +390,18 @@ private fun NoticeBanner(text: String) {
       text,
       style = MaterialTheme.typography.bodyMedium,
       modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+    )
+  }
+}
+
+/** Small state pill on a card header, so the state reads before the details. */
+@Composable
+private fun StatusChip(label: String, container: Color, content: Color) {
+  Surface(color = container, contentColor = content, shape = RoundedCornerShape(50)) {
+    Text(
+      text = label,
+      style = MaterialTheme.typography.labelMedium,
+      modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
     )
   }
 }

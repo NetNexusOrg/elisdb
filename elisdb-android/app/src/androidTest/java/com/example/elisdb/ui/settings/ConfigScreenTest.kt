@@ -3,7 +3,6 @@ package com.example.elisdb.ui.settings
 import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -77,6 +76,7 @@ class ConfigScreenTest {
   @Test
   fun config_mostraUltimaSincronizacaoEDados() {
     val store = store()
+    configure(store)
     setContent(store)
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Ainda sem sincronizações").assertExists()
@@ -135,20 +135,20 @@ class ConfigScreenTest {
   }
 
   @Test
-  fun config_semConfiguracaoMostraAvisoEImportacaoNoCartaoDoServidor() {
+  fun config_semConfiguracaoMostraAvisoEImportacaoNoCartaoDeSincronizacao() {
     val store = store()
     setContent(store)
     composeTestRule.waitForIdle()
-    // The status title and the server URL row both read "Não configurado".
-    composeTestRule.onAllNodesWithText("Não configurado").assertCountEquals(2)
+    // Only the server URL row reads "Não configurado"; the card headers carry a
+    // state pill instead of repeating the same sentence.
+    composeTestRule.onNodeWithText("Não configurado").assertExists()
+    composeTestRule.onNodeWithText("Por configurar").assertExists()
     composeTestRule.onNodeWithText("Não configurada").assertExists()
     composeTestRule
-      .onNodeWithText("Importe a configuração do servidor para sincronizar.")
+      .onNodeWithText("Importa o ficheiro de configuração do servidor para começares a sincronizar.")
       .assertExists()
     composeTestRule.onNodeWithText("Sincronizar").assertDoesNotExist()
-    // The status card only reports that sync is unavailable; the single import
-    // action lives in the Servidor card.
-    composeTestRule.onNodeWithText("Não disponível").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Não disponível").assertDoesNotExist()
     composeTestRule.onNodeWithText("Importar configuração").assertDoesNotExist()
     composeTestRule.onNodeWithText("Importar configuração do servidor").assertExists()
     composeTestRule.onNodeWithText("Remover configuração").assertDoesNotExist()
@@ -217,7 +217,7 @@ class ConfigScreenTest {
     composeTestRule.onNodeWithText("Remover chave").assertDoesNotExist()
     composeTestRule.onNodeWithText("Remover configuração").performClick()
     composeTestRule.waitForIdle()
-    composeTestRule.onAllNodesWithText("Não configurado").assertCountEquals(2)
+    composeTestRule.onNodeWithText("Não configurado").assertExists()
     composeTestRule.onNodeWithText("Não configurada").assertExists()
     // Removal restores the import entry point.
     composeTestRule.onNodeWithText("Importar configuração do servidor").assertExists()

@@ -12,6 +12,11 @@ e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
 ### Novidades
 
+- **Configuração mais clara.** O ecrã passou a mostrar o estado da sincronização
+  como uma etiqueta no cartão, a última sincronização com data e hora e, nos
+  dados, se a app e o servidor estão em sincronia. Sem servidor configurado, a
+  importação do ficheiro aparece logo como a primeira ação, em vez de repetir
+  avisos.
 - **Ecrã Sobre renovado.** A informação da app aparece agora como um cabeçalho
   com o ícone, o nome e a versão, em vez de um cartão com uma descrição longa, e
   o cartão da equipa mostra os contactos de cada membro.

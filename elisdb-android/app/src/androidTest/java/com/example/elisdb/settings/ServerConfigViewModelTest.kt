@@ -20,7 +20,7 @@ class ServerConfigViewModelTest {
   private val seed = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 
   private val invalidConfigMessage =
-    "Ficheiro de configuração inválido: deve ser JSON com server_url e uma private_seed ed25519 (32 bytes, base64)."
+    "Ficheiro de credencial inválido: deve ser JSON com server_url e uma private_seed ed25519 (32 bytes, base64)."
 
   private fun configJson(url: String = "https://db.example.com", key: String = seed): String =
     """{"server_url":"$url","private_seed":"$key"}"""

@@ -109,7 +109,7 @@ fun ConfigScreen(
     state.lastSuccessAt?.let { formatter.format(Date(it * 1000)) } ?: "Ainda sem sincronizações"
   val pendingDetail =
     when {
-      !configured -> "Importe a configuração do servidor para sincronizar."
+      !configured -> "Importa a credencial do utilizador para sincronizar."
       state.hasPendingUploads && state.hasPendingDownloads ->
         "${state.pendingUploadCount} por enviar · novidades por receber"
       state.hasPendingUploads -> "${state.pendingUploadCount} por enviar"
@@ -207,7 +207,7 @@ fun ConfigScreen(
         }
         if (!configured) {
           Text(
-            "Importa o ficheiro de configuração do servidor para começares a sincronizar.",
+            "Importa o ficheiro de credencial do utilizador para começares a sincronizar.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -216,7 +216,7 @@ fun ConfigScreen(
           Button(onClick = importConfig, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Importar configuração do servidor")
+            Text("Importar credencial do utilizador")
           }
         } else {
           SyncStatusBar(
@@ -315,7 +315,7 @@ fun ConfigScreen(
               modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
-            Text("Remover configuração")
+            Text("Remover credencial")
           }
         }
         ClockWarning(
@@ -332,15 +332,15 @@ fun ConfigScreen(
       onDismissRequest = { showClearConfigDialog = false },
       title = {
         Text(
-          "Remover configuração?",
+          "Remover credencial?",
           textAlign = TextAlign.Center,
           modifier = Modifier.fillMaxWidth(),
         )
       },
       text = {
         Text(
-          "A URL e a chave de assinatura serão removidas deste dispositivo. " +
-            "Terás de importar novamente o ficheiro de configuração para sincronizar.",
+          "A credencial (URL do servidor, utilizador e chave de assinatura) será removida " +
+            "deste dispositivo. Terás de importar novamente o ficheiro para sincronizar.",
           textAlign = TextAlign.Center,
           modifier = Modifier.fillMaxWidth(),
         )

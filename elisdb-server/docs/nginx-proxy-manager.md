@@ -153,8 +153,8 @@ docker compose exec elisdb-server python -m app.keys issue <nome-do-utilizador> 
 
 Isto cria o `<nome>.config.json` com o URL `https://db.exemplo.com`. Copia-o do
 contentor para a tua máquina (`docker cp elisdb-server:/app/<nome>.config.json .`)
-e importa-o na app: menu (⋮) → **Servidor** → **Importar configuração do servidor**, e
-sincroniza (menu ⋮ → **Sincronização**).
+e importa-o na app: menu (⋮) → **Configuração** → **Importar credencial do utilizador**, e
+sincroniza no mesmo ecrã.
 
 ## 7. Segurança
 

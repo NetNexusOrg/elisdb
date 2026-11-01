@@ -161,13 +161,13 @@ class ConfigScreenTest {
     composeTestRule.onNodeWithText("Por configurar").assertExists()
     composeTestRule.onNodeWithText("Não configurada").assertExists()
     composeTestRule
-      .onNodeWithText("Importa o ficheiro de configuração do servidor para começares a sincronizar.")
+      .onNodeWithText("Importa o ficheiro de credencial do utilizador para começares a sincronizar.")
       .assertExists()
     composeTestRule.onNodeWithText("Sincronizar").assertDoesNotExist()
     composeTestRule.onNodeWithText("Não disponível").assertDoesNotExist()
-    composeTestRule.onNodeWithText("Importar configuração").assertDoesNotExist()
-    composeTestRule.onNodeWithText("Importar configuração do servidor").assertExists()
-    composeTestRule.onNodeWithText("Remover configuração").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Importar configuração do servidor").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Importar credencial do utilizador").assertExists()
+    composeTestRule.onNodeWithText("Remover credencial").assertDoesNotExist()
   }
 
   @Test
@@ -191,8 +191,8 @@ class ConfigScreenTest {
     composeTestRule.onNodeWithText("AAEC", substring = true).assertExists()
     composeTestRule.onNodeWithText("Guardar").assertDoesNotExist()
     // Already configured: importing is no longer offered, only removal.
-    composeTestRule.onNodeWithText("Importar configuração do servidor").assertDoesNotExist()
-    composeTestRule.onNodeWithText("Remover configuração").assertExists()
+    composeTestRule.onNodeWithText("Importar credencial do utilizador").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Remover credencial").assertExists()
   }
 
   @Test
@@ -224,24 +224,24 @@ class ConfigScreenTest {
   }
 
   @Test
-  fun config_removerConfiguracaoLimpa() {
+  fun config_removerCredencialLimpa() {
     val store = store()
     configure(store)
     setContent(store)
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("Remover configuração").assertExists()
+    composeTestRule.onNodeWithText("Remover credencial").assertExists()
     composeTestRule.onNodeWithText("Remover chave").assertDoesNotExist()
-    composeTestRule.onNodeWithText("Remover configuração").performScrollTo().performClick()
+    composeTestRule.onNodeWithText("Remover credencial").performScrollTo().performClick()
     composeTestRule.waitForIdle()
-    // Removing the configuration is destructive, so it asks for confirmation.
-    composeTestRule.onNodeWithText("Remover configuração?").assertExists()
+    // Removing the credential is destructive, so it asks for confirmation.
+    composeTestRule.onNodeWithText("Remover credencial?").assertExists()
     composeTestRule.onNodeWithText("Remover").performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Não configurado").assertExists()
     composeTestRule.onNodeWithText("Não configurada").assertExists()
     // Removal restores the import entry point.
-    composeTestRule.onNodeWithText("Importar configuração do servidor").assertExists()
-    composeTestRule.onNodeWithText("Remover configuração").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Importar credencial do utilizador").assertExists()
+    composeTestRule.onNodeWithText("Remover credencial").assertDoesNotExist()
     assertEquals("", store.settings().baseUrl)
     assertEquals("", store.settings().signingKey)
   }
@@ -253,7 +253,7 @@ class ConfigScreenTest {
     serverViewModel.importKey("not-a-config-file")
     composeTestRule.waitForIdle()
     composeTestRule
-      .onNodeWithText("Ficheiro de configuração inválido", substring = true)
+      .onNodeWithText("Ficheiro de credencial inválido", substring = true)
       .assertExists()
   }
 

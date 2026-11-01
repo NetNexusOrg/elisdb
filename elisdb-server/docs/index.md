@@ -14,7 +14,7 @@ entre todos os dispositivos.
    abrir, ao guardar um cliente ou no botão **Sincronizar**, no ecrã
    **Configuração**).
 
-O passo 3 gera um único ficheiro de configuração por telemóvel. É o único
+O passo 3 gera um único ficheiro de credencial por telemóvel. É o único
 ficheiro que a app precisa para ficar ligada ao servidor.
 
 ## Guias

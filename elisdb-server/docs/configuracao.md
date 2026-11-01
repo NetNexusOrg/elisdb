@@ -1,13 +1,13 @@
 # Configuração do servidor — ligar um telemóvel
 
 Este é o guia mais importante: **como dar acesso a um telemóvel**. No final,
-vais ter um ficheiro de configuração (`<nome>.config.json`) que a app do
+vais ter um ficheiro de credencial (`<nome>.config.json`) que a app do
 telemóvel importa no ecrã **Configuração**.
 
 ## Passo único: emitir a chave de um telemóvel
 
 Um único comando faz tudo: gera a chave do telemóvel, regista-a no servidor (com
-o nome do utilizador) e escreve o ficheiro de configuração com o URL do servidor
+o nome do utilizador) e escreve o ficheiro de credencial com o URL do servidor
 e a chave privada.
 
 ### Modo interativo (recomendado)
@@ -68,7 +68,7 @@ Então:
 
 1. **Transfere** o ficheiro `maria.config.json` para o telemóvel (email, pen,
    transferência na rede, etc.).
-2. **Na app:** abre o menu (⋮) → **Configuração** → **Importar configuração do servidor** e
+2. **Na app:** abre o menu (⋮) → **Configuração** → **Importar credencial do utilizador** e
    escolhe o ficheiro. O URL e a chave ficam preenchidos em simultâneo.
 3. No mesmo ecrã, carrega em **Sincronizar**. Deve aparecer "Sincronizado".
 

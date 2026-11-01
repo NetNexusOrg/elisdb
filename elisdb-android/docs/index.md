@@ -14,7 +14,7 @@ sincronização só lida com o servidor quando ele existir e estiver configurado
    [Execução](execucao.md)).
 2. **Prepara o servidor** (instala, corre e emite a chave do telemóvel — guias
    em `../elisdb-server/docs/`).
-3. **Na app:** abra o menu (⋮) → **Configuração** → **Importar configuração do servidor** e
+3. **Na app:** abra o menu (⋮) → **Configuração** → **Importar credencial do utilizador** e
    escolhe o ficheiro `<nome>.config.json` emitido no servidor ([Configuração](configuracao.md)).
 4. **Sincroniza**: no mesmo ecrã **Configuração**, carrega no botão de sincronizar.
    Deve aparecer "Sincronizado".

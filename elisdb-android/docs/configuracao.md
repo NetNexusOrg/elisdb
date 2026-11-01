@@ -55,10 +55,10 @@ assinatura**. Há duas formas de os definir:
 
 ### 1. Em tempo de execução (recomendado)
 
-Abre a app → menu (⋮) → **Configuração** → **Importar configuração do servidor** e
+Abre a app → menu (⋮) → **Configuração** → **Importar credencial do utilizador** e
 escolhe o ficheiro `<nome>.config.json` emitido no servidor. O URL, a chave e o
 utilizador associado ficam preenchidos de uma só vez e a sincronização arranca. O
-cartão **Servidor** é só de leitura (não há edição manual).
+cartão **Sincronização** é só de leitura (não há edição manual).
 
 > Este é o caminho mais simples: ver [Utilização](uso.md), que mostra como
 > emitir o ficheiro no servidor.

@@ -149,6 +149,6 @@ class ServerConfigViewModel(
 
   private companion object {
     const val INVALID_CONFIG_MESSAGE =
-      "Ficheiro de configuração inválido: deve ser JSON com server_url e uma private_seed ed25519 (32 bytes, base64)."
+      "Ficheiro de credencial inválido: deve ser JSON com server_url e uma private_seed ed25519 (32 bytes, base64)."
   }
 }

@@ -34,12 +34,12 @@ precisa. Transfere-o para o telemóvel.
 
 ### 1.2 Importar a chave na app
 
-Na app: menu (⋮) → **Configuração** → **Importar configuração do servidor** → escolhe
+Na app: menu (⋮) → **Configuração** → **Importar credencial do utilizador** → escolhe
 o `maria.config.json`. O **URL do servidor** e a **chave de assinatura** ficam
 preenchidos em simultâneo e a sincronização arranca logo.
 
-(O cartão **Servidor**, no ecrã **Configuração**, mostra o URL, a chave mascarada e
-o utilizador associado, em modo só de leitura; a configuração entra sempre pela
+(O cartão **Sincronização**, no ecrã **Configuração**, mostra o URL, a chave mascarada e
+o utilizador associado, em modo só de leitura; a credencial entra sempre pela
 importação do ficheiro. Ver [Configuração](configuracao.md).)
 
 ### 1.3 Primeira sincronização
@@ -88,7 +88,7 @@ Fluxos principais:
   adicionadas, removidas ou reordenadas. As
   miniaturas das fotos adicionadas aparecem quando ainda existem neste
   dispositivo.
-- **Configuração** — o ecrã único de sincronização e servidor: estado com etiqueta, última sincronização, resumo do que falta sincronizar, totais de clientes na app e no servidor e o botão **Sincronizar** (envia e recebe os dados); abaixo, o cartão **Servidor** com o URL, a chave mascarada e o utilizador associado. Sem configuração, o cartão de sincronização mostra **Importar configuração do servidor** como ação principal; depois de configurado, o cartão do servidor mostra apenas **Remover configuração**.
+- **Configuração** — o ecrã único de sincronização e servidor: estado com etiqueta, última sincronização, resumo do que falta sincronizar, totais de clientes na app e no servidor e o botão **Sincronizar** (envia e recebe os dados); o cartão **Sincronização** inclui também o URL, a chave mascarada e o utilizador associado. Sem credencial, mostra **Importar credencial do utilizador** como ação principal; depois de configurado, mostra **Remover credencial**.
 - **Sobre** — cabeçalho com o ícone, o nome e a versão da app, o cartão
   **Atualizações** e a **Comunidade**, com o QR code do grupo de Telegram e o
   botão **Abrir no Telegram**.

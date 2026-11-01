@@ -4,7 +4,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -106,30 +105,15 @@ fun ConfigScreen(
   }
   val formatter = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
   val lastSync =
-    state.lastSuccessAt?.let { formatter.format(Date(it * 1000)) } ?: "Ainda sem sincronizações"
+    state.lastSuccessAt?.let { "Última sincronização: ${formatter.format(Date(it * 1000))}" }
+      ?: "Ainda sem sincronizações"
   val pendingDetail =
     when {
-      !configured -> "Importa a credencial do utilizador para sincronizar."
       state.hasPendingUploads && state.hasPendingDownloads ->
         "${state.pendingUploadCount} por enviar · novidades por receber"
       state.hasPendingUploads -> "${state.pendingUploadCount} por enviar"
       state.hasPendingDownloads -> "Novidades por receber"
       else -> null
-    }
-  val (chipContainer, chipContent) =
-    statusColors(
-      state.syncStatus,
-      configured,
-      state.hasPendingUploads,
-      state.hasPendingDownloads,
-    )
-  val chipLabel =
-    when {
-      !configured -> "Por configurar"
-      syncing -> "A sincronizar"
-      state.syncStatus == SyncStatus.ERROR -> "Erro"
-      state.hasPendingUploads || state.hasPendingDownloads -> "Pendente"
-      else -> "Ligado"
     }
   Scaffold(
     modifier = modifier.fillMaxSize(),
@@ -209,9 +193,6 @@ fun ConfigScreen(
         }
       }
       InfoCard(title = "Sincronização", titleTextAlign = TextAlign.Center) {
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-          StatusChip(chipLabel, chipContainer, chipContent)
-        }
         if (!configured) {
           Text(
             "Importa o ficheiro de credencial do utilizador para começares a sincronizar.",
@@ -225,6 +206,7 @@ fun ConfigScreen(
             Spacer(Modifier.width(8.dp))
             Text("Importar credencial do utilizador")
           }
+          serverState.signingKeyError?.let { ErrorText(it) }
         } else {
           SyncStatusBar(
             syncStatus = state.syncStatus,
@@ -236,11 +218,12 @@ fun ConfigScreen(
             centered = true,
           )
           state.syncNotice?.let { notice -> NoticeBanner(notice) }
-          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-          DetailRow(
-            icon = Icons.Outlined.Schedule,
-            label = "Última sincronização",
-            value = lastSync,
+          Text(
+            lastSync,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
           )
           Button(
             onClick = syncViewModel::manualSync,
@@ -259,35 +242,24 @@ fun ConfigScreen(
             Spacer(Modifier.width(8.dp))
             Text(if (syncing) "A sincronizar…" else "Sincronizar")
           }
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        DetailRow(
-          icon = Icons.Outlined.Public,
-          label = "URL do servidor",
-          value = serverState.baseUrl.ifEmpty { "Não configurado" },
-          valueColor =
-            if (configured) MaterialTheme.colorScheme.onSurface
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        DetailRow(
-          icon = Icons.Outlined.Key,
-          label = "Chave de assinatura",
-          value = if (configured) maskedKey(serverState.signingKey) else "Não configurada",
-          valueColor =
-            if (configured) MaterialTheme.colorScheme.onSurface
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        serverState.signingKeyError?.let { error ->
-          Text(
-            error,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
+          ClockWarning(
+            skewSeconds = state.clockSkewSeconds,
+            correcting = state.clockCorrecting,
+            onCorrect = syncViewModel::correctClock,
           )
-        }
-        if (configured) {
+          serverState.signingKeyError?.let { ErrorText(it) }
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+          DetailRow(
+            icon = Icons.Outlined.Public,
+            label = "URL do servidor",
+            value = serverState.baseUrl.ifEmpty { "Não configurado" },
+          )
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+          DetailRow(
+            icon = Icons.Outlined.Key,
+            label = "Chave de assinatura",
+            value = maskedKey(serverState.signingKey),
+          )
           val identity = serverState.keyIdentity
           val (userLabel, userColor) =
             when (identity) {
@@ -325,11 +297,6 @@ fun ConfigScreen(
             Text("Remover credencial")
           }
         }
-        ClockWarning(
-          skewSeconds = state.clockSkewSeconds,
-          correcting = state.clockCorrecting,
-          onCorrect = syncViewModel::correctClock,
-        )
       }
     }
   }
@@ -450,16 +417,16 @@ private fun NoticeBanner(text: String) {
   }
 }
 
-/** Small state pill on a card header, so the state reads before the details. */
+/** Validation error shown next to the credential or sync action it belongs to. */
 @Composable
-private fun StatusChip(label: String, container: Color, content: Color) {
-  Surface(color = container, contentColor = content, shape = RoundedCornerShape(50)) {
-    Text(
-      text = label,
-      style = MaterialTheme.typography.labelMedium,
-      modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-    )
-  }
+private fun ErrorText(text: String) {
+  Text(
+    text,
+    style = MaterialTheme.typography.bodySmall,
+    color = MaterialTheme.colorScheme.error,
+    textAlign = TextAlign.Center,
+    modifier = Modifier.fillMaxWidth(),
+  )
 }
 
 private fun maskedKey(seed: String): String {

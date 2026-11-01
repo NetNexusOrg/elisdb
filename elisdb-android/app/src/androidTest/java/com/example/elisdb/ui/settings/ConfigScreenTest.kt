@@ -191,11 +191,11 @@ class ConfigScreenTest {
     val store = store()
     setContent(store)
     composeTestRule.waitForIdle()
-    // Only the server URL row reads "Não configurado"; the card headers carry a
-    // state pill instead of repeating the same sentence.
-    composeTestRule.onNodeWithText("Não configurado").assertExists()
-    composeTestRule.onNodeWithText("Por configurar").assertExists()
-    composeTestRule.onNodeWithText("Não configurada").assertExists()
+    // The unconfigured card only explains the import; empty server/key rows are
+    // hidden instead of repeating "Não configurado" / "Não configurada".
+    composeTestRule.onNodeWithText("Não configurado").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Por configurar").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Não configurada").assertDoesNotExist()
     composeTestRule
       .onNodeWithText("Importa o ficheiro de credencial do utilizador para começares a sincronizar.")
       .assertExists()
@@ -273,10 +273,10 @@ class ConfigScreenTest {
     composeTestRule.onNodeWithText("Remover credencial?").assertExists()
     composeTestRule.onNodeWithText("Remover").performClick()
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("Não configurado").assertExists()
-    composeTestRule.onNodeWithText("Não configurada").assertExists()
-    // Removal restores the import entry point.
+    // Removal restores the import entry point and hides the now-empty server rows.
     composeTestRule.onNodeWithText("Importar credencial do utilizador").assertExists()
+    composeTestRule.onNodeWithText("Não configurado").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Não configurada").assertDoesNotExist()
     composeTestRule.onNodeWithText("Remover credencial").assertDoesNotExist()
     assertEquals("", store.settings().baseUrl)
     assertEquals("", store.settings().signingKey)
@@ -297,7 +297,9 @@ class ConfigScreenTest {
   @Test
   fun config_mostraAvisoDeRelogioComAcaoCorrigir() {
     var corrected = 0
-    setContent(store(), skew = -300L, onCorrectClock = { corrected++ })
+    val store = store()
+    configure(store)
+    setContent(store, skew = -300L, onCorrectClock = { corrected++ })
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Corrigir").assertExists()
     composeTestRule
@@ -312,7 +314,9 @@ class ConfigScreenTest {
 
   @Test
   fun config_semDesvioNaoMostraAvisoDeRelogio() {
-    setContent(store(), skew = 30L)
+    val store = store()
+    configure(store)
+    setContent(store, skew = 30L)
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Corrigir").assertDoesNotExist()
   }

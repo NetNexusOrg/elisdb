@@ -253,6 +253,7 @@ fun ConfigScreen(
             label = "Chave de assinatura",
             value = maskedKey(serverState.signingKey),
           )
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
           val identity = serverState.keyIdentity
           val (userLabel, userColor) =
             when (identity) {

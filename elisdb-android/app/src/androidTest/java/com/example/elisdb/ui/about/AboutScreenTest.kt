@@ -1,11 +1,11 @@
 package com.example.elisdb.ui.about
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import com.example.elisdb.BuildConfig
 import com.example.elisdb.remote.AppReleaseDto
 import com.example.elisdb.theme.ElisdbTheme
@@ -82,30 +82,27 @@ class AboutScreenTest {
   }
 
   @Test
-  fun sobre_procuraAtualizacoesEMostraVersaoNova() {
+  fun sobre_verificaAutomaticamenteEMostraVersaoNova() {
     setContent(fetchRelease = { release(11) })
 
-    composeTestRule.onNodeWithText("Procurar atualizações").performClick()
-
-    waitForText("Versão 1.6.11 (11)")
-    composeTestRule.onNodeWithText("Transferir").assertExists()
+    waitForText("Versão 1.6.11 disponível")
+    composeTestRule.onNodeWithText("Versão 1.6.11 disponível").assertExists()
+    composeTestRule.onNodeWithText("Toque para transferir", substring = true).assertExists()
   }
 
   @Test
-  fun sobre_semVersaoNovaDizQueEstaAtualizada() {
+  fun sobre_semVersaoNovaMantemBotaoEIndicaAtualizada() {
     setContent(fetchRelease = { release(10) })
 
-    composeTestRule.onNodeWithText("Procurar atualizações").performClick()
-
     waitForText("A app está atualizada")
+    composeTestRule.onNodeWithText("Procurar atualizações").assertExists()
   }
 
   @Test
   fun sobre_semServidorConfiguradoNaoProcura() {
     setContent(isConfigured = false)
 
-    composeTestRule.onNodeWithText("Procurar atualizações").performClick()
-
     waitForText("Configura o servidor para procurar atualizações.")
+    composeTestRule.onNodeWithText("Servidor não configurado").assertIsNotEnabled()
   }
 }

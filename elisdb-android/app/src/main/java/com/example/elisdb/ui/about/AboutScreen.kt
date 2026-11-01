@@ -18,6 +18,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,16 +30,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -58,6 +63,7 @@ fun AboutScreen(
 ) {
   val context = LocalContext.current
   val phase by updateViewModel.phase.collectAsState()
+  LaunchedEffect(updateViewModel) { updateViewModel.check() }
   Scaffold(
     modifier = modifier.fillMaxSize(),
     topBar = {
@@ -177,59 +183,96 @@ private fun UpdateSection(
   onInstall: (java.io.File) -> Unit,
 ) {
   val body = MaterialTheme.typography.bodyMedium
+  var message = ""
+  var messageColor = MaterialTheme.colorScheme.onSurfaceVariant
+  var buttonText = "Procurar atualizações"
+  var buttonIcon: ImageVector = Icons.Default.Refresh
+  var buttonEnabled = true
+  var buttonAction: () -> Unit = onCheck
+  var busy = false
+
   when (phase) {
-    UpdatePhase.Idle ->
-      Button(onClick = onCheck, modifier = Modifier.fillMaxWidth()) {
-        Text("Procurar atualizações")
-      }
-    UpdatePhase.Checking ->
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-      ) {
-        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-        Text("A procurar atualizações…", style = body)
-      }
-    UpdatePhase.UpToDate ->
-      Text("A app está atualizada (${BuildConfig.VERSION_NAME}).", style = body)
-    UpdatePhase.NoRelease -> Text("Não há nenhuma versão publicada no servidor.", style = body)
-    UpdatePhase.NotConfigured ->
-      Text("Configura o servidor para procurar atualizações.", style = body)
+    UpdatePhase.Idle -> {
+      message = "Verifica se há uma versão mais recente publicada no servidor."
+    }
+    UpdatePhase.Checking -> {
+      message = "A contactar o servidor…"
+      buttonText = "A procurar atualizações…"
+      buttonEnabled = false
+      busy = true
+    }
+    UpdatePhase.UpToDate -> {
+      message = "A app está atualizada (versão ${BuildConfig.VERSION_NAME})."
+    }
+    UpdatePhase.NoRelease -> {
+      message = "Não há nenhuma versão publicada no servidor."
+    }
+    UpdatePhase.NotConfigured -> {
+      message = "Configura o servidor para procurar atualizações."
+      buttonText = "Servidor não configurado"
+      buttonIcon = Icons.Default.Settings
+      buttonEnabled = false
+    }
     is UpdatePhase.Available -> {
-      Text(
-        "Versão ${phase.release.versionName} (${phase.release.versionCode}) · " +
-          formatSize(phase.release.size),
-        style = body,
-      )
-      Button(onClick = onDownload, modifier = Modifier.fillMaxWidth()) { Text("Transferir") }
+      message = "Toque para transferir · ${formatSize(phase.release.size)}"
+      buttonText = "Versão ${phase.release.versionName} disponível"
+      buttonIcon = Icons.Default.Download
+      buttonAction = onDownload
     }
     is UpdatePhase.Downloading -> {
-      Text("A transferir a versão ${phase.release.versionName}…", style = body)
-      LinearProgressIndicator(
-        progress = { phase.progress ?: 0f },
-        modifier = Modifier.fillMaxWidth(),
-      )
+      message = "A transferir a versão ${phase.release.versionName}…"
+      buttonText = "A transferir…"
+      buttonIcon = Icons.Default.Download
+      buttonEnabled = false
+      busy = true
     }
     is UpdatePhase.Ready -> {
-      Text("Versão ${phase.release.versionName} transferida e verificada.", style = body)
-      Button(onClick = { onInstall(phase.file) }, modifier = Modifier.fillMaxWidth()) {
-        Text("Instalar")
-      }
+      message = "Versão ${phase.release.versionName} transferida e verificada."
+      buttonText = "Instalar versão ${phase.release.versionName}"
+      buttonIcon = Icons.Default.SystemUpdate
+      buttonAction = { onInstall(phase.file) }
     }
     is UpdatePhase.Failed -> {
-      Text(
+      message =
         when (phase.kind) {
           FailureKind.CHECK -> "Não foi possível procurar atualizações. Verifica a ligação."
           FailureKind.DOWNLOAD -> "Não foi possível transferir a atualização. Verifica a ligação."
           FailureKind.CHECKSUM ->
             "O ficheiro transferido não corresponde ao publicado. Tenta novamente."
-        },
-        style = body,
-        color = MaterialTheme.colorScheme.error,
-      )
-      OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
-        Text("Tentar novamente")
+        }
+      messageColor = MaterialTheme.colorScheme.error
+      buttonText =
+        if (phase.release != null) "Tentar transferir novamente" else "Tentar novamente"
+      buttonAction = onRetry
+    }
+  }
+
+  Text(message, style = body, color = messageColor)
+
+  if (phase is UpdatePhase.Downloading) {
+    val progress = phase.progress
+    if (progress == null) {
+      LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    } else {
+      LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+    }
+  }
+
+  Button(
+    onClick = buttonAction,
+    enabled = buttonEnabled,
+    modifier = Modifier.fillMaxWidth(),
+  ) {
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      if (busy) {
+        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+      } else {
+        Icon(buttonIcon, contentDescription = null)
       }
+      Text(buttonText)
     }
   }
 }

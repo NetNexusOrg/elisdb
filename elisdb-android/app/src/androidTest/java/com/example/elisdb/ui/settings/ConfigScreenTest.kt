@@ -20,6 +20,7 @@ import com.example.elisdb.theme.ElisdbTheme
 import junit.framework.TestCase.assertEquals
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -75,6 +76,20 @@ class ConfigScreenTest {
   }
 
   @Test
+  fun config_cartaoDadosVemAntesDoCartaoUnicoDeSincronizacaoEServidor() {
+    val store = store()
+    configure(store)
+    setContent(store)
+    composeTestRule.waitForIdle()
+    val dadosTop = composeTestRule.onNodeWithText("Dados").fetchSemanticsNode().boundsInRoot.top
+    val servidorTop =
+      composeTestRule.onNodeWithText("Sincronização e servidor").fetchSemanticsNode().boundsInRoot.top
+    assertTrue("Dados deve ser o primeiro cartão", dadosTop < servidorTop)
+    composeTestRule.onNodeWithText("Sincronização").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Servidor").assertDoesNotExist()
+  }
+
+  @Test
   fun config_mostraUltimaSincronizacaoEDados() {
     val store = store()
     configure(store)
@@ -82,7 +97,7 @@ class ConfigScreenTest {
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Ainda sem sincronizações").assertExists()
     // The data card only carries the two totals; pending changes live in the
-    // summary card above (and are silent when there is nothing to sync).
+    // combined sync/server card below (and are silent when there is nothing to sync).
     composeTestRule.onNodeWithText("Alterações por enviar").assertDoesNotExist()
     composeTestRule.onNodeWithText("Alterações por receber").assertDoesNotExist()
     composeTestRule.onNodeWithText("No servidor").assertExists()
@@ -103,8 +118,8 @@ class ConfigScreenTest {
       manager = syncManagerWithServerInfo(latest = 200L, clientCount = 0),
     )
     composeTestRule.waitForIdle()
-    // The summary card alone reports the pending work; the data card has no
-    // pending rows any more.
+    // The combined sync/server card alone reports the pending work; the data card
+    // has no pending rows any more.
     composeTestRule.onNodeWithText("Alterações por sincronizar").assertExists()
     composeTestRule.onNodeWithText("Novidades por receber").assertExists()
     composeTestRule.onNodeWithText("≥1").assertDoesNotExist()

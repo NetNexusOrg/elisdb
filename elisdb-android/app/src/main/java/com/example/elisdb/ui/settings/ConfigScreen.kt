@@ -153,7 +153,55 @@ fun ConfigScreen(
           .padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-      InfoCard(title = "Sincronização", titleTextAlign = TextAlign.Center) {
+      InfoCard(title = "Dados", titleTextAlign = TextAlign.Center) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+          DataTile(
+            icon = Icons.Outlined.PhoneAndroid,
+            value = state.totalClientes.toString(),
+            label = "Na app",
+            modifier = Modifier.weight(1f),
+          )
+          DataTile(
+            icon = Icons.Outlined.Cloud,
+            value = state.serverClienteCount?.toString() ?: "—",
+            label = "No servidor",
+            modifier = Modifier.weight(1f),
+            valueColor =
+              if (state.serverClienteCount == null) MaterialTheme.colorScheme.onSurfaceVariant
+              else MaterialTheme.colorScheme.onSurface,
+          )
+        }
+        val serverCount = state.serverClienteCount
+        if (serverCount != null) {
+          val inSync = serverCount == state.totalClientes
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+          ) {
+            Icon(
+              if (inSync) Icons.Default.CheckCircle else Icons.Default.CompareArrows,
+              contentDescription = null,
+              tint =
+                if (inSync) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+              if (inSync) "Em sincronia" else "Dados diferentes do servidor",
+              style = MaterialTheme.typography.bodySmall,
+              color =
+                if (inSync) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+        }
+      }
+      InfoCard(title = "Sincronização e servidor", titleTextAlign = TextAlign.Center) {
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
           StatusChip(chipLabel, chipContainer, chipContent)
         }
@@ -205,61 +253,7 @@ fun ConfigScreen(
             Text(if (syncing) "A sincronizar…" else "Sincronizar")
           }
         }
-        ClockWarning(
-          skewSeconds = state.clockSkewSeconds,
-          correcting = state.clockCorrecting,
-          onCorrect = syncViewModel::correctClock,
-        )
-      }
-      InfoCard(title = "Dados", titleTextAlign = TextAlign.Center) {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-          DataTile(
-            icon = Icons.Outlined.PhoneAndroid,
-            value = state.totalClientes.toString(),
-            label = "Na app",
-            modifier = Modifier.weight(1f),
-          )
-          DataTile(
-            icon = Icons.Outlined.Cloud,
-            value = state.serverClienteCount?.toString() ?: "—",
-            label = "No servidor",
-            modifier = Modifier.weight(1f),
-            valueColor =
-              if (state.serverClienteCount == null) MaterialTheme.colorScheme.onSurfaceVariant
-              else MaterialTheme.colorScheme.onSurface,
-          )
-        }
-        val serverCount = state.serverClienteCount
-        if (serverCount != null) {
-          val inSync = serverCount == state.totalClientes
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-          ) {
-            Icon(
-              if (inSync) Icons.Default.CheckCircle else Icons.Default.CompareArrows,
-              contentDescription = null,
-              tint =
-                if (inSync) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-              if (inSync) "Em sincronia" else "Dados diferentes do servidor",
-              style = MaterialTheme.typography.bodySmall,
-              color =
-                if (inSync) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
-        }
-      }
-      InfoCard(title = "Servidor", titleTextAlign = TextAlign.Center) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         DetailRow(
           icon = Icons.Outlined.Public,
           label = "URL do servidor",
@@ -307,10 +301,6 @@ fun ConfigScreen(
             value = userLabel,
             valueColor = userColor,
           )
-        }
-        // Importing lives in the Sincronização card, where it is the first action
-        // until a server exists; here only removal applies.
-        if (configured) {
           HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
           OutlinedButton(
             onClick = { showClearConfigDialog = true },
@@ -328,6 +318,11 @@ fun ConfigScreen(
             Text("Remover configuração")
           }
         }
+        ClockWarning(
+          skewSeconds = state.clockSkewSeconds,
+          correcting = state.clockCorrecting,
+          onCorrect = syncViewModel::correctClock,
+        )
       }
     }
   }

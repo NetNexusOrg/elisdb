@@ -28,6 +28,7 @@ import com.example.elisdb.R
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
@@ -78,6 +79,9 @@ fun OsmMap(
         mapView.apply {
           setTileSource(TileSourceFactory.MAPNIK)
           setMultiTouchControls(interactive)
+          // Pinch is the only zoom gesture: hide osmdroid's +/- buttons, which
+          // otherwise appear over the map after a drag.
+          zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
           controller.setZoom(16.0)
           overlays.add(
             MapEventsOverlay(

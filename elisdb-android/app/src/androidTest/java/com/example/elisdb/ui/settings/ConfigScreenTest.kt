@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import com.example.elisdb.settings.PrefsSettingsStore
 import com.example.elisdb.settings.SettingsStore
@@ -215,7 +216,7 @@ class ConfigScreenTest {
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Remover configuração").assertExists()
     composeTestRule.onNodeWithText("Remover chave").assertDoesNotExist()
-    composeTestRule.onNodeWithText("Remover configuração").performClick()
+    composeTestRule.onNodeWithText("Remover configuração").performScrollTo().performClick()
     composeTestRule.waitForIdle()
     // Removing the configuration is destructive, so it asks for confirmation.
     composeTestRule.onNodeWithText("Remover configuração?").assertExists()

@@ -4,11 +4,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -55,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.elisdb.sync.SyncStatus
@@ -150,15 +153,17 @@ fun ConfigScreen(
           .padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-      InfoCard(
-        title = "Sincronização",
-        trailing = { StatusChip(chipLabel, chipContainer, chipContent) },
-      ) {
+      InfoCard(title = "Sincronização", titleTextAlign = TextAlign.Center) {
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+          StatusChip(chipLabel, chipContainer, chipContent)
+        }
         if (!configured) {
           Text(
             "Importa o ficheiro de configuração do servidor para começares a sincronizar.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
           )
           Button(onClick = importConfig, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -173,6 +178,7 @@ fun ConfigScreen(
             hasPendingDownloads = state.hasPendingDownloads,
             hasConfig = true,
             detail = pendingDetail,
+            centered = true,
           )
           state.syncNotice?.let { notice -> NoticeBanner(notice) }
           HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -205,7 +211,7 @@ fun ConfigScreen(
           onCorrect = syncViewModel::correctClock,
         )
       }
-      InfoCard(title = "Dados") {
+      InfoCard(title = "Dados", titleTextAlign = TextAlign.Center) {
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -232,6 +238,7 @@ fun ConfigScreen(
           Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
           ) {
             Icon(
               if (inSync) Icons.Default.CheckCircle else Icons.Default.CompareArrows,
@@ -252,7 +259,7 @@ fun ConfigScreen(
           }
         }
       }
-      InfoCard(title = "Servidor") {
+      InfoCard(title = "Servidor", titleTextAlign = TextAlign.Center) {
         DetailRow(
           icon = Icons.Outlined.Public,
           label = "URL do servidor",
@@ -275,6 +282,7 @@ fun ConfigScreen(
             error,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
+            textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
           )
         }
@@ -327,11 +335,19 @@ fun ConfigScreen(
   if (showClearConfigDialog) {
     AlertDialog(
       onDismissRequest = { showClearConfigDialog = false },
-      title = { Text("Remover configuração?") },
+      title = {
+        Text(
+          "Remover configuração?",
+          textAlign = TextAlign.Center,
+          modifier = Modifier.fillMaxWidth(),
+        )
+      },
       text = {
         Text(
           "A URL e a chave de assinatura serão removidas deste dispositivo. " +
-            "Terás de importar novamente o ficheiro de configuração para sincronizar."
+            "Terás de importar novamente o ficheiro de configuração para sincronizar.",
+          textAlign = TextAlign.Center,
+          modifier = Modifier.fillMaxWidth(),
         )
       },
       confirmButton = {
@@ -378,7 +394,7 @@ private fun DataTile(
   }
 }
 
-/** A server detail: icon on the left, small label above the (possibly long) value. */
+/** A server detail: centered icon, small label above the (possibly long) value. */
 @Composable
 private fun DetailRow(
   icon: ImageVector,
@@ -386,26 +402,31 @@ private fun DetailRow(
   value: String,
   valueColor: Color = MaterialTheme.colorScheme.onSurface,
 ) {
-  Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+  Column(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalAlignment = Alignment.CenterHorizontally,
+  ) {
     Icon(
       imageVector = icon,
       contentDescription = null,
       tint = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.size(18.dp),
     )
-    Spacer(Modifier.width(10.dp))
-    Column(modifier = Modifier.weight(1f)) {
-      Text(
-        text = label,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-      Text(
-        text = value,
-        style = MaterialTheme.typography.bodyMedium,
-        color = valueColor,
-      )
-    }
+    Spacer(Modifier.height(4.dp))
+    Text(
+      text = label,
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      textAlign = TextAlign.Center,
+      modifier = Modifier.fillMaxWidth(),
+    )
+    Text(
+      text = value,
+      style = MaterialTheme.typography.bodyMedium,
+      color = valueColor,
+      textAlign = TextAlign.Center,
+      modifier = Modifier.fillMaxWidth(),
+    )
   }
 }
 
@@ -421,7 +442,8 @@ private fun NoticeBanner(text: String) {
     Text(
       text,
       style = MaterialTheme.typography.bodyMedium,
-      modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+      textAlign = TextAlign.Center,
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
     )
   }
 }
@@ -482,6 +504,7 @@ private fun ClockWarning(
           },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onTertiaryContainer,
+        textAlign = TextAlign.Center,
         modifier = Modifier.weight(1f),
       )
       TextButton(onClick = onCorrect, enabled = !correcting) {

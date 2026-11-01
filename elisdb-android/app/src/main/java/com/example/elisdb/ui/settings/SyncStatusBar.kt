@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -23,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncStatus
@@ -41,35 +43,69 @@ internal fun SyncStatusBar(
   hasPendingDownloads: Boolean = false,
   hasConfig: Boolean = true,
   detail: String? = null,
+  centered: Boolean = false,
 ) {
   val message =
     syncMessage(syncStatus, syncFault, hasPendingUploads, hasPendingDownloads, hasConfig)
   val (containerColor, contentColor) =
     statusColors(syncStatus, hasConfig, hasPendingUploads, hasPendingDownloads)
-  Row(
-    modifier = modifier.fillMaxWidth(),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    message?.let { (icon, title) ->
-      Box(
-        modifier = Modifier.size(44.dp).background(containerColor, CircleShape),
-        contentAlignment = Alignment.Center,
-      ) {
-        Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(24.dp))
-      }
-      Spacer(Modifier.width(12.dp))
-      Column(modifier = Modifier.weight(1f)) {
+  if (centered) {
+    Column(
+      modifier = modifier.fillMaxWidth(),
+      horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+      message?.let { (icon, title) ->
+        Box(
+          modifier = Modifier.size(44.dp).background(containerColor, CircleShape),
+          contentAlignment = Alignment.Center,
+        ) {
+          Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(24.dp))
+        }
+        Spacer(Modifier.height(8.dp))
         Text(
           title,
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.onSurface,
+          textAlign = TextAlign.Center,
+          modifier = Modifier.fillMaxWidth(),
         )
         detail?.let {
           Text(
             it,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
           )
+        }
+      }
+    }
+  } else {
+    Row(
+      modifier = modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      message?.let { (icon, title) ->
+        Box(
+          modifier = Modifier.size(44.dp).background(containerColor, CircleShape),
+          contentAlignment = Alignment.Center,
+        ) {
+          Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(24.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+          Text(
+            title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+          )
+          detail?.let {
+            Text(
+              it,
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
         }
       }
     }

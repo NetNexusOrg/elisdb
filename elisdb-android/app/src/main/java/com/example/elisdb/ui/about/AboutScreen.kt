@@ -51,6 +51,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -96,7 +97,7 @@ fun AboutScreen(
     ) {
       AppHeader()
       HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-      InfoCard(title = "Atualizações") {
+      InfoCard(title = "Atualizações", titleTextAlign = TextAlign.Center) {
         UpdateSection(
           phase = phase,
           onCheck = updateViewModel::check,
@@ -111,7 +112,7 @@ fun AboutScreen(
           },
         )
       }
-      InfoCard(title = "Grupo Telegram") {
+      InfoCard(title = "Grupo Telegram", titleTextAlign = TextAlign.Center) {
         Image(
           painter = painterResource(R.drawable.telegram_qr),
           contentDescription = "QR code do grupo de Telegram",
@@ -190,12 +191,16 @@ private fun AppHeader(modifier: Modifier = Modifier) {
       APP_NAME,
       style = MaterialTheme.typography.headlineMedium,
       fontWeight = FontWeight.SemiBold,
+      textAlign = TextAlign.Center,
+      modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(4.dp))
     Text(
       "Versão ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
+      textAlign = TextAlign.Center,
+      modifier = Modifier.fillMaxWidth(),
     )
   }
 }
@@ -274,7 +279,13 @@ private fun UpdateSection(
     }
   }
 
-  Text(message, style = body, color = messageColor)
+  Text(
+    message,
+    style = body,
+    color = messageColor,
+    textAlign = TextAlign.Center,
+    modifier = Modifier.fillMaxWidth(),
+  )
 
   if (phase is UpdatePhase.Downloading) {
     val progress = phase.progress

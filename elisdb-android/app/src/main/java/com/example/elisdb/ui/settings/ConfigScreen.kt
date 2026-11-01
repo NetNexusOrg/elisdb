@@ -201,7 +201,7 @@ fun ConfigScreen(
           }
         }
       }
-      InfoCard(title = "Sincronização e servidor", titleTextAlign = TextAlign.Center) {
+      InfoCard(title = "Sincronização", titleTextAlign = TextAlign.Center) {
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
           StatusChip(chipLabel, chipContainer, chipContent)
         }

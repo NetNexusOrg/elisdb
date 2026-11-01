@@ -76,16 +76,16 @@ class ConfigScreenTest {
   }
 
   @Test
-  fun config_cartaoDadosVemAntesDoCartaoUnicoDeSincronizacaoEServidor() {
+  fun config_cartaoDadosVemAntesDoCartaoDeSincronizacao() {
     val store = store()
     configure(store)
     setContent(store)
     composeTestRule.waitForIdle()
     val dadosTop = composeTestRule.onNodeWithText("Dados").fetchSemanticsNode().boundsInRoot.top
-    val servidorTop =
-      composeTestRule.onNodeWithText("Sincronização e servidor").fetchSemanticsNode().boundsInRoot.top
-    assertTrue("Dados deve ser o primeiro cartão", dadosTop < servidorTop)
-    composeTestRule.onNodeWithText("Sincronização").assertDoesNotExist()
+    val sincronizacaoTop =
+      composeTestRule.onNodeWithText("Sincronização").fetchSemanticsNode().boundsInRoot.top
+    assertTrue("Dados deve ser o primeiro cartão", dadosTop < sincronizacaoTop)
+    composeTestRule.onNodeWithText("Sincronização e servidor").assertDoesNotExist()
     composeTestRule.onNodeWithText("Servidor").assertDoesNotExist()
   }
 

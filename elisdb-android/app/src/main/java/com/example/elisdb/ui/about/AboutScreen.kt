@@ -1,10 +1,10 @@
 package com.example.elisdb.ui.about
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -37,22 +39,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.elisdb.BuildConfig
 import com.example.elisdb.R
 import com.example.elisdb.ui.components.InfoCard
 import java.util.Locale
 
 private const val APP_NAME = "ElisDB"
-private const val TELEGRAM_INVITE_URL = "https://t.me/+G9YShkVuXvU3ZTI0"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +70,7 @@ fun AboutScreen(
 ) {
   val context = LocalContext.current
   val phase by updateViewModel.phase.collectAsState()
+  var showQrFullscreen by remember { mutableStateOf(false) }
   LaunchedEffect(updateViewModel) { updateViewModel.check() }
   Scaffold(
     modifier = modifier.fillMaxSize(),
@@ -103,12 +111,7 @@ fun AboutScreen(
           },
         )
       }
-      InfoCard(title = "Comunidade") {
-        Text(
-          "Entra no grupo de Telegram para acompanhar novidades, tirar dúvidas e sugerir melhorias.",
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+      InfoCard(title = "Grupo Telegram") {
         Image(
           painter = painterResource(R.drawable.telegram_qr),
           contentDescription = "QR code do grupo de Telegram",
@@ -116,32 +119,56 @@ fun AboutScreen(
             Modifier
               .align(Alignment.CenterHorizontally)
               .size(180.dp)
-              .clip(RoundedCornerShape(16.dp)),
+              .clip(RoundedCornerShape(16.dp))
+              .clickable { showQrFullscreen = true },
         )
-        Text(
-          "Também podes abrir o convite neste telemóvel:",
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Button(
-          onClick = { openTelegramGroup(context) },
-          modifier = Modifier.fillMaxWidth(),
-        ) {
-          Text("Abrir no Telegram")
-        }
       }
     }
   }
+
+  if (showQrFullscreen) {
+    FullscreenQrDialog(onDismiss = { showQrFullscreen = false })
+  }
 }
 
-/** Opens the community invite in an external app, ignoring devices without one. */
-private fun openTelegramGroup(context: Context) {
-  runCatching {
-    context.startActivity(
-      Intent(Intent.ACTION_VIEW, Uri.parse(TELEGRAM_INVITE_URL)).apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+/** Shows the Telegram QR code large enough to be scanned from another device. */
+@Composable
+private fun FullscreenQrDialog(onDismiss: () -> Unit) {
+  Dialog(
+    onDismissRequest = onDismiss,
+    properties = DialogProperties(usePlatformDefaultWidth = false),
+  ) {
+    Box(
+      modifier =
+        Modifier
+          .fillMaxSize()
+          .background(Color.Black)
+          .clickable(onClick = onDismiss),
+      contentAlignment = Alignment.Center,
+    ) {
+      Image(
+        painter = painterResource(R.drawable.telegram_qr),
+        contentDescription = "QR code do grupo de Telegram em ecrã inteiro",
+        modifier =
+          Modifier
+            .fillMaxWidth(0.86f)
+            .clip(RoundedCornerShape(24.dp)),
+      )
+      IconButton(
+        onClick = onDismiss,
+        modifier =
+          Modifier
+            .align(Alignment.TopEnd)
+            .statusBarsPadding()
+            .padding(16.dp),
+      ) {
+        Icon(
+          Icons.Default.Close,
+          contentDescription = "Fechar",
+          tint = Color.White,
+        )
       }
-    )
+    }
   }
 }
 

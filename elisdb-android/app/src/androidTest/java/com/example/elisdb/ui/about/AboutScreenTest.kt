@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import com.example.elisdb.BuildConfig
 import com.example.elisdb.remote.AppReleaseDto
 import com.example.elisdb.theme.ElisdbTheme
@@ -74,11 +75,25 @@ class AboutScreenTest {
   }
 
   @Test
-  fun sobre_mostraAcessoAoGrupoDeTelegram() {
+  fun sobre_mostraQrDoGrupoTelegramEmEcrãInteiro() {
     setContent()
-    composeTestRule.onNodeWithText("Comunidade").assertExists()
-    composeTestRule.onNodeWithContentDescription("QR code do grupo de Telegram").assertExists()
-    composeTestRule.onNodeWithText("Abrir no Telegram").assertExists()
+    composeTestRule.onNodeWithText("Grupo Telegram").assertExists()
+    composeTestRule.onNodeWithText("Comunidade").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Abrir no Telegram").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Entra no grupo", substring = true).assertDoesNotExist()
+
+    composeTestRule
+      .onNodeWithContentDescription("QR code do grupo de Telegram")
+      .assertExists()
+      .performClick()
+    composeTestRule
+      .onNodeWithContentDescription("QR code do grupo de Telegram em ecrã inteiro")
+      .assertExists()
+
+    composeTestRule.onNodeWithContentDescription("Fechar").performClick()
+    composeTestRule
+      .onNodeWithContentDescription("QR code do grupo de Telegram em ecrã inteiro")
+      .assertDoesNotExist()
   }
 
   @Test

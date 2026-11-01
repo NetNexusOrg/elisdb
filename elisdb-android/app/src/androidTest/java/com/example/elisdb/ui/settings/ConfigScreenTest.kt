@@ -115,7 +115,7 @@ class ConfigScreenTest {
   }
 
   @Test
-  fun config_mostraCarregamentoDoServidorDuranteOSync() = runBlocking {
+  fun config_mostraTracoDoServidorDuranteOSync() = runBlocking {
     val gate = CompletableDeferred<Unit>()
     val manager =
       SyncManager(
@@ -139,7 +139,7 @@ class ConfigScreenTest {
     while (manager.status.value != SyncStatus.IN_PROGRESS) delay(5)
     setContent(store, manager = manager)
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("A carregar…").assertExists()
+    composeTestRule.onNodeWithText("—").assertExists()
     gate.complete(Unit)
     run.join()
   }

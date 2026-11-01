@@ -175,6 +175,11 @@ class SyncManager(
    */
   private fun startRun(): Deferred<SyncOutcome> =
     runScope.async {
+      // Take the server snapshot before pushing/pulling. The pull writes rows
+      // into Room, so without this the local count starts changing while the
+      // server count is still unknown; this way both counts are available in
+      // the order the user expects.
+      refreshPendingDownloads()
       val outcome =
         try {
           coordinatorProvider.coordinator().sync()

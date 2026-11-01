@@ -16,10 +16,16 @@ import com.example.elisdb.sync.PullWatermark
 import com.example.elisdb.sync.ServerInfo
 import com.example.elisdb.sync.SyncCoordinatorProvider
 import com.example.elisdb.sync.SyncManager
+import com.example.elisdb.sync.SyncStatus
 import com.example.elisdb.theme.ElisdbTheme
 import junit.framework.TestCase.assertEquals
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -106,6 +112,36 @@ class ConfigScreenTest {
     // because the test manager has no server info.
     composeTestRule.onNodeWithText("—").assertExists()
     composeTestRule.onAllNodesWithText("0").assertCountEquals(1)
+  }
+
+  @Test
+  fun config_mostraCarregamentoDoServidorDuranteOSync() = runBlocking {
+    val gate = CompletableDeferred<Unit>()
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { throw RuntimeException("not reached") },
+        pullWatermark =
+          object : PullWatermark {
+            override suspend fun get(): Long = 100L
+
+            override suspend fun set(value: Long) = Unit
+
+            override suspend fun clear() = Unit
+          },
+        fetchServerInfo = {
+          gate.await()
+          ServerInfo(100L, 0)
+        },
+      )
+    val store = store()
+    configure(store)
+    val run = launch(Dispatchers.Default) { manager.sync() }
+    while (manager.status.value != SyncStatus.IN_PROGRESS) delay(5)
+    setContent(store, manager = manager)
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("A carregar…").assertExists()
+    gate.complete(Unit)
+    run.join()
   }
 
   @Test

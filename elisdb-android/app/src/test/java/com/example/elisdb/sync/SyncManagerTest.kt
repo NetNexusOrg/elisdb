@@ -259,6 +259,27 @@ class SyncManagerTest {
   }
 
   @Test
+  fun `server count is refreshed before the coordinator starts`() = runBlocking {
+    var manager: SyncManager? = null
+    var countWhenCoordinatorStarted: Int? = null
+    val created =
+      SyncManager(
+        SyncCoordinatorProvider {
+          countWhenCoordinatorStarted = manager?.serverClienteCount?.value
+          SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore())
+        },
+        pullWatermark = FakePullWatermark(value = 100L),
+        fetchServerInfo = { ServerInfo(100L, 42) },
+      )
+    manager = created
+
+    created.sync()
+
+    assertEquals(42, countWhenCoordinatorStarted)
+    assertEquals(42, created.serverClienteCount.value)
+  }
+
+  @Test
   fun `server client count stays unknown when the fetch fails`() = runBlocking {
     val manager =
       SyncManager(

@@ -154,6 +154,9 @@ fun ConfigScreen(
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
       InfoCard(title = "Dados", titleTextAlign = TextAlign.Center) {
+        val serverCount = state.serverClienteCount
+        val serverCountLoading =
+          configured && serverCount == null && state.syncStatus == SyncStatus.IN_PROGRESS
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -166,15 +169,19 @@ fun ConfigScreen(
           )
           DataTile(
             icon = Icons.Outlined.Cloud,
-            value = state.serverClienteCount?.toString() ?: "—",
+            value =
+              when {
+                serverCount != null -> serverCount.toString()
+                serverCountLoading -> "A carregar…"
+                else -> "—"
+              },
             label = "No servidor",
             modifier = Modifier.weight(1f),
             valueColor =
-              if (state.serverClienteCount == null) MaterialTheme.colorScheme.onSurfaceVariant
+              if (serverCount == null) MaterialTheme.colorScheme.onSurfaceVariant
               else MaterialTheme.colorScheme.onSurface,
           )
         }
-        val serverCount = state.serverClienteCount
         if (serverCount != null) {
           val inSync = serverCount == state.totalClientes
           Row(

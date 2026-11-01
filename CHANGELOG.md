@@ -8,6 +8,42 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [1.7.0] - 2026-11-01
+
+### Novidades
+
+- **Credencial do utilizador.** O ficheiro importado passa a ser apresentado
+  como uma credencial (URL do servidor, utilizador e chave), com textos e ação
+  de remoção mais claros.
+- **Configuração mais simples.** O cartão **Dados** aparece primeiro e o antigo
+  cartão **Servidor** foi integrado no cartão **Sincronização**. O estado já não
+  aparece duplicado e, sem credencial, só vês a explicação e o botão de
+  importação.
+- **Contagem do servidor antes do sync.** Ao sincronizar, a app carrega primeiro
+  o total do servidor; até chegar, mostra `—`.
+- **Sobre mais direto.** A verificação de atualizações é automática ao abrir o
+  ecrã, o botão mantém-se sempre visível e o QR do grupo Telegram pode ser
+  ampliado.
+- **Formulário de cliente mais limpo.** O interruptor **Cliente ativo** é o
+  primeiro campo e os textos explicativos redundantes foram removidos.
+- **Mapas sem botões de zoom.** O zoom passa a ser feito apenas por pinça, tanto
+  no mapa em ecrã inteiro como na escolha de localização.
+
+### Correções
+
+- **As fotos deixam de se perder quando o servidor não tem o ficheiro.** A app
+  preserva a cópia local, avisa e volta a enviar a foto na sincronização seguinte.
+- **Uma lista de fotos incompleta já não apaga fotos locais.** Se o servidor
+  devolver uma lista incompleta, a app mantém as fotos que já tinha.
+- **Sincronizações grandes são feitas por páginas**, em vez de carregar todos os
+  registos de uma vez.
+- **Depois de um restauro do servidor**, a app deteta que os dados do servidor
+  estão atrás dos locais e faz uma sincronização completa, em vez de assumir que
+  já está tudo em dia.
+- **Uma edição rejeitada como antiga volta a buscar a versão do servidor**, para
+  não ficar indefinidamente com dados desatualizados.
+- **Fotos tiradas com o telemóvel rodado ficam com a orientação correta.**
+
 ## [1.6.2] - 2026-10-31
 
 ### Novidades

@@ -164,6 +164,19 @@ private fun ClientFormContent(
       Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Text(
+        "Cliente ativo",
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.weight(1f),
+      )
+      Switch(checked = state.ativo, onCheckedChange = onAtivoChange)
+    }
+
     OutlinedTextField(
       value = state.contrato,
       onValueChange = onContratoChange,
@@ -188,23 +201,6 @@ private fun ClientFormContent(
       minLines = 2,
       modifier = Modifier.fillMaxWidth(),
     )
-
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-      Column(Modifier.weight(1f)) {
-        Text("Cliente ativo", style = MaterialTheme.typography.titleMedium)
-        Text(
-          if (state.ativo) "O cliente está em serviço."
-          else "Cliente inativo: fica guardado, mas marcado como fora de serviço.",
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-      Switch(checked = state.ativo, onCheckedChange = onAtivoChange)
-    }
 
     Text("Localização", style = MaterialTheme.typography.titleMedium)
     var showMapPicker by remember { mutableStateOf(false) }

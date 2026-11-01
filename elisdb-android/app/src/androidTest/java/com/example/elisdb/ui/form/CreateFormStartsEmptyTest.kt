@@ -14,6 +14,7 @@ import com.example.elisdb.data.ClienteRepositoryImpl
 import com.example.elisdb.data.local.AppDatabase
 import com.example.elisdb.theme.ElisdbTheme
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -46,6 +47,15 @@ class CreateFormStartsEmptyTest {
     }
 
     composeTestRule.onNodeWithText("Novo cliente").assertExists()
+    val ativoTop =
+      composeTestRule.onNodeWithText("Cliente ativo").fetchSemanticsNode().boundsInRoot.top
+    val contratoTop =
+      composeTestRule.onNodeWithText("Contrato").fetchSemanticsNode().boundsInRoot.top
+    assertTrue("O toggle ativo deve ser o primeiro campo", ativoTop < contratoTop)
+    composeTestRule.onNodeWithText("O cliente está em serviço.").assertDoesNotExist()
+    composeTestRule
+      .onNodeWithText("Cliente inativo: fica guardado, mas marcado como fora de serviço.")
+      .assertDoesNotExist()
     composeTestRule.onNodeWithText("Ana").assertDoesNotExist()
 
     isSegundo = true

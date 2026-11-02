@@ -8,6 +8,27 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [1.9.0] - 2026-11-02
+
+### Novidades
+
+- **Mapa mais detalhado.** Migração para MapLibre Native com tiles vetoriais
+  OpenFreeMap, sem chave de API. Os pins, etiquetas e a localização atual
+  continuam a funcionar como antes.
+- **Clientes agrupados.** Clientes com pins próximos passam a formar um cluster
+  com a respetiva contagem. Tocar no cluster aproxima o mapa e revela os pins
+  individuais.
+- **Etiquetas sem sobreposição.** Quando duas etiquetas colidem, a secundária é
+  ocultada ou reposicionada, mantendo o pin sempre visível.
+- **Atribuição discreta.** O logótipo e o ícone de informação nativos da MapLibre
+  foram substituídos por um controlo compacto `© OpenStreetMap`, que abre os
+  créditos e ligações obrigatórias.
+
+### Correções
+
+- **Filtro do mapa.** Alterar o filtro de clientes já não reposiciona a câmara;
+  apenas os pins apresentados mudam.
+
 ## [1.8.0] - 2026-11-02
 
 ### Novidades

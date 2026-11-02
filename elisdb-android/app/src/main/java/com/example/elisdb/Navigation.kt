@@ -17,6 +17,8 @@ import com.example.elisdb.ui.about.UpdateViewModel
 import java.io.File
 import com.example.elisdb.ui.cliente.ClientListScreen
 import com.example.elisdb.ui.cliente.ClientListViewModel
+import com.example.elisdb.ui.cliente.ClientMapScreen
+import com.example.elisdb.ui.cliente.ClientMapViewModel
 import com.example.elisdb.ui.detalhe.ClientDetailScreen
 import com.example.elisdb.ui.detalhe.ClientDetailViewModel
 import com.example.elisdb.ui.detalhe.ClientLogScreen
@@ -55,6 +57,15 @@ fun MainNavigation() {
             onAddClick = { backStack.add(ClientForm()) },
             onConfigClick = { backStack.add(Config) },
             onAboutClick = { backStack.add(About) },
+            onMapClick = { backStack.add(ClientMap) },
+          )
+        }
+        entry<ClientMap> {
+          val container = rememberAppContainer()
+          ClientMapScreen(
+            viewModel = viewModel { ClientMapViewModel(container.repository) },
+            onClienteClick = { id -> backStack.add(ClientDetail(id)) },
+            onBack = { backStack.removeLastOrNull() },
           )
         }
         entry<Config> {

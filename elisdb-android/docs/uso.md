@@ -78,6 +78,13 @@ Fluxos principais:
   diferentes da predefinição o ícone fica destacado.
 - **Novo/editar cliente** — formulário com nome, contrato, coordenadas, notas e
   o interruptor **Cliente ativo**.
+- **Mapa de clientes** — o ícone de mapa na barra superior da lista abre todos os
+  clientes com localização, mesmo que a lista esteja filtrada. Os pins vermelhos
+  são clientes ativos e os cinzas inativos; tocar num pin mostra o nome, o
+  contrato e o estado, com o botão **Abrir cliente**. Os clientes sem
+  coordenadas aparecem no contador “X cliente(s) sem localização”. Os mapas
+  precisam de rede ou de tiles já em cache para mostrar o fundo; os pins
+  continuam visíveis.
 - **Mapa** — escolher/indicar a localização (Picker).
 - **Fotos** — capturar e associar imagens; ver em ecrã inteiro.
 - **Detalhe do cliente** — mapa, navegação, notas e fotos; um cliente inativo

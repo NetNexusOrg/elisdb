@@ -7,6 +7,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data class ClientForm(val clienteId: String? = null) : NavKey
 
+@Serializable data object ClientMap : NavKey
+
 @Serializable data class ClientDetail(val clienteId: String) : NavKey
 
 @Serializable data class ClientLog(val clienteId: String) : NavKey

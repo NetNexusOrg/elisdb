@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.outlined.Map
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +64,7 @@ fun ClientListScreen(
   modifier: Modifier = Modifier,
   onConfigClick: () -> Unit = {},
   onAboutClick: () -> Unit = {},
+  onMapClick: () -> Unit = {},
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   ClientListScreen(
@@ -74,6 +76,7 @@ fun ClientListScreen(
     onOrdemChange = viewModel::onOrdemChange,
     onConfigClick = onConfigClick,
     onAboutClick = onAboutClick,
+    onMapClick = onMapClick,
     modifier = modifier,
   )
 }
@@ -89,6 +92,7 @@ internal fun ClientListScreen(
   onOrdemChange: (ClientSortOrder) -> Unit,
   onConfigClick: () -> Unit,
   onAboutClick: () -> Unit,
+  onMapClick: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   Scaffold(
@@ -98,6 +102,9 @@ internal fun ClientListScreen(
       TopAppBar(
         title = { Text("Clientes") },
         actions = {
+          IconButton(onClick = onMapClick) {
+            Icon(Icons.Outlined.Map, contentDescription = "Ver mapa de clientes")
+          }
           IconButton(onClick = { menuOpen = true }) {
             Icon(Icons.Default.MoreVert, contentDescription = "Mais opções")
           }

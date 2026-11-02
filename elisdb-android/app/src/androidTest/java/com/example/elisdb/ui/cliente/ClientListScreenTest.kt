@@ -19,6 +19,7 @@ import com.example.elisdb.theme.ElisdbTheme
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -129,12 +130,24 @@ class ClientListScreenTest {
   fun topbar_mostraMenuEAcoes() {
     setListContent(clientes)
     composeTestRule.onNodeWithText("Clientes").assertExists()
+    composeTestRule.onNodeWithContentDescription("Ver mapa de clientes").assertExists()
     composeTestRule.onNodeWithContentDescription("Mais opções").assertExists()
     composeTestRule.onNodeWithContentDescription("Mais opções").performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Novo").assertExists()
     composeTestRule.onNodeWithText("Configuração").assertExists()
     composeTestRule.onNodeWithText("Sobre").assertExists()
+  }
+
+  @Test
+  fun topbar_botaoDeMapaDisparaCallback() {
+    var clicked = false
+    setListContent(clientes, onMapClick = { clicked = true })
+
+    composeTestRule.onNodeWithContentDescription("Ver mapa de clientes").performClick()
+    composeTestRule.waitForIdle()
+
+    assertTrue(clicked)
   }
 
   @Test
@@ -165,12 +178,20 @@ class ClientListScreenTest {
     composeTestRule.onNodeWithTag("generic_avatar", useUnmergedTree = true).assertDoesNotExist()
   }
 
-  private fun setListContent(clientes: List<ClienteComFotos>) {
+  private fun setListContent(
+    clientes: List<ClienteComFotos>,
+    onMapClick: () -> Unit = {},
+  ) {
     val repository = FakeListRepository(clientes)
     val viewModel = ClientListViewModel(repository)
     composeTestRule.setContent {
       ElisdbTheme {
-        ClientListScreen(viewModel = viewModel, onClienteClick = {}, onAddClick = {})
+        ClientListScreen(
+          viewModel = viewModel,
+          onClienteClick = {},
+          onAddClick = {},
+          onMapClick = onMapClick,
+        )
       }
     }
   }

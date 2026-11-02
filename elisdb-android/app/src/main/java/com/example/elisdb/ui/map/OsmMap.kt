@@ -150,7 +150,7 @@ fun OsmMap(
 }
 
 @Composable
-private fun rememberMapViewWithLifecycle(context: Context, interactive: Boolean): MapView {
+internal fun rememberMapViewWithLifecycle(context: Context, interactive: Boolean): MapView {
   val mapView =
     remember {
       val view =

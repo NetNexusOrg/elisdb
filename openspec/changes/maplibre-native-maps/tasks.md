@@ -59,7 +59,7 @@
 - [x] 3.3 Ajustar `MapFullscreenScreen` para receber `LatLng` e localização
   atual, e confirmar manualmente que o mapa centra no cliente, mostra o pin e a
   localização atual sem recentrar quando a localização chega depois.
-- [ ] 3.4 Verificar o comportamento de `fitPins` com zero, um e vários pins,
+- [x] 3.4 Verificar o comportamento de `fitPins` com zero, um e vários pins,
   com e sem localização atual, e confirmar que o filtro All/Active/Inactive
   atualiza apenas os pins e não a câmara.
 
@@ -91,7 +91,7 @@
 - [x] 5.3 Verificar o manifesto fundido e confirmar que
   `ACCESS_NETWORK_STATE`/`ACCESS_WIFI_STATE` foram adicionados, que
   `INTERNET`/localização já existiam e que não há novas permissões de runtime.
-- [ ] 5.4 Verificar que não ficaram regras ProGuard globais de MapLibre e que
+- [x] 5.4 Verificar que não ficaram regras ProGuard globais de MapLibre e que
   as regras de consumo do AAR são suficientes para o build minificado.
 
 ## 6. Integração, release e validação final
@@ -101,10 +101,10 @@
 - [x] 6.2 Executar os testes instrumentados de mapa, formulário e detalhe
   (`MapScrollTest`, `MapPickerFormTest`, `ClientMapScreenTest`,
   `ClientDetailScreenTest`) num emulador com rede e confirmar que passam.
-- [ ] 6.3 Construir o release minificado no CI ou localmente com as variáveis
+- [x] 6.3 Construir o release minificado no CI ou localmente com as variáveis
   `KEYSTORE_*` e fazer o smoke test: sync, mapa, fotos e persistência continuam
   funcionais; confirmar que o mapa renderiza após R8.
-- [ ] 6.4 Fazer a verificação manual final: tiles, pan/zoom, pin selecionado,
+- [x] 6.4 Fazer a verificação manual final: tiles, pan/zoom, pin selecionado,
   etiquetas, ativo/inativo, localização atual, fit, seletor (toque e arrasto),
   permissão concedida/negada, cache/offline, tema claro/escuro, rotação e
   atribuição/logo visíveis.

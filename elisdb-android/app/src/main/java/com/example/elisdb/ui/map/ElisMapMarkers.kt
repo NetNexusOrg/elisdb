@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
-import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 
 internal data class MapPin(
@@ -48,6 +47,7 @@ internal fun ElisMapMarkers(
   val style = styleState.style
   val signature = pinsSignature(pins)
   var centeredOnUser by remember(mapView) { mutableStateOf(false) }
+  var hasFittedPins by remember(mapView) { mutableStateOf(false) }
   var layersReady by remember(style) { mutableStateOf(false) }
 
   LaunchedEffect(style) {
@@ -68,15 +68,18 @@ internal fun ElisMapMarkers(
 
   LaunchedEffect(style, map, laidOut, signature, userLocation) {
     if (style == null || map == null || !laidOut) return@LaunchedEffect
-    if (userLocation != null) {
-      if (!centeredOnUser) {
-        map.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, USER_LOCATION_ZOOM))
-        centeredOnUser = true
-      }
-    } else if (pins.isEmpty()) {
-      map.moveCamera(CameraUpdateFactory.newLatLngZoom(DEFAULT_CENTER, USER_LOCATION_ZOOM))
+    val target = mapCameraTarget(
+      pins = pins,
+      userLocation = userLocation,
+      centeredOnUser = centeredOnUser,
+      hasFittedPins = hasFittedPins,
+    )
+    if (target == MapCameraTarget.None) return@LaunchedEffect
+    map.applyCameraTarget(target)
+    if (userLocation != null && !centeredOnUser) {
+      centeredOnUser = true
     } else {
-      map.fitPins(pins)
+      hasFittedPins = true
     }
   }
 
@@ -93,5 +96,4 @@ internal fun ElisMapMarkers(
   }
 }
 
-private const val USER_LOCATION_ZOOM = 15.0
 private const val CLICK_RADIUS_DP = 24f

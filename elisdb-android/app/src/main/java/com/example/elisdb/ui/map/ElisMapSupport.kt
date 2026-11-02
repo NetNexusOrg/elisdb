@@ -53,6 +53,7 @@ import kotlin.math.roundToInt
 
 internal const val MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 internal const val MAP_DEFAULT_ZOOM = 16.0
+internal const val MAP_USER_ZOOM = 15.0
 internal const val MAP_PINS_SOURCE_ID = "client-pins"
 internal const val MAP_PINS_LAYER_ID = "client-pins-layer"
 internal const val MAP_PICKED_SOURCE_ID = "picked-location"
@@ -465,14 +466,48 @@ internal fun pinsSignature(pins: List<MapPin>): String =
     "${pin.id}:${pin.name}:${pin.position.latitude}:${pin.position.longitude}:${pin.active}"
   }
 
-internal fun MapLibreMap.fitPins(pins: List<MapPin>) {
-  if (pins.isEmpty()) return
-  if (pins.size == 1) {
-    moveCamera(CameraUpdateFactory.newLatLngZoom(pins.first().position, MAP_DEFAULT_ZOOM))
-    return
+internal sealed interface MapCameraTarget {
+  data object None : MapCameraTarget
+
+  data class Position(val position: LatLng, val zoom: Double) : MapCameraTarget
+
+  data class Bounds(val bounds: LatLngBounds) : MapCameraTarget
+}
+
+internal fun pinsCameraTarget(pins: List<MapPin>): MapCameraTarget = when {
+  pins.isEmpty() -> MapCameraTarget.None
+  pins.size == 1 -> MapCameraTarget.Position(pins.first().position, MAP_DEFAULT_ZOOM)
+  else -> MapCameraTarget.Bounds(
+    LatLngBounds.Builder().includes(pins.map { it.position }).build(),
+  )
+}
+
+internal fun mapCameraTarget(
+  pins: List<MapPin>,
+  userLocation: LatLng?,
+  centeredOnUser: Boolean,
+  hasFittedPins: Boolean,
+): MapCameraTarget = when {
+  userLocation != null && !centeredOnUser ->
+    MapCameraTarget.Position(userLocation, MAP_USER_ZOOM)
+  userLocation != null -> MapCameraTarget.None
+  hasFittedPins -> MapCameraTarget.None
+  pins.isEmpty() -> MapCameraTarget.Position(DEFAULT_CENTER, MAP_USER_ZOOM)
+  else -> pinsCameraTarget(pins)
+}
+
+internal fun MapLibreMap.applyCameraTarget(target: MapCameraTarget) {
+  when (target) {
+    MapCameraTarget.None -> Unit
+    is MapCameraTarget.Position ->
+      moveCamera(CameraUpdateFactory.newLatLngZoom(target.position, target.zoom))
+    is MapCameraTarget.Bounds ->
+      moveCamera(CameraUpdateFactory.newLatLngBounds(target.bounds, 96))
   }
-  val bounds = LatLngBounds.Builder().includes(pins.map { it.position }).build()
-  moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 96))
+}
+
+internal fun MapLibreMap.fitPins(pins: List<MapPin>) {
+  applyCameraTarget(pinsCameraTarget(pins))
 }
 
 internal fun MapView.applyWhenLaidOut(action: () -> Unit) {

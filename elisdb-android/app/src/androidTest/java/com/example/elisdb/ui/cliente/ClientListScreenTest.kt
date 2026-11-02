@@ -53,7 +53,7 @@ class ClientListScreenTest {
   }
 
   @Test
-  fun lista_clienteInativoMostraEtiquetaAntesDoContrato() {
+  fun lista_clienteInativoMostraEtiquetaDepoisDoContrato() {
     val inativo =
       ClienteComFotos(
         cliente =
@@ -82,7 +82,7 @@ class ClientListScreenTest {
         .fetchSemanticsNode()
         .boundsInRoot.left
 
-    assertTrue("A etiqueta Inativo deveria aparecer antes do contrato", inativoLeft < contratoLeft)
+    assertTrue("A etiqueta Inativo deveria aparecer depois do contrato", contratoLeft < inativoLeft)
   }
 
   @Test

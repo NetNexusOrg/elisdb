@@ -106,16 +106,16 @@ fun ClientDetailScreen(
               verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+              val contrato = cliente.contrato
+              if (!contrato.isNullOrBlank()) {
+                Text(contrato, style = MaterialTheme.typography.titleLarge)
+              }
               if (!cliente.ativo) {
                 Text(
                   text = "Inativo",
                   style = MaterialTheme.typography.labelLarge,
                   color = MaterialTheme.colorScheme.error,
                 )
-              }
-              val contrato = cliente.contrato
-              if (!contrato.isNullOrBlank()) {
-                Text(contrato, style = MaterialTheme.typography.titleLarge)
               }
             }
           }

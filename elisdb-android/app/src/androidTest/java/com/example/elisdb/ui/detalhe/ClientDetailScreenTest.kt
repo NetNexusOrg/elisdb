@@ -53,7 +53,7 @@ class ClientDetailScreenTest {
   }
 
   @Test
-  fun detalhe_inativoApareceAntesDoContratoNaTopBar() {
+  fun detalhe_inativoApareceDepoisDoContratoNaTopBar() {
     val cliente =
       Cliente(
         id = "7",
@@ -72,7 +72,7 @@ class ClientDetailScreenTest {
     val contratoLeft =
       composeTestRule.onNodeWithText("CT-700").fetchSemanticsNode().boundsInRoot.left
 
-    assertTrue("Inativo deveria aparecer antes do contrato na top bar", inativoLeft < contratoLeft)
+    assertTrue("Inativo deveria aparecer depois do contrato na top bar", contratoLeft < inativoLeft)
   }
 
   @Test

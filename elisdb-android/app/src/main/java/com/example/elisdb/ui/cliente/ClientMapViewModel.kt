@@ -3,13 +3,16 @@ package com.example.elisdb.ui.cliente
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.elisdb.data.ClienteRepository
+import com.example.elisdb.location.Localizacao
 import java.util.Locale
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class ClientMapItem(
   val id: String,
@@ -36,12 +39,28 @@ sealed interface ClientMapUiState {
   ) : ClientMapUiState
 }
 
-class ClientMapViewModel(repository: ClienteRepository) : ViewModel() {
+class ClientMapViewModel(
+  repository: ClienteRepository,
+  private val locationProvider: suspend () -> Localizacao? = { null },
+) : ViewModel() {
   private val _filtro = MutableStateFlow(ClientMapFilter.ACTIVE)
   val filtro: StateFlow<ClientMapFilter> = _filtro.asStateFlow()
 
+  private val _myLocation = MutableStateFlow<Localizacao?>(null)
+  val myLocation: StateFlow<Localizacao?> = _myLocation.asStateFlow()
+  private var locationJob: Job? = null
+
   fun onFiltroChange(value: ClientMapFilter) {
     _filtro.value = value
+  }
+
+  /** Refreshes the device location, for example after the permission is granted. */
+  fun refreshLocation() {
+    if (locationJob?.isActive == true) return
+    locationJob =
+      viewModelScope.launch {
+        _myLocation.value = locationProvider()
+      }
   }
 
   val uiState: StateFlow<ClientMapUiState> =

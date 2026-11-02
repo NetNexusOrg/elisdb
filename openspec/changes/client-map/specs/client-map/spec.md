@@ -5,13 +5,23 @@
 A app SHALL provide a map screen that shows clients with valid coordinates,
 independently of the search or filter applied to the client list. By default it
 SHALL show only active clients, and a menu SHALL allow showing all clients or
-only inactive clients.
+only inactive clients. The app SHALL request location permission when needed,
+center the map on the current location and show a marker there.
 
 #### Scenario: Open the map from the client list
 - **WHEN** the user taps the map action in the client list top bar
 - **THEN** the app SHALL open the client map screen
 - **AND** the screen SHALL show only active clients with valid coordinates by
   default
+
+#### Scenario: Center on the current location
+- **WHEN** location permission is granted and a current location is available
+- **THEN** the map SHALL open centered on that location with a location marker
+- **AND** it SHALL keep the client pins loaded without fitting them to the view
+
+#### Scenario: Location unavailable
+- **WHEN** location permission is denied or no current location is available
+- **THEN** the map SHALL keep working and fit the visible client pins
 
 #### Scenario: Change the map filter
 - **WHEN** the user opens the map menu and selects all clients, only active
@@ -40,8 +50,11 @@ only inactive clients.
 
 #### Scenario: Empty map
 - **WHEN** there are no clients with valid coordinates for the selected filter
+  and no current location is available
 - **THEN** the app SHALL show an explanatory empty state instead of the map
 
 #### Scenario: Filter without results
 - **WHEN** the selected filter matches no client with valid coordinates
-- **THEN** the app SHALL explain that no client matches the filter
+- **THEN** the app SHALL keep the map visible when a current location is
+  available
+- **AND** it SHALL explain that no client matches the filter

@@ -45,6 +45,7 @@ fun OsmMapMarkers(
   onPinClick: (String) -> Unit,
   modifier: Modifier = Modifier,
   onMapTapped: () -> Unit = {},
+  userLocation: GeoPoint? = null,
 ) {
   val context = LocalContext.current
   val mapView = rememberMapViewWithLifecycle(context, interactive = true)
@@ -52,6 +53,8 @@ fun OsmMapMarkers(
   val currentOnMapTapped by rememberUpdatedState(onMapTapped)
   val markerById = remember { mutableMapOf<String, LabeledMarker>() }
   val lastPinsSignature = remember { arrayOfNulls<String>(1) }
+  val userMarkerRef = remember { arrayOfNulls<Marker>(1) }
+  val centeredOnUser = remember { booleanArrayOf(false) }
 
   AndroidView(
     factory = { ctx ->
@@ -77,10 +80,42 @@ fun OsmMapMarkers(
         )
         addOrUpdateMarkers(this, pins, markerById, currentOnPinClick)
         lastPinsSignature[0] = pinsSignature(pins)
-        post { fitPins(this, pins) }
+        val userMarker =
+          Marker(this).apply {
+            icon = ContextCompat.getDrawable(ctx, R.drawable.ic_map_user_location)
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            setOnMarkerClickListener { _, _ -> true }
+          }
+        overlays.add(userMarker)
+        userMarkerRef[0] = userMarker
+        if (userLocation != null) {
+          userMarker.position = userLocation
+          userMarker.setVisible(true)
+          controller.setCenter(userLocation)
+          controller.setZoom(15.0)
+          centeredOnUser[0] = true
+        } else {
+          userMarker.setVisible(false)
+        }
+        post { if (!centeredOnUser[0]) fitPins(this, pins) }
       }
     },
     update = { view ->
+      val userMarker = userMarkerRef[0]
+      if (userLocation == null) {
+        centeredOnUser[0] = false
+        userMarker?.setVisible(false)
+      } else {
+        userMarker?.position = userLocation
+        userMarker?.setVisible(true)
+        if (!centeredOnUser[0]) {
+          centeredOnUser[0] = true
+          view.controller.setCenter(userLocation)
+          view.controller.setZoom(15.0)
+        }
+        view.invalidate()
+      }
+
       val signature = pinsSignature(pins)
       if (signature != lastPinsSignature[0]) {
         val wantedIds = pins.map { it.id }.toSet()
@@ -90,7 +125,7 @@ fun OsmMapMarkers(
         addOrUpdateMarkers(view, pins, markerById, currentOnPinClick)
         lastPinsSignature[0] = signature
         view.invalidate()
-        view.post { fitPins(view, pins) }
+        if (userLocation == null) view.post { fitPins(view, pins) }
       }
     },
     modifier = modifier,

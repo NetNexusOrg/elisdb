@@ -15,6 +15,8 @@
 - [x] 2.5 Adicionar o menu (≡) com filtro Todos/Apenas ativos/Apenas inativos,
   com Apenas ativos por predefinição.
 - [x] 2.6 Mostrar o nome do cliente acima de cada pin.
+- [x] 2.7 Abrir centrado na localização atual, mostrar o marcador do utilizador
+  e usar o enquadramento dos pins como fallback sem localização.
 
 ## 3. Verificação
 

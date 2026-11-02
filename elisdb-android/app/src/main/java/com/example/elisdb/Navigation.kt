@@ -63,7 +63,13 @@ fun MainNavigation() {
         entry<ClientMap> {
           val container = rememberAppContainer()
           ClientMapScreen(
-            viewModel = viewModel { ClientMapViewModel(container.repository) },
+            viewModel =
+              viewModel {
+                ClientMapViewModel(
+                  repository = container.repository,
+                  locationProvider = container.locationService::getCurrentLocation,
+                )
+              },
             onClienteClick = { id -> backStack.add(ClientDetail(id)) },
             onBack = { backStack.removeLastOrNull() },
           )

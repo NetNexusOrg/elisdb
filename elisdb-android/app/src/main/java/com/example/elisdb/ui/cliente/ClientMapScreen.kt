@@ -1,5 +1,10 @@
 package com.example.elisdb.ui.cliente
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,9 +41,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.elisdb.location.Localizacao
 import com.example.elisdb.ui.map.MapPin
 import com.example.elisdb.ui.map.OsmMapMarkers
 import org.osmdroid.util.GeoPoint
@@ -51,9 +61,30 @@ fun ClientMapScreen(
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   val filtro by viewModel.filtro.collectAsStateWithLifecycle()
+  val myLocation by viewModel.myLocation.collectAsStateWithLifecycle()
+  val context = LocalContext.current
+  val locationPermissionLauncher =
+    rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+      if (granted.values.any { it }) viewModel.refreshLocation()
+    }
+
+  LaunchedEffect(Unit) {
+    if (hasLocationPermission(context)) {
+      viewModel.refreshLocation()
+    } else {
+      locationPermissionLauncher.launch(
+        arrayOf(
+          Manifest.permission.ACCESS_FINE_LOCATION,
+          Manifest.permission.ACCESS_COARSE_LOCATION,
+        )
+      )
+    }
+  }
+
   ClientMapScreen(
     state = state,
     filtro = filtro,
+    myLocation = myLocation,
     onFiltroChange = viewModel::onFiltroChange,
     onClienteClick = onClienteClick,
     onBack = onBack,
@@ -69,6 +100,7 @@ internal fun ClientMapScreen(
   onFiltroChange: (ClientMapFilter) -> Unit,
   onClienteClick: (String) -> Unit,
   onBack: () -> Unit,
+  myLocation: Localizacao? = null,
   modifier: Modifier = Modifier,
 ) {
   var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -117,7 +149,7 @@ internal fun ClientMapScreen(
           CircularProgressIndicator(Modifier.align(Alignment.Center))
 
         is ClientMapUiState.Success ->
-          if (state.clientes.isEmpty()) {
+          if (state.clientes.isEmpty() && myLocation == null) {
             EmptyMapMessage(
               totalClientes = state.totalClientes,
               semLocalizacao = state.semLocalizacao,
@@ -136,6 +168,7 @@ internal fun ClientMapScreen(
                 },
               onPinClick = { selectedId = it },
               onMapTapped = { selectedId = null },
+              userLocation = myLocation?.let { GeoPoint(it.latitude, it.longitude) },
               modifier = Modifier.fillMaxSize(),
             )
             Column(
@@ -147,6 +180,15 @@ internal fun ClientMapScreen(
                   .padding(16.dp),
               verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+              if (state.clientes.isEmpty()) {
+                Text(
+                  text = emptyMapMessage(state.totalClientes, state.semLocalizacao),
+                  modifier = Modifier.fillMaxWidth(),
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  textAlign = TextAlign.Center,
+                )
+              }
               selected?.let { cliente ->
                 SelectedClientCard(
                   cliente = cliente,
@@ -161,6 +203,12 @@ internal fun ClientMapScreen(
   }
 }
 
+private fun hasLocationPermission(context: Context): Boolean =
+  ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+    PackageManager.PERMISSION_GRANTED ||
+    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+      PackageManager.PERMISSION_GRANTED
+
 @Composable
 private fun EmptyMapMessage(
   totalClientes: Int,
@@ -173,16 +221,18 @@ private fun EmptyMapMessage(
     verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     Text(
-      text =
-        when {
-          totalClientes == 0 -> "Ainda não há clientes."
-          semLocalizacao == totalClientes -> "Nenhum cliente tem localização definida."
-          else -> "Nenhum cliente corresponde ao filtro."
-        },
+      text = emptyMapMessage(totalClientes, semLocalizacao),
       style = MaterialTheme.typography.titleMedium,
     )
   }
 }
+
+private fun emptyMapMessage(totalClientes: Int, semLocalizacao: Int): String =
+  when {
+    totalClientes == 0 -> "Ainda não há clientes."
+    semLocalizacao == totalClientes -> "Nenhum cliente tem localização definida."
+    else -> "Nenhum cliente corresponde ao filtro."
+  }
 
 @Composable
 private fun SelectedClientCard(

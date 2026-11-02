@@ -6,6 +6,7 @@ import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
 import com.example.elisdb.data.local.Foto
+import com.example.elisdb.location.Localizacao
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncStatus
 import java.io.File
@@ -121,6 +122,22 @@ class ClientMapViewModelTest {
     assertEquals(emptyList<ClientMapItem>(), state.clientes)
     assertEquals(0, state.semLocalizacao)
     assertEquals(0, state.totalClientes)
+  }
+
+  @Test
+  fun refreshLocation_guardaLocalizacaoAtual() = runTest(dispatcher) {
+    val expected = Localizacao(latitude = 38.7, longitude = -9.1)
+    val viewModel =
+      ClientMapViewModel(
+        FakeMapRepository(flowOf(emptyList())),
+        locationProvider = { expected },
+      )
+
+    assertEquals(null, viewModel.myLocation.value)
+    viewModel.refreshLocation()
+    dispatcher.scheduler.advanceUntilIdle()
+
+    assertEquals(expected, viewModel.myLocation.value)
   }
 }
 

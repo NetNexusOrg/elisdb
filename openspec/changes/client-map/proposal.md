@@ -12,6 +12,8 @@ onde estão os clientes e abrir o detalhe de um ponto no mapa.
   superior da lista.
 - Mostra os clientes com coordenadas, independentemente da pesquisa ou filtro
   ativos na lista.
+- Ao abrir, pede acesso à localização e centra o mapa na posição atual, com um
+  marcador azul; sem permissão ou localização, enquadra os pins dos clientes.
 - Um menu (≡) permite escolher **Todos os clientes**, **Apenas ativos**
   (predefinição) ou **Apenas inativos**.
 - Pins vermelhos para clientes ativos e cinzas para inativos.

@@ -2,6 +2,7 @@ package com.example.elisdb.ui.cliente
 
 import android.net.Uri
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -12,6 +13,7 @@ import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.sync.SyncFault
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.elisdb.sync.SyncStatus
 import com.example.elisdb.theme.ElisdbTheme
 import java.io.File
@@ -79,8 +81,16 @@ class ClientMapScreenTest {
   private fun setMapContent(clientes: List<Cliente>) {
     val viewModel = ClientMapViewModel(FakeMapScreenRepository(flowOf(clientes)))
     composeTestRule.setContent {
+      val state by viewModel.uiState.collectAsStateWithLifecycle()
+      val filtro by viewModel.filtro.collectAsStateWithLifecycle()
       ElisdbTheme {
-        ClientMapScreen(viewModel = viewModel, onClienteClick = {}, onBack = {})
+        ClientMapScreen(
+          state = state,
+          filtro = filtro,
+          onFiltroChange = viewModel::onFiltroChange,
+          onClienteClick = {},
+          onBack = {},
+        )
       }
     }
   }

@@ -38,7 +38,13 @@ internal fun ElisMapMarkers(
       if (pinId != null) {
         onPinClick(pinId)
       } else {
-        onMapTapped()
+        val cluster = map.findClientClusterAt(latLng, CLICK_RADIUS_DP * density)
+        if (cluster != null) {
+          onMapTapped()
+          map.expandCluster(cluster)
+        } else {
+          onMapTapped()
+        }
       }
       true
     }
@@ -93,6 +99,7 @@ internal fun ElisMapMarkers(
       laidOut = laidOut,
       modifier = Modifier.matchParentSize(),
     )
+    MapAttribution(modifier = Modifier.matchParentSize())
   }
 }
 

@@ -108,5 +108,6 @@ internal fun ElisMap(
       laidOut = laidOut,
       modifier = Modifier.matchParentSize(),
     )
+    MapAttribution(modifier = Modifier.matchParentSize())
   }
 }

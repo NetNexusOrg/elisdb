@@ -4,14 +4,17 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PointF
 import android.graphics.RectF
-import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewTreeObserver
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -27,7 +30,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -41,21 +44,24 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.PropertyValue
 import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.sources.GeoJsonOptions
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
-import kotlin.math.roundToInt
 
 internal const val MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 internal const val MAP_DEFAULT_ZOOM = 16.0
 internal const val MAP_USER_ZOOM = 15.0
 internal const val MAP_PINS_SOURCE_ID = "client-pins"
 internal const val MAP_PINS_LAYER_ID = "client-pins-layer"
+internal const val MAP_CLUSTER_LAYER_ID = "client-clusters"
+internal const val MAP_CLUSTER_COUNT_LAYER_ID = "client-cluster-count"
 internal const val MAP_PICKED_SOURCE_ID = "picked-location"
 internal const val MAP_PICKED_LAYER_ID = "picked-location-layer"
 internal const val MAP_USER_SOURCE_ID = "user-location"
@@ -158,7 +164,7 @@ internal fun rememberMapLibreMap(
 ): MapLibreMap? {
   var map by remember(mapView) { mutableStateOf<MapLibreMap?>(null) }
   val currentOnMapClick by rememberUpdatedState(onMapClick)
-  val density = LocalDensity.current.density
+
   val listener =
     remember(mapView) {
       MapLibreMap.OnMapClickListener { latLng ->
@@ -166,12 +172,12 @@ internal fun rememberMapLibreMap(
       }
     }
 
-  DisposableEffect(mapView, interactive, density) {
+  DisposableEffect(mapView, interactive) {
     var disposed = false
     mapView.getMapAsync { instance ->
       if (disposed) return@getMapAsync
       map = instance
-      instance.configureUi(interactive, density)
+      instance.configureUi(interactive)
       instance.removeOnMapClickListener(listener)
       instance.addOnMapClickListener(listener)
     }
@@ -268,19 +274,65 @@ internal fun MapStatusOverlay(
   }
 }
 
-internal fun MapLibreMap.configureUi(interactive: Boolean, density: Float) {
-  fun dp(value: Int): Int = (value * density).roundToInt()
+@Composable
+internal fun MapAttribution(modifier: Modifier = Modifier) {
+  var showDialog by remember { mutableStateOf(false) }
+  val uriHandler = LocalUriHandler.current
+
+  Box(
+    modifier = modifier.fillMaxSize(),
+    contentAlignment = Alignment.TopEnd,
+  ) {
+    Text(
+      text = "© OpenStreetMap",
+      style = MaterialTheme.typography.labelSmall,
+      color = MaterialTheme.colorScheme.onSurface,
+      modifier = Modifier
+        .padding(4.dp)
+        .background(
+          color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+          shape = RoundedCornerShape(4.dp),
+        )
+        .clickable { showDialog = true }
+        .padding(horizontal = 6.dp, vertical = 3.dp),
+    )
+  }
+
+  if (showDialog) {
+    AlertDialog(
+      onDismissRequest = { showDialog = false },
+      title = { Text("Atribuição do mapa") },
+      text = {
+        Column {
+          Text("© OpenStreetMap contributors")
+          Text("Dados: OpenFreeMap / OpenMapTiles")
+          Text("MapLibre Native")
+          TextButton(
+            onClick = { uriHandler.openUri("https://www.openstreetmap.org/copyright") },
+          ) { Text("OpenStreetMap") }
+          TextButton(
+            onClick = { uriHandler.openUri("https://openfreemap.org") },
+          ) { Text("OpenFreeMap") }
+          TextButton(
+            onClick = { uriHandler.openUri("https://openmaptiles.org") },
+          ) { Text("OpenMapTiles") }
+        }
+      },
+      confirmButton = {
+        TextButton(onClick = { showDialog = false }) { Text("Fechar") }
+      },
+    )
+  }
+}
+
+internal fun MapLibreMap.configureUi(interactive: Boolean) {
   uiSettings.apply {
     setAllGesturesEnabled(interactive)
     setRotateGesturesEnabled(false)
     setTiltGesturesEnabled(false)
     setCompassEnabled(false)
-    setLogoEnabled(true)
-    setLogoGravity(Gravity.TOP or Gravity.END)
-    setLogoMargins(dp(8), dp(8), dp(8), 0)
-    setAttributionEnabled(true)
-    setAttributionGravity(Gravity.TOP or Gravity.END)
-    setAttributionMargins(dp(8), dp(48), dp(8), 0)
+    setLogoEnabled(false)
+    setAttributionEnabled(false)
   }
 }
 
@@ -319,11 +371,44 @@ internal fun Style.addMapImages(context: Context) {
 
 internal fun Style.addClientPinsLayer(pins: List<MapPin> = emptyList()) {
   if (getSourceAs<GeoJsonSource>(MAP_PINS_SOURCE_ID) == null) {
+    val options = GeoJsonOptions()
+      .withCluster(true)
+      .withClusterRadius(50)
+      .withClusterMaxZoom(16)
     addSource(
       GeoJsonSource(
         MAP_PINS_SOURCE_ID,
         FeatureCollection.fromFeatures(pins.map(::clientPinFeature)),
+        options,
       )
+    )
+  }
+  if (getLayerAs<CircleLayer>(MAP_CLUSTER_LAYER_ID) == null) {
+    addLayer(
+      CircleLayer(MAP_CLUSTER_LAYER_ID, MAP_PINS_SOURCE_ID)
+        .withProperties(
+          PropertyFactory.circleColor("#4051B5"),
+          PropertyFactory.circleRadius(18f),
+          PropertyFactory.circleStrokeColor("#FFFFFF"),
+          PropertyFactory.circleStrokeWidth(2f),
+        )
+        .withFilter(Expression.has("point_count"))
+    )
+  }
+  if (getLayerAs<SymbolLayer>(MAP_CLUSTER_COUNT_LAYER_ID) == null) {
+    addLayer(
+      SymbolLayer(MAP_CLUSTER_COUNT_LAYER_ID, MAP_PINS_SOURCE_ID)
+        .withProperties(
+          PropertyFactory.textField(
+            Expression.toString(Expression.get("point_count")),
+          ),
+          PropertyFactory.textFont(arrayOf("Noto Sans Bold")),
+          PropertyFactory.textSize(12f),
+          PropertyFactory.textColor("#FFFFFF"),
+          PropertyFactory.textAllowOverlap(true),
+          PropertyFactory.textIgnorePlacement(true),
+        )
+        .withFilter(Expression.has("point_count"))
     )
   }
   if (getLayerAs<SymbolLayer>(MAP_PINS_LAYER_ID) == null) {
@@ -332,6 +417,7 @@ internal fun Style.addClientPinsLayer(pins: List<MapPin> = emptyList()) {
         .withProperties(
           *pinLayerProperties(),
         )
+        .withFilter(Expression.has("id"))
     )
   }
 }
@@ -409,8 +495,10 @@ private fun pinLayerProperties(): Array<PropertyValue<*>> =
     PropertyFactory.textHaloWidth(2f),
     PropertyFactory.textAnchor(Property.TEXT_ANCHOR_BOTTOM),
     PropertyFactory.textOffset(arrayOf(0f, -2.4f)),
-    PropertyFactory.textAllowOverlap(true),
-    PropertyFactory.textIgnorePlacement(true),
+    PropertyFactory.textMaxWidth(8f),
+    PropertyFactory.textOptional(true),
+    PropertyFactory.textAllowOverlap(false),
+    PropertyFactory.textIgnorePlacement(false),
   )
 
 internal fun Style.updatePickedLocation(position: LatLng?) {
@@ -451,6 +539,8 @@ internal fun clientPinFeature(pin: MapPin): Feature =
       "icon",
       if (pin.active) MAP_PIN_ACTIVE_IMAGE else MAP_PIN_INACTIVE_IMAGE,
     )
+    addBooleanProperty("active", pin.active)
+    addNumberProperty("rank", if (pin.active) 0 else 1)
   }
 
 private fun pointFeature(position: LatLng, icon: String): Feature =
@@ -534,6 +624,45 @@ internal fun MapLibreMap.findClientPinAt(position: LatLng, radiusPx: Float): Str
       .firstOrNull()
       ?.getStringProperty("id")
   }.getOrNull()
+
+internal data class ClusterHit(
+  val feature: Feature,
+  val id: Long,
+  val pointCount: Int,
+)
+
+internal fun MapLibreMap.findClientClusterAt(position: LatLng, radiusPx: Float): ClusterHit? =
+  runCatching {
+    val screen = projection.toScreenLocation(position)
+    val rect =
+      RectF(
+        screen.x - radiusPx,
+        screen.y - radiusPx,
+        screen.x + radiusPx,
+        screen.y + radiusPx,
+      )
+    val feature =
+      queryRenderedFeatures(rect, MAP_CLUSTER_LAYER_ID).firstOrNull()
+        ?: return@runCatching null
+    val id = feature.getNumberProperty("cluster_id")?.toLong() ?: return@runCatching null
+    val count = feature.getNumberProperty("point_count")?.toInt() ?: 0
+    ClusterHit(feature, id, count)
+  }.getOrNull()
+
+internal fun MapLibreMap.expandCluster(hit: ClusterHit) {
+  val source = getStyle()?.getSourceAs<GeoJsonSource>(MAP_PINS_SOURCE_ID) ?: return
+  val point = hit.feature.geometry() as? Point ?: return
+  val target = LatLng(point.latitude(), point.longitude())
+  val expansionZoom =
+    runCatching { source.getClusterExpansionZoom(hit.feature) }.getOrNull()
+      ?: (cameraPosition.zoom + 2.0).toInt()
+  animateCamera(
+    CameraUpdateFactory.newLatLngZoom(
+      target,
+      expansionZoom.toDouble().coerceAtLeast(cameraPosition.zoom + 1.0),
+    )
+  )
+}
 
 @SuppressLint("ClickableViewAccessibility")
 internal fun isWithinHitRadius(

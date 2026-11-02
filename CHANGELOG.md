@@ -8,6 +8,30 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [1.8.0] - 2026-11-02
+
+### Novidades
+
+- **Mapa de clientes.** A lista passa a ter um atalho para um mapa com todos os
+  clientes que têm localização. Os pins ativos são vermelhos, os inativos
+  cinzas e cada pin mostra o nome do cliente. Tocar num pin mostra o nome, o
+  contrato e o estado, com acesso direto ao detalhe.
+- **Filtro do mapa.** O menu (≡) permite mostrar todos os clientes, apenas os
+  ativos (predefinição) ou apenas os inativos.
+- **A tua localização no mapa.** Ao abrir o mapa, a app pede acesso à localização
+  e centra-o na tua posição atual, com um ponto azul. Sem permissão, o mapa
+  enquadra os pins dos clientes. No mapa em ecrã inteiro do detalhe, o mapa
+  continua centrado no cliente e mostra também a tua localização; afasta o zoom
+  para te situares.
+- **Navegação mais consistente.** Os menus da lista e do detalhe usam agora o
+  ícone hambúrguer (≡). A etiqueta vermelha **Inativo** aparece depois do
+  contrato, tanto na lista como na barra superior do detalhe.
+
+### Correções
+
+- **Centragem do mapa.** O enquadramento automático dos pins já não se sobrepõe
+  à centragem na localização atual quando esta chega ao mapa.
+
 ## [1.7.0] - 2026-11-01
 
 ### Novidades

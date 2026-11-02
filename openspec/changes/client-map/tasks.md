@@ -10,7 +10,7 @@
 
 - [x] 2.1 Criar `OsmMapMarkers` com pins, seleção e ajuste automático do zoom.
 - [x] 2.2 Criar o pin inativo cinza.
-- [x] 2.3 Criar `ClientMapScreen` com legenda, contador e cartão de seleção.
+- [x] 2.3 Criar `ClientMapScreen` com mapa e cartão de seleção.
 - [x] 2.4 Abrir o detalhe do cliente pelo cartão.
 
 ## 3. Verificação

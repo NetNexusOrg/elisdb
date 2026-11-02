@@ -27,9 +27,8 @@ Os botões de zoom do osmdroid continuam ocultos; o zoom é feito por pinça.
 
 - **Loading:** indicador de progresso.
 - **Sem clientes:** “Ainda não há clientes.”
-- **Sem coordenadas:** “Nenhum cliente tem localização definida.” e contador.
-- **Normal:** mapa, legenda ativo/inativo e contador de sem localização quando
-  aplicável.
+- **Sem coordenadas:** “Nenhum cliente tem localização definida.”
+- **Normal:** mapa com pins ativos e inativos e cartão de seleção.
 
 ## Fora de âmbito
 

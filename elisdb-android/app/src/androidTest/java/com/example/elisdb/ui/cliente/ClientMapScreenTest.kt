@@ -32,7 +32,7 @@ class ClientMapScreenTest {
   }
 
   @Test
-  fun mapa_clientesSemCoordenadasMostraContador() {
+  fun mapa_clientesSemCoordenadasNaoMostraContador() {
     setMapContent(
       listOf(
         Cliente(id = "1", nome = "Maria", latitude = null, longitude = null, dataCriacao = 0, updatedAt = 0),
@@ -41,7 +41,7 @@ class ClientMapScreenTest {
     )
 
     composeTestRule.onNodeWithText("Nenhum cliente tem localização definida.").assertExists()
-    composeTestRule.onNodeWithText("2 clientes sem localização").assertExists()
+    composeTestRule.onNodeWithText("2 clientes sem localização").assertDoesNotExist()
   }
 
   private fun setMapContent(clientes: List<Cliente>) {

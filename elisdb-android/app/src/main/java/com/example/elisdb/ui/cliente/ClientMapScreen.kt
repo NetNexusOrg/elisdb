@@ -1,6 +1,5 @@
 package com.example.elisdb.ui.cliente
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,9 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -23,7 +19,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -33,16 +28,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.elisdb.ui.map.MapPin
 import com.example.elisdb.ui.map.OsmMapMarkers
 import org.osmdroid.util.GeoPoint
-
-private val ActivePinColor = Color(0xFFE53935)
-private val InactivePinColor = Color(0xFF9E9E9E)
 
 @Composable
 fun ClientMapScreen(
@@ -109,9 +100,6 @@ internal fun ClientMapScreen(
               onMapTapped = { selectedId = null },
               modifier = Modifier.fillMaxSize(),
             )
-            MapLegend(
-              modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
-            )
             Column(
               modifier =
                 Modifier
@@ -121,9 +109,6 @@ internal fun ClientMapScreen(
                   .padding(16.dp),
               verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-              if (state.semLocalizacao > 0) {
-                SemLocalizacaoBanner(state.semLocalizacao)
-              }
               selected?.let { cliente ->
                 SelectedClientCard(
                   cliente = cliente,
@@ -150,58 +135,6 @@ private fun EmptyMapMessage(semLocalizacao: Int, modifier: Modifier = Modifier) 
         if (semLocalizacao > 0) "Nenhum cliente tem localização definida."
         else "Ainda não há clientes.",
       style = MaterialTheme.typography.titleMedium,
-    )
-    if (semLocalizacao > 0) {
-      Text(
-        text = semLocalizacaoLabel(semLocalizacao),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-    }
-  }
-}
-
-@Composable
-private fun SemLocalizacaoBanner(count: Int) {
-  Surface(
-    shape = RoundedCornerShape(24.dp),
-    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    tonalElevation = 2.dp,
-  ) {
-    Text(
-      text = semLocalizacaoLabel(count),
-      style = MaterialTheme.typography.labelLarge,
-      modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-    )
-  }
-}
-
-@Composable
-private fun MapLegend(modifier: Modifier = Modifier) {
-  Surface(
-    modifier = modifier,
-    shape = RoundedCornerShape(12.dp),
-    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    tonalElevation = 2.dp,
-  ) {
-    Column(
-      modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-      verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-      LegendRow(color = ActivePinColor, label = "Ativo")
-      LegendRow(color = InactivePinColor, label = "Inativo")
-    }
-  }
-}
-
-@Composable
-private fun LegendRow(color: Color, label: String) {
-  Row(verticalAlignment = Alignment.CenterVertically) {
-    Box(Modifier.size(8.dp).background(color, CircleShape))
-    Text(
-      text = label,
-      style = MaterialTheme.typography.labelSmall,
-      modifier = Modifier.padding(start = 6.dp),
     )
   }
 }
@@ -249,6 +182,3 @@ private fun SelectedClientCard(
     }
   }
 }
-
-private fun semLocalizacaoLabel(count: Int): String =
-  if (count == 1) "1 cliente sem localização" else "$count clientes sem localização"

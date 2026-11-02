@@ -15,14 +15,12 @@ onde estão os clientes e abrir o detalhe de um ponto no mapa.
 - Pins vermelhos para clientes ativos e cinzas para inativos.
 - Tocar num pin abre um cartão com nome, contrato e estado; o botão
   **Abrir cliente** navega para o detalhe.
-- Clientes sem coordenadas são contados num aviso discreto no mapa.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `client-map`: visão geográfica de todos os clientes com pins, seleção e
-  contagem de clientes sem localização.
+- `client-map`: visão geográfica de todos os clientes com pins e seleção.
 
 ### Modified Capabilities
 

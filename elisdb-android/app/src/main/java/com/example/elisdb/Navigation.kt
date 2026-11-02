@@ -192,6 +192,7 @@ fun MainNavigation() {
             repository = container.repository,
             clienteId = key.clienteId,
             onBack = { backStack.removeLastOrNull() },
+            locationProvider = container.locationService::getCurrentLocation,
           )
         }
       },

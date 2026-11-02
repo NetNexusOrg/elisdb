@@ -43,10 +43,12 @@ fun OsmMap(
   interactive: Boolean = true,
   onMarkerMoved: (GeoPoint) -> Unit = {},
   onMapTapped: (GeoPoint) -> Unit = {},
+  userLocation: GeoPoint? = null,
 ) {
   val context = LocalContext.current
   val mapView = rememberMapViewWithLifecycle(context, interactive)
   val markerRef = remember { arrayOfNulls<Marker>(1) }
+  val userMarkerRef = remember { arrayOfNulls<Marker>(1) }
   val currentOnMapTapped by rememberUpdatedState(onMapTapped)
   val currentOnMarkerMoved by rememberUpdatedState(onMarkerMoved)
   var isMapReady by remember { mutableStateOf(false) }
@@ -116,6 +118,24 @@ fun OsmMap(
             }
           overlays.add(marker)
           markerRef[0] = marker
+
+          val userMarker =
+            Marker(this).apply {
+              icon = ContextCompat.getDrawable(ctx, R.drawable.ic_map_user_location)
+              setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+              // The current-location dot is not clickable.
+              setOnMarkerClickListener { _, _ -> true }
+            }
+          overlays.add(userMarker)
+          userMarkerRef[0] = userMarker
+          val currentUserLocation = userLocation
+          if (currentUserLocation != null) {
+            userMarker.position = currentUserLocation
+            userMarker.setVisible(true)
+          } else {
+            userMarker.setVisible(false)
+          }
+
           if (markerPosition != null) {
             marker.position = markerPosition
             controller.setCenter(markerPosition)
@@ -125,6 +145,18 @@ fun OsmMap(
         }
       },
       update = { view ->
+        val userMarker = userMarkerRef[0]
+        val currentUserLocation = userLocation
+        if (userMarker != null) {
+          if (currentUserLocation == null) {
+            userMarker.setVisible(false)
+          } else {
+            userMarker.position = currentUserLocation
+            userMarker.setVisible(true)
+          }
+          view.invalidate()
+        }
+
         val marker = markerRef[0] ?: return@AndroidView
         val position = markerPosition
         if (position == null) {

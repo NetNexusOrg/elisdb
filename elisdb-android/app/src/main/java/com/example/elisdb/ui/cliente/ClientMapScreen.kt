@@ -1,8 +1,6 @@
 package com.example.elisdb.ui.cliente
 
 import android.Manifest
-import android.content.Context
-import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -45,11 +43,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.elisdb.location.Localizacao
 import com.example.elisdb.ui.map.MapPin
 import com.example.elisdb.ui.map.OsmMapMarkers
+import com.example.elisdb.ui.map.hasLocationPermission
 import org.osmdroid.util.GeoPoint
 
 @Composable
@@ -202,12 +200,6 @@ internal fun ClientMapScreen(
     }
   }
 }
-
-private fun hasLocationPermission(context: Context): Boolean =
-  ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-    PackageManager.PERMISSION_GRANTED ||
-    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
-      PackageManager.PERMISSION_GRANTED
 
 @Composable
 private fun EmptyMapMessage(

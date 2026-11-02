@@ -90,7 +90,9 @@ Fluxos principais:
   pins continuam visíveis.
 - **Mapa** — escolher/indicar a localização (Picker).
 - **Fotos** — capturar e associar imagens; ver em ecrã inteiro.
-- **Detalhe do cliente** — mapa, navegação, notas e fotos; um cliente inativo
+- **Detalhe do cliente** — mapa, navegação, notas e fotos. O mapa em ecrã
+  inteiro centra-se no cliente e mostra também a tua localização atual (ponto
+  azul), se houver permissão; afasta o zoom para te situares. Um cliente inativo
   mostra a etiqueta **Inativo** na barra superior, depois do contrato; no menu (≡) podes
   editar, apagar ou abrir o **Log**, uma página com o histórico de alterações
   agrupado por dia: quem alterou, a que horas, que campos mudaram (valor antigo

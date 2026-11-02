@@ -23,6 +23,13 @@ center the map on the current location and show a marker there.
 - **WHEN** location permission is denied or no current location is available
 - **THEN** the map SHALL keep working and fit the visible client pins
 
+#### Scenario: Detail fullscreen map
+- **WHEN** the user opens the fullscreen map from a client detail
+- **THEN** the map SHALL center on that client's coordinates
+- **AND** it SHALL show the current location marker when permission and location
+  are available
+- **AND** it SHALL keep the client marker visible
+
 #### Scenario: Change the map filter
 - **WHEN** the user opens the map menu and selects all clients, only active
   clients or only inactive clients

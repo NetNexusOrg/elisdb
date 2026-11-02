@@ -17,6 +17,8 @@
 - [x] 2.6 Mostrar o nome do cliente acima de cada pin.
 - [x] 2.7 Abrir centrado na localização atual, mostrar o marcador do utilizador
   e usar o enquadramento dos pins como fallback sem localização.
+- [x] 2.8 No mapa em ecrã inteiro do detalhe, centrar no cliente e mostrar também
+  o marcador da localização atual, sem recentrar o mapa.
 
 ## 3. Verificação
 

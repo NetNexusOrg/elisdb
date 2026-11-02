@@ -1,5 +1,8 @@
 package com.example.elisdb.ui.detalhe
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -16,13 +19,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.local.ClienteComFotos
+import com.example.elisdb.location.Localizacao
 import com.example.elisdb.ui.map.OsmMap
+import com.example.elisdb.ui.map.hasLocationPermission
+import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 
 @Composable
@@ -31,7 +39,32 @@ fun MapFullscreenScreen(
   clienteId: String,
   onBack: () -> Unit,
   modifier: Modifier = Modifier,
+  locationProvider: suspend () -> Localizacao? = { null },
 ) {
+  val context = LocalContext.current
+  val scope = rememberCoroutineScope()
+  var myLocation by remember { mutableStateOf<Localizacao?>(null) }
+  fun refreshLocation() {
+    scope.launch { myLocation = locationProvider() }
+  }
+  val permissionLauncher =
+    rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+      if (granted.values.any { it }) refreshLocation()
+    }
+
+  LaunchedEffect(Unit) {
+    if (hasLocationPermission(context)) {
+      myLocation = locationProvider()
+    } else {
+      permissionLauncher.launch(
+        arrayOf(
+          Manifest.permission.ACCESS_FINE_LOCATION,
+          Manifest.permission.ACCESS_COARSE_LOCATION,
+        )
+      )
+    }
+  }
+
   var cliente by remember { mutableStateOf<ClienteComFotos?>(null) }
   var loading by remember { mutableStateOf(true) }
   var loadError by remember { mutableStateOf(false) }
@@ -82,6 +115,7 @@ fun MapFullscreenScreen(
           draggable = false,
           interactive = true,
           modifier = Modifier.fillMaxSize(),
+          userLocation = myLocation?.let { GeoPoint(it.latitude, it.longitude) },
         )
     }
 

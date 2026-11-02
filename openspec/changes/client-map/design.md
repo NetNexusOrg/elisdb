@@ -37,6 +37,13 @@ marcador azul; não volta a enquadrar os pins após o utilizador mover o mapa.
 Sem localização, faz `zoomToBoundingBox` com margem; com um único pin usa zoom
 16. Os botões de zoom do osmdroid continuam ocultos; o zoom é feito por pinça.
 
+## Detalhe em ecrã inteiro
+
+O mapa do detalhe reutiliza `OsmMap`, continua centrado no cliente e mostra a
+localização atual com um ponto azul, sem recentrar quando a posição chega. Se a
+localização estiver fora do ecrã inicial, o utilizador vê-a ao afastar o zoom.
+Sem permissão ou localização, o mapa mantém apenas o pin do cliente.
+
 ## Estados
 
 - **Loading:** indicador de progresso.

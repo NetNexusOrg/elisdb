@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import com.example.elisdb.data.ClienteDraft
 import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.local.Cliente
@@ -29,6 +30,37 @@ class ClientMapScreenTest {
     composeTestRule.onNodeWithText("Mapa de clientes").assertExists()
     composeTestRule.onNodeWithContentDescription("Voltar").assertExists()
     composeTestRule.onNodeWithText("Ainda não há clientes.").assertExists()
+  }
+
+  @Test
+  fun mapa_menuDeFiltroMostraOpcoes() {
+    setMapContent(emptyList())
+
+    composeTestRule.onNodeWithContentDescription("Filtrar clientes").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Todos os clientes").assertExists()
+    composeTestRule.onNodeWithText("Apenas ativos").assertExists()
+    composeTestRule.onNodeWithText("Apenas inativos").assertExists()
+  }
+
+  @Test
+  fun mapa_filtroAtivoSemResultadosMostraMensagemDeFiltro() {
+    setMapContent(
+      listOf(
+        Cliente(
+          id = "1",
+          nome = "Rui",
+          latitude = 1.0,
+          longitude = 2.0,
+          ativo = false,
+          dataCriacao = 0,
+          updatedAt = 0,
+        )
+      )
+    )
+
+    composeTestRule.onNodeWithText("Nenhum cliente corresponde ao filtro.").assertExists()
   }
 
   @Test

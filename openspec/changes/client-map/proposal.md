@@ -10,8 +10,10 @@ onde estão os clientes e abrir o detalhe de um ponto no mapa.
 
 - Adiciona um ecrã **Mapa de clientes**, aberto pelo ícone de mapa na barra
   superior da lista.
-- Mostra **todos** os clientes com coordenadas, independentemente da pesquisa
-  ou filtro ativos na lista.
+- Mostra os clientes com coordenadas, independentemente da pesquisa ou filtro
+  ativos na lista.
+- Um menu (≡) permite escolher **Todos os clientes**, **Apenas ativos**
+  (predefinição) ou **Apenas inativos**.
 - Pins vermelhos para clientes ativos e cinzas para inativos.
 - Tocar num pin abre um cartão com nome, contrato e estado; o botão
   **Abrir cliente** navega para o detalhe.
@@ -20,7 +22,8 @@ onde estão os clientes e abrir o detalhe de um ponto no mapa.
 
 ### New Capabilities
 
-- `client-map`: visão geográfica de todos os clientes com pins e seleção.
+- `client-map`: visão geográfica dos clientes, com filtro por estado, pins e
+  seleção.
 
 ### Modified Capabilities
 

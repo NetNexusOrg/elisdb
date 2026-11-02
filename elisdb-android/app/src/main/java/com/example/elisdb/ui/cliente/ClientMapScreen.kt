@@ -4,16 +4,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -24,6 +30,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,8 +50,11 @@ fun ClientMapScreen(
   modifier: Modifier = Modifier,
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
+  val filtro by viewModel.filtro.collectAsStateWithLifecycle()
   ClientMapScreen(
     state = state,
+    filtro = filtro,
+    onFiltroChange = viewModel::onFiltroChange,
     onClienteClick = onClienteClick,
     onBack = onBack,
     modifier = modifier,
@@ -55,6 +65,8 @@ fun ClientMapScreen(
 @Composable
 internal fun ClientMapScreen(
   state: ClientMapUiState,
+  filtro: ClientMapFilter,
+  onFiltroChange: (ClientMapFilter) -> Unit,
   onClienteClick: (String) -> Unit,
   onBack: () -> Unit,
   modifier: Modifier = Modifier,
@@ -72,6 +84,30 @@ internal fun ClientMapScreen(
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
           }
         },
+        actions = {
+          var menuOpen by remember { mutableStateOf(false) }
+          IconButton(onClick = { menuOpen = true }) {
+            Icon(Icons.Default.Menu, contentDescription = "Filtrar clientes")
+          }
+          DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            ClientMapFilter.entries.forEach { option ->
+              DropdownMenuItem(
+                text = { Text(option.label) },
+                onClick = {
+                  menuOpen = false
+                  onFiltroChange(option)
+                },
+                leadingIcon = {
+                  if (option == filtro) {
+                    Icon(Icons.Default.Check, contentDescription = null)
+                  } else {
+                    Spacer(Modifier.size(24.dp))
+                  }
+                },
+              )
+            }
+          }
+        },
       )
     },
   ) { innerPadding ->
@@ -83,6 +119,7 @@ internal fun ClientMapScreen(
         is ClientMapUiState.Success ->
           if (state.clientes.isEmpty()) {
             EmptyMapMessage(
+              totalClientes = state.totalClientes,
               semLocalizacao = state.semLocalizacao,
               modifier = Modifier.align(Alignment.Center),
             )
@@ -124,7 +161,11 @@ internal fun ClientMapScreen(
 }
 
 @Composable
-private fun EmptyMapMessage(semLocalizacao: Int, modifier: Modifier = Modifier) {
+private fun EmptyMapMessage(
+  totalClientes: Int,
+  semLocalizacao: Int,
+  modifier: Modifier = Modifier,
+) {
   Column(
     modifier = modifier.padding(24.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
@@ -132,8 +173,11 @@ private fun EmptyMapMessage(semLocalizacao: Int, modifier: Modifier = Modifier) 
   ) {
     Text(
       text =
-        if (semLocalizacao > 0) "Nenhum cliente tem localização definida."
-        else "Ainda não há clientes.",
+        when {
+          totalClientes == 0 -> "Ainda não há clientes."
+          semLocalizacao == totalClientes -> "Nenhum cliente tem localização definida."
+          else -> "Nenhum cliente corresponde ao filtro."
+        },
       style = MaterialTheme.typography.titleMedium,
     )
   }

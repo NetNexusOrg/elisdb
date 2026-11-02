@@ -12,6 +12,8 @@
 - [x] 2.2 Criar o pin inativo cinza.
 - [x] 2.3 Criar `ClientMapScreen` com mapa e cartão de seleção.
 - [x] 2.4 Abrir o detalhe do cliente pelo cartão.
+- [x] 2.5 Adicionar o menu (≡) com filtro Todos/Apenas ativos/Apenas inativos,
+  com Apenas ativos por predefinição.
 
 ## 3. Verificação
 

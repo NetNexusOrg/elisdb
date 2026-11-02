@@ -56,12 +56,14 @@ class ClientMapViewModelTest {
 
     val state = viewModel.uiState.first { it is ClientMapUiState.Success } as ClientMapUiState.Success
 
+    assertEquals(ClientMapFilter.ACTIVE, viewModel.filtro.value)
     assertEquals(listOf("Maria"), state.clientes.map { it.nome })
     assertEquals(3, state.semLocalizacao)
+    assertEquals(4, state.totalClientes)
   }
 
   @Test
-  fun uiState_ordenaPorNomeEKeepInativo() = runTest(dispatcher) {
+  fun uiState_ordenaPorNomeEIncluiInativoQuandoFiltroTodos() = runTest(dispatcher) {
     val viewModel =
       ClientMapViewModel(
         FakeMapRepository(
@@ -74,10 +76,40 @@ class ClientMapViewModelTest {
         )
       )
 
-    val state = viewModel.uiState.first { it is ClientMapUiState.Success } as ClientMapUiState.Success
+    val activeState =
+      viewModel.uiState.first { it is ClientMapUiState.Success } as ClientMapUiState.Success
+    assertEquals(listOf("ana"), activeState.clientes.map { it.nome })
 
-    assertEquals(listOf("ana", "Zeca"), state.clientes.map { it.nome })
-    assertFalse(state.clientes.last().ativo)
+    viewModel.onFiltroChange(ClientMapFilter.ALL)
+    dispatcher.scheduler.advanceUntilIdle()
+
+    val allState = viewModel.uiState.value as ClientMapUiState.Success
+    assertEquals(listOf("ana", "Zeca"), allState.clientes.map { it.nome })
+    assertFalse(allState.clientes.last().ativo)
+  }
+
+  @Test
+  fun uiState_filtroInativosMostraApenasInativos() = runTest(dispatcher) {
+    val viewModel =
+      ClientMapViewModel(
+        FakeMapRepository(
+          flowOf(
+            listOf(
+              cliente("1", "Zeca", latitude = 1.0, longitude = 2.0, ativo = false),
+              cliente("2", "ana", latitude = 3.0, longitude = 4.0),
+            )
+          )
+        )
+      )
+
+    viewModel.uiState.first { it is ClientMapUiState.Success }
+
+    viewModel.onFiltroChange(ClientMapFilter.INACTIVE)
+    dispatcher.scheduler.advanceUntilIdle()
+
+    val state = viewModel.uiState.value as ClientMapUiState.Success
+    assertEquals(ClientMapFilter.INACTIVE, viewModel.filtro.value)
+    assertEquals(listOf("Zeca"), state.clientes.map { it.nome })
   }
 
   @Test
@@ -88,6 +120,7 @@ class ClientMapViewModelTest {
 
     assertEquals(emptyList<ClientMapItem>(), state.clientes)
     assertEquals(0, state.semLocalizacao)
+    assertEquals(0, state.totalClientes)
   }
 }
 

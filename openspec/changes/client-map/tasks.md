@@ -14,6 +14,7 @@
 - [x] 2.4 Abrir o detalhe do cliente pelo cartão.
 - [x] 2.5 Adicionar o menu (≡) com filtro Todos/Apenas ativos/Apenas inativos,
   com Apenas ativos por predefinição.
+- [x] 2.6 Mostrar o nome do cliente acima de cada pin.
 
 ## 3. Verificação
 

@@ -129,6 +129,7 @@ internal fun ClientMapScreen(
                 state.clientes.map {
                   MapPin(
                     id = it.id,
+                    name = it.nome,
                     position = GeoPoint(it.latitude, it.longitude),
                     active = it.ativo,
                   )

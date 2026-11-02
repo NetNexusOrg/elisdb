@@ -28,6 +28,10 @@ only inactive clients.
 - **WHEN** a client is inactive
 - **THEN** its pin SHALL use the inactive style
 
+#### Scenario: Pin label
+- **WHEN** a client has a pin on the map
+- **THEN** the pin SHALL show the client's name above it
+
 #### Scenario: Select a client pin
 - **WHEN** the user taps a client pin
 - **THEN** the app SHALL show a card with the client's name, contract and state

@@ -82,8 +82,9 @@ Fluxos principais:
   dos clientes com localização. O menu (≡) permite mostrar **Todos os clientes**,
   **Apenas ativos** (predefinição) ou **Apenas inativos**; a pesquisa e o filtro
   da lista não se aplicam ao mapa. Os pins vermelhos são clientes ativos e os
-  cinzas inativos; tocar num pin mostra o nome, o contrato e o estado, com o
-  botão **Abrir cliente**. Os mapas precisam de rede ou de tiles já em cache
+  cinzas inativos; cada pin mostra o nome do cliente por cima. Tocar num pin
+  mostra o nome, o contrato e o estado, com o botão **Abrir cliente**. Os mapas
+  precisam de rede ou de tiles já em cache
   para mostrar o fundo; os pins continuam visíveis.
 - **Mapa** — escolher/indicar a localização (Picker).
 - **Fotos** — capturar e associar imagens; ver em ecrã inteiro.

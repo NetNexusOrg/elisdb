@@ -7,7 +7,8 @@
 3. `ClientMapViewModel` observa `repository.clientes` e o filtro
    `ClientMapFilter` (predefinição `ACTIVE`), separando os clientes com
    coordenadas válidas dos restantes.
-4. `ClientMapScreen` desenha um `OsmMapMarkers` com um pin por cliente visível.
+4. `ClientMapScreen` desenha um `OsmMapMarkers` com um pin por cliente visível,
+   identificado pelo nome do cliente por cima.
 5. O menu (≡) da topbar permite mudar o filtro; a lista da página inicial não é
    afetada.
 6. Tocar num pin seleciona o cliente; o cartão inferior permite abrir o detalhe.
@@ -24,8 +25,9 @@ estados vazios. `ClientMapFilter` tem `ALL`, `ACTIVE` (predefinição) e
 ## Mapa
 
 `OsmMapMarkers` reutiliza o ciclo de vida do `MapView` já usado por `OsmMap`.
-Mantém os markers entre recomposições, atualiza posição/cor quando a assinatura
-dos pins muda e faz `zoomToBoundingBox` com margem. Com um único pin usa zoom 16.
+Mantém os markers entre recomposições, atualiza posição/cor/nome quando a
+assinatura dos pins muda e desenha o nome do cliente num fundo claro acima do
+pin. Faz `zoomToBoundingBox` com margem; com um único pin usa zoom 16.
 Os botões de zoom do osmdroid continuam ocultos; o zoom é feito por pinça.
 
 ## Estados

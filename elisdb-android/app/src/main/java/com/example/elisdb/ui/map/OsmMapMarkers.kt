@@ -1,5 +1,11 @@
 package com.example.elisdb.ui.map
 
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Point
+import android.graphics.Typeface
+import android.util.TypedValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -15,12 +21,14 @@ import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
+import org.osmdroid.views.Projection
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 
 /** A client pin shown on the client map. */
 data class MapPin(
   val id: String,
+  val name: String,
   val position: GeoPoint,
   val active: Boolean = true,
 )
@@ -42,7 +50,7 @@ fun OsmMapMarkers(
   val mapView = rememberMapViewWithLifecycle(context, interactive = true)
   val currentOnPinClick by rememberUpdatedState(onPinClick)
   val currentOnMapTapped by rememberUpdatedState(onMapTapped)
-  val markerById = remember { mutableMapOf<String, Marker>() }
+  val markerById = remember { mutableMapOf<String, LabeledMarker>() }
   val lastPinsSignature = remember { arrayOfNulls<String>(1) }
 
   AndroidView(
@@ -92,7 +100,7 @@ fun OsmMapMarkers(
 private fun addOrUpdateMarkers(
   view: MapView,
   pins: List<MapPin>,
-  markerById: MutableMap<String, Marker>,
+  markerById: MutableMap<String, LabeledMarker>,
   onPinClick: (String) -> Unit,
 ) {
   val activeIcon = ContextCompat.getDrawable(view.context, R.drawable.ic_map_pin)
@@ -100,7 +108,7 @@ private fun addOrUpdateMarkers(
   pins.forEach { pin ->
     val marker =
       markerById[pin.id]
-        ?: Marker(view).also {
+        ?: LabeledMarker(view).also {
           it.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
           it.relatedObject = pin.id
           it.setOnMarkerClickListener { clicked, _ ->
@@ -112,6 +120,7 @@ private fun addOrUpdateMarkers(
         }
     marker.position = pin.position
     marker.icon = if (pin.active) activeIcon else inactiveIcon
+    marker.label = pin.name
     marker.setVisible(true)
   }
 }
@@ -132,5 +141,50 @@ private fun fitPins(view: MapView, pins: List<MapPin>) {
 
 private fun pinsSignature(pins: List<MapPin>): String =
   pins.joinToString("|") { pin ->
-    "${pin.id}:${pin.position.latitude}:${pin.position.longitude}:${pin.active}"
+    "${pin.id}:${pin.name}:${pin.position.latitude}:${pin.position.longitude}:${pin.active}"
   }
+
+/** A map pin that draws the client name on a small label above the icon. */
+private class LabeledMarker(mapView: MapView) : Marker(mapView) {
+  private val density = mapView.resources.displayMetrics.density
+  private val labelPaint =
+    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      color = Color.rgb(33, 33, 33)
+      textSize =
+        TypedValue.applyDimension(
+          TypedValue.COMPLEX_UNIT_SP,
+          12f,
+          mapView.resources.displayMetrics,
+        )
+      typeface = Typeface.DEFAULT_BOLD
+      textAlign = Paint.Align.CENTER
+    }
+  private val backgroundPaint =
+    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      color = Color.argb(235, 255, 255, 255)
+    }
+  private val labelPosition = Point()
+  private val horizontalPadding = 3f * density
+  private val verticalGap = 2f * density
+  private val cornerRadius = 4f * density
+
+  var label: String = ""
+
+  override fun draw(canvas: Canvas, projection: Projection) {
+    super.draw(canvas, projection)
+    if (label.isBlank()) return
+
+    val markerPosition = this.position ?: return
+    projection.toPixels(markerPosition, labelPosition)
+    val iconHeight = icon?.intrinsicHeight ?: 0
+    val baseline = labelPosition.y - iconHeight - verticalGap - labelPaint.descent()
+    val textWidth = labelPaint.measureText(label)
+    val left = labelPosition.x - textWidth / 2f - horizontalPadding
+    val right = labelPosition.x + textWidth / 2f + horizontalPadding
+    val top = baseline + labelPaint.ascent() - horizontalPadding
+    val bottom = baseline + labelPaint.descent() + horizontalPadding
+
+    canvas.drawRoundRect(left, top, right, bottom, cornerRadius, cornerRadius, backgroundPaint)
+    canvas.drawText(label, labelPosition.x.toFloat(), baseline, labelPaint)
+  }
+}

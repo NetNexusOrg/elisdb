@@ -86,8 +86,9 @@ Fluxos principais:
   e o filtro da lista não se aplicam ao mapa. Os pins vermelhos são clientes
   ativos e os cinzas inativos; cada pin mostra o nome do cliente por cima. Tocar
   num pin mostra o nome, o contrato e o estado, com o botão **Abrir cliente**.
-  Os mapas precisam de rede ou de tiles já em cache para mostrar o fundo; os
-  pins continuam visíveis.
+  Os mapas usam tiles vetoriais do OpenStreetMap servidos pelo OpenFreeMap e
+  precisam de rede ou de tiles já em cache para mostrar o fundo; os pins
+  continuam visíveis.
 - **Mapa** — escolher/indicar a localização (Picker).
 - **Fotos** — capturar e associar imagens; ver em ecrã inteiro.
 - **Detalhe do cliente** — mapa, navegação, notas e fotos. O mapa em ecrã

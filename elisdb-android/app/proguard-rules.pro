@@ -34,16 +34,6 @@
 -keep class net.i2p.crypto.eddsa.** { *; }
 -dontwarn net.i2p.crypto.eddsa.**
 
-# ---- osmdroid --------------------------------------------------
-# As bibliotecas do osmdroid usam reflexão (POIs, providers de tiles),
-# pelo que não devem ser ofuscadas nem encurtadas.
--keep class org.osmdroid.** { *; }
--dontwarn org.osmdroid.**
-# As regras para org.apache.http/commons, org.bouncycastle e org.slf4j foram
-# removidas: nenhuma dessas bibliotecas é dependência do projeto nem é
-# referenciada pelo osmdroid 6.1.20 ou pelo eddsa (verificado nas respetivas
-# classes). Eram regras sem efeito que só alargavam a configuração.
-
 # ---- CameraX ----------------------------------------------------
 # O CameraX envia as suas próprias regras, mas mantê-las à parte é seguro
 # para o preview/fotografia via reflexão.

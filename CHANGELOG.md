@@ -12,6 +12,9 @@ e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
 ### Novidades
 
+- **Mapa vetorial.** O mapa passou a usar MapLibre Native com tiles vetoriais do
+  OpenStreetMap servidos pelo OpenFreeMap, mantendo os pins, etiquetas e a
+  localização atual sem precisar de chave de API.
 - **Mapa de clientes.** A lista passa a ter um atalho para um mapa com todos os
   clientes que têm localização. Os pins ativos são vermelhos, os inativos
   cinzas e cada pin mostra o nome do cliente. Tocar num pin mostra o nome, o

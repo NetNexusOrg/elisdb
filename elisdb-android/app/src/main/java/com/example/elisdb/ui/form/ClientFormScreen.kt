@@ -59,9 +59,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.ui.map.MapPicker
-import com.example.elisdb.ui.map.OsmMap
+import com.example.elisdb.ui.map.ElisMap
 import java.io.File
-import org.osmdroid.util.GeoPoint
+import org.maplibre.android.geometry.LatLng
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -206,7 +206,7 @@ private fun ClientFormContent(
     var showMapPicker by remember { mutableStateOf(false) }
     val position =
       if (state.latitude != null && state.longitude != null) {
-        GeoPoint(state.latitude, state.longitude)
+        LatLng(state.latitude, state.longitude)
       } else {
         null
       }
@@ -214,7 +214,7 @@ private fun ClientFormContent(
       modifier =
         Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(12.dp)),
     ) {
-      OsmMap(
+      ElisMap(
         markerPosition = position,
         draggable = false,
         interactive = false,

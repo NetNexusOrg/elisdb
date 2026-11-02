@@ -28,10 +28,10 @@ import androidx.compose.ui.unit.dp
 import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.local.ClienteComFotos
 import com.example.elisdb.location.Localizacao
-import com.example.elisdb.ui.map.OsmMap
+import com.example.elisdb.ui.map.ElisMap
 import com.example.elisdb.ui.map.hasLocationPermission
 import kotlinx.coroutines.launch
-import org.osmdroid.util.GeoPoint
+import org.maplibre.android.geometry.LatLng
 
 @Composable
 fun MapFullscreenScreen(
@@ -110,12 +110,12 @@ fun MapFullscreenScreen(
         )
 
       else ->
-        OsmMap(
-          markerPosition = GeoPoint(coords.latitude, coords.longitude),
+        ElisMap(
+          markerPosition = LatLng(coords.latitude, coords.longitude),
           draggable = false,
           interactive = true,
           modifier = Modifier.fillMaxSize(),
-          userLocation = myLocation?.let { GeoPoint(it.latitude, it.longitude) },
+          userLocation = myLocation?.let { LatLng(it.latitude, it.longitude) },
         )
     }
 

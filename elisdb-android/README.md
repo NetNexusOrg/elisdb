@@ -34,9 +34,11 @@ Para sincronizar, importa a credencial do utilizador no ecrã **Configuração**
 ## Mapa e ligação à rede
 
 Os dados dos clientes são offline-first: continuam acessíveis sem servidor nem
-rede. O mapa usa *tiles* do OpenStreetMap através do osmdroid, por isso precisa
-de rede (ou de *tiles* já em cache) para os desenhar; sem ligação podem faltar
-zonas do mapa até os *tiles* serem carregados.
+rede. O mapa usa *tiles* vetoriais do OpenStreetMap servidos pelo OpenFreeMap
+(estilo Liberty) através do MapLibre Native, por isso precisa de rede (ou de
+*tiles* já em cache) para os desenhar; sem ligação podem faltar zonas do mapa
+até os *tiles* serem carregados. O OpenFreeMap é gratuito e não precisa de chave
+de API; a atribuição ao OpenFreeMap/OpenStreetMap é apresentada no mapa.
 
 ## Documentação
 

@@ -160,7 +160,7 @@ dependencies {
   implementation(libs.androidx.camera.view)
 
   // Maps
-  implementation(libs.osmdroid.android)
+  implementation(libs.maplibre.android)
 
   // Location
   implementation(libs.play.services.location)

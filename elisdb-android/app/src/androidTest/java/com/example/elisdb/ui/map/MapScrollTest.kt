@@ -22,9 +22,9 @@ import androidx.compose.ui.unit.dp
 import com.example.elisdb.theme.ElisdbTheme
 import org.junit.Rule
 import org.junit.Test
-import org.osmdroid.util.GeoPoint
+import org.maplibre.android.geometry.LatLng
 
-class OsmMapScrollTest {
+class MapScrollTest {
 
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -34,8 +34,8 @@ class OsmMapScrollTest {
       ElisdbTheme {
         Column(Modifier.verticalScroll(rememberScrollState())) {
           Box(Modifier.fillMaxWidth().height(700.dp)) {
-            OsmMap(
-              markerPosition = GeoPoint(38.72, -9.13),
+            ElisMap(
+              markerPosition = LatLng(38.72, -9.13),
               interactive = false,
               draggable = false,
             )

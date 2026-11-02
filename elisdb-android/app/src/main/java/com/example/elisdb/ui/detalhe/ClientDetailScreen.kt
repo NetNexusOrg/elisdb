@@ -57,9 +57,9 @@ import coil3.compose.AsyncImage
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
 import com.example.elisdb.data.local.Foto
-import com.example.elisdb.ui.map.OsmMap
+import com.example.elisdb.ui.map.ElisMap
 import java.io.File
-import org.osmdroid.util.GeoPoint
+import org.maplibre.android.geometry.LatLng
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -250,8 +250,8 @@ private fun ClientDetailContent(
         onClick = onOpenFullscreenMap,
         modifier = Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(12.dp)),
       ) {
-        OsmMap(
-          markerPosition = GeoPoint(latitude, longitude),
+        ElisMap(
+          markerPosition = LatLng(latitude, longitude),
           draggable = false,
           interactive = false,
           modifier = Modifier.fillMaxSize(),

@@ -46,9 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.elisdb.location.Localizacao
 import com.example.elisdb.ui.map.MapPin
-import com.example.elisdb.ui.map.OsmMapMarkers
+import com.example.elisdb.ui.map.ElisMapMarkers
 import com.example.elisdb.ui.map.hasLocationPermission
-import org.osmdroid.util.GeoPoint
+import org.maplibre.android.geometry.LatLng
 
 @Composable
 fun ClientMapScreen(
@@ -154,19 +154,19 @@ internal fun ClientMapScreen(
               modifier = Modifier.align(Alignment.Center),
             )
           } else {
-            OsmMapMarkers(
+            ElisMapMarkers(
               pins =
                 state.clientes.map {
                   MapPin(
                     id = it.id,
                     name = it.nome,
-                    position = GeoPoint(it.latitude, it.longitude),
+                    position = LatLng(it.latitude, it.longitude),
                     active = it.ativo,
                   )
                 },
               onPinClick = { selectedId = it },
               onMapTapped = { selectedId = null },
-              userLocation = myLocation?.let { GeoPoint(it.latitude, it.longitude) },
+              userLocation = myLocation?.let { LatLng(it.latitude, it.longitude) },
               modifier = Modifier.fillMaxSize(),
             )
             Column(

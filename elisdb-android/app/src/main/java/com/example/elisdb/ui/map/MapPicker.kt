@@ -25,12 +25,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import org.osmdroid.util.GeoPoint
+import org.maplibre.android.geometry.LatLng
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapPicker(
-  initialPosition: GeoPoint?,
+  initialPosition: LatLng?,
   onConfirm: (latitude: Double, longitude: Double) -> Unit,
   onDismiss: () -> Unit,
 ) {
@@ -53,7 +53,7 @@ fun MapPicker(
       },
     ) { innerPadding ->
       Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-        OsmMap(
+        ElisMap(
           markerPosition = picked,
           draggable = true,
           onMarkerMoved = { point -> picked = point },

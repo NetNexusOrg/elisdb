@@ -1,13 +1,11 @@
 package com.example.elisdb
 
 import android.app.Application
-import android.content.pm.PackageManager
-import android.os.Build
 import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.sync.PhotoStoreGuard
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
-import org.osmdroid.config.Configuration
+import org.maplibre.android.MapLibre
 
 class ElisdbApp : Application() {
   lateinit var container: AppContainer
@@ -15,7 +13,7 @@ class ElisdbApp : Application() {
 
   override fun onCreate() {
     super.onCreate()
-    Configuration.getInstance().userAgentValue = osmdroidUserAgent()
+    MapLibre.getInstance(this)
     container = AppContainer(this)
     // No periodic sync: transfers are triggered by the app start, by saving a
     // client and by the manual action. The Sync screen checks pending work on
@@ -33,17 +31,6 @@ class ElisdbApp : Application() {
     // then carry a timestamp the server accepts (a wrong device clock used to
     // stamp records so far in the past that other devices never pulled them).
     container.applicationScope.launch { container.refreshClock() }
-  }
-
-  private fun osmdroidUserAgent(): String {
-    val versionName =
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0)).versionName
-      } else {
-        @Suppress("DEPRECATION")
-        packageManager.getPackageInfo(packageName, 0).versionName
-      }
-    return if (versionName.isNullOrBlank()) "ElisDB (Android)" else "ElisDB/$versionName (Android)"
   }
 }
 

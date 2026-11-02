@@ -37,7 +37,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -101,9 +100,24 @@ fun ClientDetailScreen(
     topBar = {
       TopAppBar(
         title = {
-          val contrato = state.cliente?.cliente?.contrato
-          if (!contrato.isNullOrBlank()) {
-            Text(contrato, style = MaterialTheme.typography.titleLarge)
+          val cliente = state.cliente?.cliente
+          if (cliente != null) {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+              if (!cliente.ativo) {
+                Text(
+                  text = "Inativo",
+                  style = MaterialTheme.typography.labelLarge,
+                  color = MaterialTheme.colorScheme.error,
+                )
+              }
+              val contrato = cliente.contrato
+              if (!contrato.isNullOrBlank()) {
+                Text(contrato, style = MaterialTheme.typography.titleLarge)
+              }
+            }
           }
         },
         navigationIcon = {
@@ -227,25 +241,7 @@ private fun ClientDetailContent(
       Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Text(cliente.nome, style = MaterialTheme.typography.headlineSmall)
-      if (!cliente.ativo) {
-        Surface(
-          color = MaterialTheme.colorScheme.errorContainer,
-          contentColor = MaterialTheme.colorScheme.onErrorContainer,
-          shape = RoundedCornerShape(50),
-        ) {
-          Text(
-            "Inativo",
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-          )
-        }
-      }
-    }
+    Text(cliente.nome, style = MaterialTheme.typography.headlineSmall)
 
     val latitude = cliente.latitude
     val longitude = cliente.longitude

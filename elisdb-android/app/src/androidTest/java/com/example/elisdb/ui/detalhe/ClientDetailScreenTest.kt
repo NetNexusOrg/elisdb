@@ -53,6 +53,29 @@ class ClientDetailScreenTest {
   }
 
   @Test
+  fun detalhe_inativoApareceAntesDoContratoNaTopBar() {
+    val cliente =
+      Cliente(
+        id = "7",
+        nome = "Rui",
+        contrato = "CT-700",
+        ativo = false,
+        latitude = 1.0,
+        longitude = 2.0,
+        dataCriacao = 0,
+        updatedAt = 0,
+      )
+    setDetailContent(cliente)
+
+    val inativoLeft =
+      composeTestRule.onNodeWithText("Inativo").fetchSemanticsNode().boundsInRoot.left
+    val contratoLeft =
+      composeTestRule.onNodeWithText("CT-700").fetchSemanticsNode().boundsInRoot.left
+
+    assertTrue("Inativo deveria aparecer antes do contrato na top bar", inativoLeft < contratoLeft)
+  }
+
+  @Test
   fun detalhe_clienteInativoMostraEtiqueta() {
     val cliente =
       Cliente(id = "5", nome = "Carlos", ativo = false, latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)

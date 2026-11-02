@@ -53,6 +53,39 @@ class ClientListScreenTest {
   }
 
   @Test
+  fun lista_clienteInativoMostraEtiquetaAntesDoContrato() {
+    val inativo =
+      ClienteComFotos(
+        cliente =
+          Cliente(
+            id = "3",
+            nome = "Rui",
+            contrato = "CT-300",
+            ativo = false,
+            latitude = 1.0,
+            longitude = 2.0,
+            dataCriacao = 0,
+            updatedAt = 0,
+          ),
+        fotos = emptyList(),
+      )
+    setListContent(listOf(inativo))
+
+    val inativoLeft =
+      composeTestRule
+        .onNodeWithText("Inativo", useUnmergedTree = true)
+        .fetchSemanticsNode()
+        .boundsInRoot.left
+    val contratoLeft =
+      composeTestRule
+        .onNodeWithText("CT-300", useUnmergedTree = true)
+        .fetchSemanticsNode()
+        .boundsInRoot.left
+
+    assertTrue("A etiqueta Inativo deveria aparecer antes do contrato", inativoLeft < contratoLeft)
+  }
+
+  @Test
   fun lista_filtroDeEstadoMostraApenasOEstadoEscolhido() {
     val ativo = clientes.first()
     val inativo =

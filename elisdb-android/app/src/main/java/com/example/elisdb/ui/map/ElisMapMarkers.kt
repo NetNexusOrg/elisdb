@@ -1,5 +1,6 @@
 package com.example.elisdb.ui.map
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -49,7 +50,8 @@ internal fun ElisMapMarkers(
       }
       true
     }
-  val styleState = rememberMapStyle(mapView)
+  val styleUrl = mapStyleUrl(isSystemInDarkTheme())
+  val styleState = rememberMapStyle(mapView, styleUrl)
   val laidOut = rememberIsLaidOut(mapView)
   val style = styleState.style
   val signature = pinsSignature(pins)
@@ -57,7 +59,7 @@ internal fun ElisMapMarkers(
   var hasFittedPins by remember(mapView) { mutableStateOf(false) }
   var layersReady by remember(style) { mutableStateOf(false) }
   var cameraReady by remember(mapView) { mutableStateOf(false) }
-  val mapRendered = rememberMapRenderedState(mapView)
+  val mapRendered = rememberMapRenderedState(mapView, styleUrl)
 
   LaunchedEffect(style) {
     val loadedStyle = style ?: return@LaunchedEffect

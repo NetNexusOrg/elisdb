@@ -1,5 +1,6 @@
 package com.example.elisdb.ui.map
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -34,7 +35,8 @@ internal fun ElisMap(
       onMapTapped(latLng)
       true
     }
-  val styleState = rememberMapStyle(mapView)
+  val styleUrl = mapStyleUrl(isSystemInDarkTheme())
+  val styleState = rememberMapStyle(mapView, styleUrl)
   val laidOut = rememberIsLaidOut(mapView)
   val style = styleState.style
 
@@ -46,7 +48,7 @@ internal fun ElisMap(
   var lastCenteredMarker by remember(mapView) { mutableStateOf<LatLng?>(null) }
   var layersReady by remember(style) { mutableStateOf(false) }
   var cameraReady by remember(mapView) { mutableStateOf(false) }
-  val mapRendered = rememberMapRenderedState(mapView)
+  val mapRendered = rememberMapRenderedState(mapView, styleUrl)
 
   LaunchedEffect(style) {
     val loadedStyle = style ?: return@LaunchedEffect

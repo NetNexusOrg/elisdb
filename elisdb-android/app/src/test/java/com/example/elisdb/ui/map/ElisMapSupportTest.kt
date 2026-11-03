@@ -9,6 +9,13 @@ import org.maplibre.android.geometry.LatLng
 class ElisMapSupportTest {
 
   @Test
+  fun `map style follows system theme`() {
+    assertEquals(MAP_STYLE_LIGHT_URL, mapStyleUrl(isDark = false))
+    assertEquals(MAP_STYLE_DARK_URL, mapStyleUrl(isDark = true))
+    assertNotEquals(MAP_STYLE_LIGHT_URL, MAP_STYLE_DARK_URL)
+  }
+
+  @Test
   fun `pins signature changes when position or state changes`() {
     val pin = MapPin("1", "Ana", LatLng(38.7223, -9.1393), active = true)
 

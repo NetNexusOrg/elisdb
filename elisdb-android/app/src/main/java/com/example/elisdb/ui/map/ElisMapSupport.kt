@@ -57,7 +57,8 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
 
-internal const val MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
+internal const val MAP_STYLE_LIGHT_URL = "https://tiles.openfreemap.org/styles/bright"
+internal const val MAP_STYLE_DARK_URL = "https://tiles.openfreemap.org/styles/dark"
 internal const val MAP_DEFAULT_ZOOM = 16.0
 internal const val MAP_USER_ZOOM = 15.0
 internal const val MAP_PINS_SOURCE_ID = "client-pins"
@@ -73,6 +74,9 @@ internal const val MAP_PIN_INACTIVE_IMAGE = "pin-inactive"
 internal const val MAP_USER_LOCATION_IMAGE = "user-location"
 
 internal val DEFAULT_CENTER = LatLng(38.7223, -9.1393)
+
+internal fun mapStyleUrl(isDark: Boolean): String =
+  if (isDark) MAP_STYLE_DARK_URL else MAP_STYLE_LIGHT_URL
 
 internal class MapStyleState(
   val style: Style?,
@@ -222,12 +226,12 @@ internal fun rememberMapLibreMap(
 }
 
 @Composable
-internal fun rememberMapStyle(mapView: MapView): MapStyleState {
-  var style by remember(mapView) { mutableStateOf<Style?>(null) }
-  var failed by remember(mapView) { mutableStateOf(false) }
-  var attempt by remember(mapView) { mutableIntStateOf(0) }
+internal fun rememberMapStyle(mapView: MapView, styleUrl: String): MapStyleState {
+  var style by remember(mapView, styleUrl) { mutableStateOf<Style?>(null) }
+  var failed by remember(mapView, styleUrl) { mutableStateOf(false) }
+  var attempt by remember(mapView, styleUrl) { mutableIntStateOf(0) }
   val retry =
-    remember(mapView) {
+    remember(mapView, styleUrl) {
       {
         style = null
         failed = false
@@ -235,7 +239,7 @@ internal fun rememberMapStyle(mapView: MapView): MapStyleState {
       }
     }
 
-  DisposableEffect(mapView, attempt) {
+  DisposableEffect(mapView, styleUrl, attempt) {
     var disposed = false
     val failureListener =
       MapView.OnDidFailLoadingMapListener {
@@ -244,8 +248,10 @@ internal fun rememberMapStyle(mapView: MapView): MapStyleState {
     mapView.addOnDidFailLoadingMapListener(failureListener)
     mapView.getMapAsync { map ->
       if (disposed) return@getMapAsync
-      map.setStyle(MAP_STYLE_URL) { loadedStyle ->
+      val camera = if (map.style != null) map.cameraPosition else null
+      map.setStyle(styleUrl) { loadedStyle ->
         if (!disposed) {
+          camera?.let { map.moveCamera(CameraUpdateFactory.newCameraPosition(it)) }
           style = loadedStyle
           failed = false
         }
@@ -274,9 +280,9 @@ internal fun rememberIsLaidOut(view: View): Boolean {
 }
 
 @Composable
-internal fun rememberMapRenderedState(mapView: MapView): MutableState<Boolean> {
-  val rendered = remember(mapView) { mutableStateOf(false) }
-  DisposableEffect(mapView) {
+internal fun rememberMapRenderedState(mapView: MapView, styleUrl: String): MutableState<Boolean> {
+  val rendered = remember(mapView, styleUrl) { mutableStateOf(false) }
+  DisposableEffect(mapView, styleUrl) {
     val listener =
       MapView.OnDidFinishRenderingFrameListener { fullyRendered, _, _ ->
         if (fullyRendered) rendered.value = true

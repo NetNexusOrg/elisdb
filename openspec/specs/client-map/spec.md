@@ -52,7 +52,7 @@ center the map on the current location and show a marker there.
 - **THEN** its pin SHALL use the inactive style
 
 #### Scenario: Pin label
-- **WHEN** a client has a pin on the map
+- **WHEN** a client's pin is full size or the client is selected
 - **THEN** the pin SHALL show the client's name above it
 
 #### Scenario: Select a client pin
@@ -72,24 +72,40 @@ center the map on the current location and show a marker there.
   available
 - **AND** it SHALL explain that no client matches the filter
 
-### Requirement: Agrupar clientes próximos
+### Requirement: Adaptar pins à densidade
 
-O mapa SHALL agrupar visualmente clientes cujos pins colidem no ecrã, apresentando um único cluster com a contagem de clientes agrupados.
+O mapa SHALL manter cada cliente na sua coordenada real e SHALL reduzir o tamanho dos pins quando estes colidem no ecrã, em vez de os mover para um cluster.
 
-#### Scenario: Clientes próximos formam um cluster
+#### Scenario: Pins afastados mantêm tamanho completo
 
-- **WHEN** dois ou mais clientes com coordenadas válidas estão suficientemente próximos no zoom atual
-- **THEN** o mapa SHALL apresentar um cluster com o número de clientes agrupados em vez de pins individuais sobrepostos
+- **WHEN** os pins de dois ou mais clientes não colidem no zoom atual
+- **THEN** cada cliente SHALL continuar representado pelo pin completo na sua coordenada
+- **AND** o pin SHALL mostrar a etiqueta quando houver espaço
 
-#### Scenario: Cluster é expandido
+#### Scenario: Pins próximos encolhem
 
-- **WHEN** o utilizador toca num cluster
-- **THEN** o mapa SHALL aproximar a câmara para a zona do cluster e SHALL mostrar os pins individuais quando o nível de zoom permitir
+- **WHEN** dois ou mais pins colidem no ecrã
+- **THEN** os pins SHALL encolher progressivamente
+- **AND** abaixo do tamanho mínimo SHALL passar a uma bola pequena
+- **AND** o cliente SHALL continuar na sua coordenada real e continuar selecionável
 
-#### Scenario: Clientes distantes mantêm pins individuais
+#### Scenario: Cliente selecionado
 
-- **WHEN** um cliente não colide com outro pin no zoom atual
-- **THEN** o mapa SHALL continuar a mostrar o pin individual desse cliente
+- **WHEN** o utilizador seleciona um cliente
+- **THEN** o pin desse cliente SHALL voltar ao tamanho completo
+- **AND** SHALL mostrar a etiqueta com o nome
+- **AND** SHALL ficar visualmente acima dos restantes
+
+#### Scenario: Atualização com o mapa
+
+- **WHEN** o utilizador faz pan ou zoom no mapa
+- **THEN** o tamanho dos pins SHALL ser recalculado após a câmara estabilizar
+
+#### Scenario: Coordenadas exatamente iguais
+
+- **WHEN** dois ou mais clientes têm coordenadas exatamente iguais e o zoom é 14 ou superior
+- **THEN** os respetivos pins SHALL ser separados em leque no ecrã
+- **AND** cada cliente SHALL continuar selecionável
 
 ### Requirement: Etiquetas de clientes sem sobreposição
 
@@ -100,17 +116,12 @@ O mapa SHALL evitar etiquetas de cliente sobrepostas, mantendo os pins visíveis
 - **WHEN** duas etiquetas de cliente ocupam a mesma área no ecrã
 - **THEN** o mapa SHALL omitir ou reposicionar a etiqueta secundária sem esconder o respetivo pin
 
-### Requirement: Atribuição do mapa acessível
+### Requirement: Etiquetas de clientes adaptativas
 
-O mapa SHALL ocultar o logótipo e o controlo de atribuição nativos da MapLibre e SHALL apresentar um controlo compacto de atribuição que dá acesso aos créditos obrigatórios.
+O mapa SHALL mostrar etiquetas apenas quando o pin tiver tamanho suficiente ou o cliente estiver selecionado, mantendo o pin visível quando a etiqueta é omitida.
 
-#### Scenario: Atribuição visível e acessível
+#### Scenario: Etiqueta omitida por falta de espaço
 
-- **WHEN** o mapa está visível
-- **THEN** o utilizador SHALL conseguir abrir a atribuição com OpenStreetMap, OpenFreeMap, OpenMapTiles e MapLibre Native, incluindo ligações para as respetivas páginas
-
-#### Scenario: Interface do mapa limpa
-
-- **WHEN** o mapa é apresentado
-- **THEN** o logótipo e o ícone de informação nativos da MapLibre SHALL estar ocultos
-- **AND** o controlo compacto de atribuição SHALL permanecer visível
+- **WHEN** um pin é demasiado pequeno ou a sua etiqueta colide com outra
+- **THEN** o mapa SHALL omitir a etiqueta
+- **AND** SHALL manter o pin ou bola visível e selecionável

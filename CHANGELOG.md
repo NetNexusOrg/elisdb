@@ -8,6 +8,20 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [1.10.0] - 2026-11-03
+
+### Novidades
+
+- **Pins adaptativos à densidade.** Os clientes deixam de desaparecer em clusters: cada pin mantém a localização real e encolhe progressivamente até se tornar um ponto quando há sobreposição. O cliente selecionado fica sempre em destaque.
+- **Mapa com o tema da app.** O mapa segue o modo claro/escuro do sistema, com o estilo Liberty em ambos os temas.
+- **Filtros memorizados.** A lista de clientes e o mapa lembram o filtro e a ordenação escolhidos entre arranques da app.
+- **Mapa mais limpo.** Removidos os controlos sobrepostos de logótipo e informação do MapLibre.
+
+### Correções
+
+- **Abertura do mapa.** Corrigido o flicker e o salto de câmara ao abrir o mapa.
+- **Pins duplicados.** Clientes na mesma coordenada são separados em leque a partir do zoom de rua.
+
 ## [1.9.0] - 2026-11-02
 
 ### Novidades

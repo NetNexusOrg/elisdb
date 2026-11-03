@@ -62,3 +62,12 @@ The project SHALL follow Semantic Versioning (`MAJOR.MINOR.PATCH`) for releases,
 #### Scenario: Release version is consistent
 - **WHEN** a release is produced from a tag
 - **THEN** the tag SHALL match the app's release `versionName` and SHALL follow the `MAJOR.MINOR.PATCH` format
+
+### Requirement: Android CI workflow name
+
+The Android workflow SHALL be displayed in GitHub Actions as `Android CI`.
+
+#### Scenario: Workflow list shows the Android CI name
+
+- **WHEN** a user opens the repository's Actions tab
+- **THEN** the Android workflow SHALL be listed as `Android CI`

@@ -7,7 +7,7 @@ description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-relea
 
 ## Workflow (verified)
 
-- File: `.github/workflows/android-release.yml` — name `Android CI / Release`.
+- File: `.github/workflows/android-release.yml` — name `Android CI`.
 - Triggers: `push` to `main`, `push` of tags `v*`, `pull_request` to `main`, `workflow_dispatch`.
 - File: `.github/workflows/server-ci.yml` — name `Server CI`. Runs the server `pytest`
   suite on `push`/`pull_request` to `main` when `elisdb-server/**` changes (path-filtered)

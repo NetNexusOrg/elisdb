@@ -20,7 +20,7 @@ description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-relea
   → uploads test reports **only when the job fails** (3-day retention, best effort).
 - `instrumented` (always, **release gate**): boots an emulator (API 34) and runs only
   `AppDatabaseMigrationTest`.
-- `instrumented-suite` (always, **non-blocking**, `continue-on-error: true`): runs the
+- `instrumented-suite` (pull requests and manual dispatch, **non-blocking**, `continue-on-error: true`): runs the
   full `:app:connectedDebugAndroidTest` suite on the emulator for visibility. It is not
   in `release.needs`, so a flaky UI test cannot block a release.
 - `release` (only on `v*` tags, `needs: [test, instrumented]`): extracts the release body from

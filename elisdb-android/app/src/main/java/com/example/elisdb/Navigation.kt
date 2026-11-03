@@ -52,7 +52,13 @@ fun MainNavigation() {
         entry<ClientList> {
           val container = rememberAppContainer()
           ClientListScreen(
-            viewModel = viewModel { ClientListViewModel(container.repository) },
+            viewModel =
+              viewModel {
+                ClientListViewModel(
+                  repository = container.repository,
+                  viewPreferences = container.clientViewPreferences,
+                )
+              },
             onClienteClick = { id -> backStack.add(ClientDetail(id)) },
             onAddClick = { backStack.add(ClientForm()) },
             onConfigClick = { backStack.add(Config) },
@@ -68,6 +74,7 @@ fun MainNavigation() {
                 ClientMapViewModel(
                   repository = container.repository,
                   locationProvider = container.locationService::getCurrentLocation,
+                  viewPreferences = container.clientViewPreferences,
                 )
               },
             onClienteClick = { id -> backStack.add(ClientDetail(id)) },

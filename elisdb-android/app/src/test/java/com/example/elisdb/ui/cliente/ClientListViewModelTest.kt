@@ -258,6 +258,58 @@ class ClientListViewModelTest {
     val state = viewModel.uiState.value as ClientListUiState.Success
     assertEquals(emptyList<ClientListItem>(), state.clientes)
   }
+
+  @Test
+  fun uiState_inicialUsaPreferenciasGuardadas() = runTest(dispatcher) {
+    val preferences =
+      FakeClientViewPreferences(
+        listFilter = ClientStatusFilter.INACTIVE,
+        sortOrder = ClientSortOrder.RECENT,
+      )
+    val viewModel = ClientListViewModel(FakeClientRepository(), preferences)
+
+    val state = viewModel.uiState.first { it is ClientListUiState.Success } as ClientListUiState.Success
+
+    assertEquals(ClientStatusFilter.INACTIVE, state.filtro)
+    assertEquals(ClientSortOrder.RECENT, state.ordem)
+  }
+
+  @Test
+  fun alteracoesDeFiltroEOrdemSaoGuardadas() = runTest(dispatcher) {
+    val preferences = FakeClientViewPreferences()
+    val viewModel = ClientListViewModel(FakeClientRepository(), preferences)
+    viewModel.uiState.first { it is ClientListUiState.Success }
+
+    viewModel.onFiltroChange(ClientStatusFilter.INACTIVE)
+    viewModel.onOrdemChange(ClientSortOrder.UPDATED)
+
+    assertEquals(ClientStatusFilter.INACTIVE, preferences.listFilter)
+    assertEquals(ClientSortOrder.UPDATED, preferences.sortOrder)
+  }
+}
+
+private class FakeClientViewPreferences(
+  var listFilter: ClientStatusFilter = ClientStatusFilter.ALL,
+  var sortOrder: ClientSortOrder = ClientSortOrder.NAME,
+  var mapFilter: ClientMapFilter = ClientMapFilter.ACTIVE,
+) : ClientViewPreferences {
+  override fun clientListFilter(): ClientStatusFilter = listFilter
+
+  override fun setClientListFilter(value: ClientStatusFilter) {
+    listFilter = value
+  }
+
+  override fun clientSortOrder(): ClientSortOrder = sortOrder
+
+  override fun setClientSortOrder(value: ClientSortOrder) {
+    sortOrder = value
+  }
+
+  override fun clientMapFilter(): ClientMapFilter = mapFilter
+
+  override fun setClientMapFilter(value: ClientMapFilter) {
+    mapFilter = value
+  }
 }
 
 private class FakeClientRepository(

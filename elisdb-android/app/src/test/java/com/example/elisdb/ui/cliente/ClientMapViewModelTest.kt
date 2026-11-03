@@ -139,6 +139,60 @@ class ClientMapViewModelTest {
 
     assertEquals(expected, viewModel.myLocation.value)
   }
+
+  @Test
+  fun filtroInicialVemDasPreferencias() = runTest(dispatcher) {
+    val preferences = FakeMapClientViewPreferences(mapFilter = ClientMapFilter.INACTIVE)
+    val viewModel =
+      ClientMapViewModel(
+        FakeMapRepository(flowOf(emptyList())),
+        viewPreferences = preferences,
+      )
+
+    val state = viewModel.uiState.first { it is ClientMapUiState.Success } as ClientMapUiState.Success
+
+    assertEquals(ClientMapFilter.INACTIVE, viewModel.filtro.value)
+    assertEquals(emptyList<ClientMapItem>(), state.clientes)
+  }
+
+  @Test
+  fun alteracaoDeFiltroDoMapaEguardada() = runTest(dispatcher) {
+    val preferences = FakeMapClientViewPreferences()
+    val viewModel =
+      ClientMapViewModel(
+        FakeMapRepository(flowOf(emptyList())),
+        viewPreferences = preferences,
+      )
+    viewModel.uiState.first { it is ClientMapUiState.Success }
+
+    viewModel.onFiltroChange(ClientMapFilter.ALL)
+
+    assertEquals(ClientMapFilter.ALL, preferences.mapFilter)
+  }
+}
+
+private class FakeMapClientViewPreferences(
+  var listFilter: ClientStatusFilter = ClientStatusFilter.ALL,
+  var sortOrder: ClientSortOrder = ClientSortOrder.NAME,
+  var mapFilter: ClientMapFilter = ClientMapFilter.ACTIVE,
+) : ClientViewPreferences {
+  override fun clientListFilter(): ClientStatusFilter = listFilter
+
+  override fun setClientListFilter(value: ClientStatusFilter) {
+    listFilter = value
+  }
+
+  override fun clientSortOrder(): ClientSortOrder = sortOrder
+
+  override fun setClientSortOrder(value: ClientSortOrder) {
+    sortOrder = value
+  }
+
+  override fun clientMapFilter(): ClientMapFilter = mapFilter
+
+  override fun setClientMapFilter(value: ClientMapFilter) {
+    mapFilter = value
+  }
 }
 
 private fun cliente(

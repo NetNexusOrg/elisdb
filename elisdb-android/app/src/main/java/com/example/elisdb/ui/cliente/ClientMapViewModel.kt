@@ -42,8 +42,9 @@ sealed interface ClientMapUiState {
 class ClientMapViewModel(
   repository: ClienteRepository,
   private val locationProvider: suspend () -> Localizacao? = { null },
+  private val viewPreferences: ClientViewPreferences = NoOpClientViewPreferences,
 ) : ViewModel() {
-  private val _filtro = MutableStateFlow(ClientMapFilter.ACTIVE)
+  private val _filtro = MutableStateFlow(viewPreferences.clientMapFilter())
   val filtro: StateFlow<ClientMapFilter> = _filtro.asStateFlow()
 
   private val _myLocation = MutableStateFlow<Localizacao?>(null)
@@ -54,6 +55,7 @@ class ClientMapViewModel(
 
   fun onFiltroChange(value: ClientMapFilter) {
     _filtro.value = value
+    viewPreferences.setClientMapFilter(value)
   }
 
   /** Refreshes the device location, for example after the permission is granted. */

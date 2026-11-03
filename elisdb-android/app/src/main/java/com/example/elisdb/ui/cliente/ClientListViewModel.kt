@@ -56,15 +56,18 @@ sealed interface ClientListUiState {
   ) : ClientListUiState
 }
 
-class ClientListViewModel(repository: ClienteRepository) : ViewModel() {
+class ClientListViewModel(
+  repository: ClienteRepository,
+  private val viewPreferences: ClientViewPreferences = NoOpClientViewPreferences,
+) : ViewModel() {
   private val repository: ClienteRepository = repository
   private val _query = MutableStateFlow("")
   val query: StateFlow<String> = _query.asStateFlow()
 
-  private val _filtro = MutableStateFlow(ClientStatusFilter.ALL)
+  private val _filtro = MutableStateFlow(viewPreferences.clientListFilter())
   val filtro: StateFlow<ClientStatusFilter> = _filtro.asStateFlow()
 
-  private val _ordem = MutableStateFlow(ClientSortOrder.NAME)
+  private val _ordem = MutableStateFlow(viewPreferences.clientSortOrder())
   val ordem: StateFlow<ClientSortOrder> = _ordem.asStateFlow()
 
   fun onQueryChange(value: String) {
@@ -73,10 +76,12 @@ class ClientListViewModel(repository: ClienteRepository) : ViewModel() {
 
   fun onFiltroChange(value: ClientStatusFilter) {
     _filtro.value = value
+    viewPreferences.setClientListFilter(value)
   }
 
   fun onOrdemChange(value: ClientSortOrder) {
     _ordem.value = value
+    viewPreferences.setClientSortOrder(value)
   }
 
   val uiState: StateFlow<ClientListUiState> =

@@ -21,6 +21,8 @@ import com.example.elisdb.remote.ApiClient
 import com.example.elisdb.remote.ApiClientProvider
 import com.example.elisdb.settings.PrefsSettingsStore
 import com.example.elisdb.settings.SettingsStore
+import com.example.elisdb.ui.cliente.ClientViewPreferences
+import com.example.elisdb.ui.cliente.PrefsClientViewPreferences
 import com.example.elisdb.sync.ClockOffsetStore
 import com.example.elisdb.sync.ClockSync
 import com.example.elisdb.sync.FilePhotoStore
@@ -47,6 +49,8 @@ class AppContainer(context: Context) {
   val locationService: LocationService = LocationService(context)
 
   val settingsStore: SettingsStore = PrefsSettingsStore(context)
+
+  val clientViewPreferences: ClientViewPreferences = PrefsClientViewPreferences(context)
 
   val photoStore: FilePhotoStore = FilePhotoStore(context)
 

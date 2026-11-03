@@ -52,8 +52,8 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
 
-internal const val MAP_STYLE_LIGHT_URL = "https://tiles.openfreemap.org/styles/bright"
-internal const val MAP_STYLE_DARK_URL = "https://tiles.openfreemap.org/styles/dark"
+internal const val MAP_STYLE_LIGHT_URL = "https://tiles.openfreemap.org/styles/liberty"
+internal const val MAP_STYLE_DARK_URL = "https://tiles.openfreemap.org/styles/liberty"
 internal const val MAP_DEFAULT_ZOOM = 16.0
 internal const val MAP_USER_ZOOM = 15.0
 internal const val MAP_PINS_SOURCE_ID = "client-pins"

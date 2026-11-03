@@ -9,10 +9,10 @@ import org.maplibre.android.geometry.LatLng
 class ElisMapSupportTest {
 
   @Test
-  fun `map style follows system theme`() {
-    assertEquals(MAP_STYLE_LIGHT_URL, mapStyleUrl(isDark = false))
-    assertEquals(MAP_STYLE_DARK_URL, mapStyleUrl(isDark = true))
-    assertNotEquals(MAP_STYLE_LIGHT_URL, MAP_STYLE_DARK_URL)
+  fun `map style uses Liberty in both themes`() {
+    assertEquals("https://tiles.openfreemap.org/styles/liberty", mapStyleUrl(isDark = false))
+    assertEquals("https://tiles.openfreemap.org/styles/liberty", mapStyleUrl(isDark = true))
+    assertEquals(MAP_STYLE_LIGHT_URL, MAP_STYLE_DARK_URL)
   }
 
   @Test

@@ -41,16 +41,20 @@ import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
-import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.PropertyValue
 import org.maplibre.android.style.layers.SymbolLayer
-import org.maplibre.android.style.sources.GeoJsonOptions
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.roundToLong
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 internal const val MAP_STYLE_LIGHT_URL = "https://tiles.openfreemap.org/styles/liberty"
 internal const val MAP_STYLE_DARK_URL = "https://tiles.openfreemap.org/styles/liberty"
@@ -58,15 +62,24 @@ internal const val MAP_DEFAULT_ZOOM = 16.0
 internal const val MAP_USER_ZOOM = 15.0
 internal const val MAP_PINS_SOURCE_ID = "client-pins"
 internal const val MAP_PINS_LAYER_ID = "client-pins-layer"
-internal const val MAP_CLUSTER_LAYER_ID = "client-clusters"
-internal const val MAP_CLUSTER_COUNT_LAYER_ID = "client-cluster-count"
+internal const val MAP_PIN_DOT_LAYER_ID = "client-pin-dots"
 internal const val MAP_PICKED_SOURCE_ID = "picked-location"
 internal const val MAP_PICKED_LAYER_ID = "picked-location-layer"
 internal const val MAP_USER_SOURCE_ID = "user-location"
 internal const val MAP_USER_LAYER_ID = "user-location-layer"
 internal const val MAP_PIN_ACTIVE_IMAGE = "pin-active"
 internal const val MAP_PIN_INACTIVE_IMAGE = "pin-inactive"
+internal const val MAP_PIN_DOT_ACTIVE_IMAGE = "pin-dot-active"
+internal const val MAP_PIN_DOT_INACTIVE_IMAGE = "pin-dot-inactive"
 internal const val MAP_USER_LOCATION_IMAGE = "user-location"
+
+internal const val PIN_COLLISION_RADIUS_DP = 34f
+internal const val PIN_MIN_SCALE = 0.36f
+internal const val PIN_DOT_SCALE = 0.55f
+internal const val PIN_LABEL_SCALE = 0.85f
+internal const val PIN_FAN_MIN_ZOOM = 14.0
+internal const val PIN_FAN_BASE_DP = 10f
+internal const val PIN_FAN_STEP_DP = 2f
 
 internal val DEFAULT_CENTER = LatLng(38.7223, -9.1393)
 
@@ -359,6 +372,18 @@ internal fun Style.addMapImages(context: Context) {
       requireNotNull(ContextCompat.getDrawable(context, R.drawable.ic_map_pin_inactive)),
     )
   }
+  if (getImage(MAP_PIN_DOT_ACTIVE_IMAGE) == null) {
+    addImage(
+      MAP_PIN_DOT_ACTIVE_IMAGE,
+      requireNotNull(ContextCompat.getDrawable(context, R.drawable.ic_map_dot_active)),
+    )
+  }
+  if (getImage(MAP_PIN_DOT_INACTIVE_IMAGE) == null) {
+    addImage(
+      MAP_PIN_DOT_INACTIVE_IMAGE,
+      requireNotNull(ContextCompat.getDrawable(context, R.drawable.ic_map_dot_inactive)),
+    )
+  }
   if (getImage(MAP_USER_LOCATION_IMAGE) == null) {
     addImage(
       MAP_USER_LOCATION_IMAGE,
@@ -369,53 +394,25 @@ internal fun Style.addMapImages(context: Context) {
 
 internal fun Style.addClientPinsLayer(pins: List<MapPin> = emptyList()) {
   if (getSourceAs<GeoJsonSource>(MAP_PINS_SOURCE_ID) == null) {
-    val options = GeoJsonOptions()
-      .withCluster(true)
-      .withClusterRadius(50)
-      .withClusterMaxZoom(16)
     addSource(
       GeoJsonSource(
         MAP_PINS_SOURCE_ID,
         FeatureCollection.fromFeatures(pins.map(::clientPinFeature)),
-        options,
       )
     )
   }
-  if (getLayerAs<CircleLayer>(MAP_CLUSTER_LAYER_ID) == null) {
+  if (getLayerAs<SymbolLayer>(MAP_PIN_DOT_LAYER_ID) == null) {
     addLayer(
-      CircleLayer(MAP_CLUSTER_LAYER_ID, MAP_PINS_SOURCE_ID)
-        .withProperties(
-          PropertyFactory.circleColor("#4051B5"),
-          PropertyFactory.circleRadius(18f),
-          PropertyFactory.circleStrokeColor("#FFFFFF"),
-          PropertyFactory.circleStrokeWidth(2f),
-        )
-        .withFilter(Expression.has("point_count"))
-    )
-  }
-  if (getLayerAs<SymbolLayer>(MAP_CLUSTER_COUNT_LAYER_ID) == null) {
-    addLayer(
-      SymbolLayer(MAP_CLUSTER_COUNT_LAYER_ID, MAP_PINS_SOURCE_ID)
-        .withProperties(
-          PropertyFactory.textField(
-            Expression.toString(Expression.get("point_count")),
-          ),
-          PropertyFactory.textFont(arrayOf("Noto Sans Bold")),
-          PropertyFactory.textSize(12f),
-          PropertyFactory.textColor("#FFFFFF"),
-          PropertyFactory.textAllowOverlap(true),
-          PropertyFactory.textIgnorePlacement(true),
-        )
-        .withFilter(Expression.has("point_count"))
+      SymbolLayer(MAP_PIN_DOT_LAYER_ID, MAP_PINS_SOURCE_ID)
+        .withProperties(*dotLayerProperties())
+        .withFilter(Expression.eq(Expression.get("kind"), Expression.literal("dot"))),
     )
   }
   if (getLayerAs<SymbolLayer>(MAP_PINS_LAYER_ID) == null) {
     addLayer(
       SymbolLayer(MAP_PINS_LAYER_ID, MAP_PINS_SOURCE_ID)
-        .withProperties(
-          *pinLayerProperties(),
-        )
-        .withFilter(Expression.has("id"))
+        .withProperties(*pinLayerProperties())
+        .withFilter(Expression.eq(Expression.get("kind"), Expression.literal("pin"))),
     )
   }
 }
@@ -481,11 +478,11 @@ internal fun Style.addUserLocationLayer(position: LatLng? = null) {
 private fun pinLayerProperties(): Array<PropertyValue<*>> =
   arrayOf(
     PropertyFactory.iconImage(Expression.get("icon")),
-    PropertyFactory.iconSize(1f),
+    PropertyFactory.iconSize(Expression.get("size")),
     PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
     PropertyFactory.iconAllowOverlap(true),
     PropertyFactory.iconIgnorePlacement(true),
-    PropertyFactory.textField(Expression.get("name")),
+    PropertyFactory.textField(Expression.get("label")),
     PropertyFactory.textFont(arrayOf("Noto Sans Bold")),
     PropertyFactory.textSize(12f),
     PropertyFactory.textColor("#212121"),
@@ -497,6 +494,15 @@ private fun pinLayerProperties(): Array<PropertyValue<*>> =
     PropertyFactory.textOptional(true),
     PropertyFactory.textAllowOverlap(false),
     PropertyFactory.textIgnorePlacement(false),
+  )
+
+private fun dotLayerProperties(): Array<PropertyValue<*>> =
+  arrayOf(
+    PropertyFactory.iconImage(Expression.get("icon")),
+    PropertyFactory.iconSize(Expression.get("size")),
+    PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER),
+    PropertyFactory.iconAllowOverlap(true),
+    PropertyFactory.iconIgnorePlacement(true),
   )
 
 internal fun Style.updatePickedLocation(position: LatLng?) {
@@ -523,23 +529,61 @@ internal fun Style.updateUserLocation(position: LatLng?) {
   )
 }
 
-internal fun Style.updateClientPins(pins: List<MapPin>) {
+internal data class ScreenPoint(val x: Float, val y: Float)
+
+internal data class PinDisplay(
+  val pin: MapPin,
+  val position: LatLng,
+  val icon: String,
+  val size: Float,
+  val isDot: Boolean,
+  val label: String?,
+)
+
+internal fun Style.updateClientPins(displays: List<PinDisplay>) {
   getSourceAs<GeoJsonSource>(MAP_PINS_SOURCE_ID)?.setGeoJson(
-    FeatureCollection.fromFeatures(pins.map(::clientPinFeature)),
+    FeatureCollection.fromFeatures(displays.map(::clientPinFeature)),
   )
 }
 
-internal fun clientPinFeature(pin: MapPin): Feature =
-  Feature.fromGeometry(Point.fromLngLat(pin.position.longitude, pin.position.latitude)).apply {
-    addStringProperty("id", pin.id)
-    addStringProperty("name", pin.name)
-    addStringProperty(
-      "icon",
-      if (pin.active) MAP_PIN_ACTIVE_IMAGE else MAP_PIN_INACTIVE_IMAGE,
+internal fun clientPinFeature(display: PinDisplay): Feature =
+  Feature.fromGeometry(
+    Point.fromLngLat(display.position.longitude, display.position.latitude)
+  ).apply {
+    addStringProperty("id", display.pin.id)
+    addStringProperty("name", display.pin.name)
+    addStringProperty("icon", display.icon)
+    addStringProperty("kind", if (display.isDot) "dot" else "pin")
+    addNumberProperty("size", display.size)
+    addStringProperty("label", display.label ?: "")
+    addBooleanProperty("active", display.pin.active)
+    addNumberProperty(
+      "rank",
+      when {
+        display.isDot -> 2
+        display.pin.active -> 0
+        else -> 1
+      },
     )
-    addBooleanProperty("active", pin.active)
-    addNumberProperty("rank", if (pin.active) 0 else 1)
   }
+
+internal fun clientPinFeature(pin: MapPin): Feature =
+  clientPinFeature(
+    PinDisplay(
+      pin = pin,
+      position = pin.position,
+      icon = pinImage(pin),
+      size = 1f,
+      isDot = false,
+      label = pin.name,
+    )
+  )
+
+internal fun pinImage(pin: MapPin): String =
+  if (pin.active) MAP_PIN_ACTIVE_IMAGE else MAP_PIN_INACTIVE_IMAGE
+
+internal fun dotImage(pin: MapPin): String =
+  if (pin.active) MAP_PIN_DOT_ACTIVE_IMAGE else MAP_PIN_DOT_INACTIVE_IMAGE
 
 private fun pointFeature(position: LatLng, icon: String): Feature =
   Feature.fromGeometry(Point.fromLngLat(position.longitude, position.latitude)).apply {
@@ -548,6 +592,123 @@ private fun pointFeature(position: LatLng, icon: String): Feature =
 
 private fun emptyFeatureCollection(): FeatureCollection =
   FeatureCollection.fromFeatures(emptyList())
+
+internal fun pinScale(
+  nearestPx: Float,
+  neighborCount: Int,
+  collisionPx: Float,
+): Float {
+  if (neighborCount <= 1) return 1f
+  val distanceScale = (nearestPx / collisionPx).coerceIn(PIN_MIN_SCALE, 1f)
+  val densityScale =
+    if (neighborCount <= 2) {
+      1f
+    } else {
+      (1f / sqrt(neighborCount.toFloat())).coerceIn(PIN_MIN_SCALE, 1f)
+    }
+  return minOf(distanceScale, densityScale).coerceIn(PIN_MIN_SCALE, 1f)
+}
+
+internal fun computePinDisplays(
+  pins: List<MapPin>,
+  points: List<ScreenPoint>,
+  selectedPinId: String?,
+  density: Float,
+  zoom: Double,
+  unproject: (ScreenPoint) -> LatLng,
+): List<PinDisplay> {
+  require(pins.size == points.size) { "pins and points must have the same size" }
+  if (pins.isEmpty()) return emptyList()
+
+  val adjusted = points.toMutableList()
+  if (zoom >= PIN_FAN_MIN_ZOOM) {
+    pins.indices
+      .groupBy { pinKey(pins[it].position) }
+      .values
+      .filter { it.size > 1 }
+      .forEach { indices ->
+        val centerX =
+          indices.sumOf { points[it].x.toDouble() }.toFloat() / indices.size
+        val centerY =
+          indices.sumOf { points[it].y.toDouble() }.toFloat() / indices.size
+        val radius =
+          (PIN_FAN_BASE_DP + PIN_FAN_STEP_DP * (indices.size - 2)) * density
+        indices.forEachIndexed { fanIndex, pinIndex ->
+          val angle = (2.0 * PI * fanIndex / indices.size).toFloat()
+          adjusted[pinIndex] =
+            ScreenPoint(
+              x = centerX + cos(angle) * radius,
+              y = centerY + sin(angle) * radius,
+            )
+        }
+      }
+  }
+
+  val collisionPx = PIN_COLLISION_RADIUS_DP * density
+  return pins.mapIndexed { index, pin ->
+    val selected = pin.id == selectedPinId
+    val distances =
+      adjusted.indices
+        .filter { it != index }
+        .map { distance(adjusted[index], adjusted[it]) }
+    val nearest = distances.minOrNull() ?: Float.MAX_VALUE
+    val neighborCount = 1 + distances.count { it <= collisionPx }
+    val scale = if (selected) 1f else pinScale(nearest, neighborCount, collisionPx)
+    val isDot = !selected && scale < PIN_DOT_SCALE
+
+    PinDisplay(
+      pin = pin,
+      position =
+        if (adjusted[index] == points[index]) pin.position else unproject(adjusted[index]),
+      icon = if (isDot) dotImage(pin) else pinImage(pin),
+      size = if (isDot) 1f else scale,
+      isDot = isDot,
+      label =
+        when {
+          selected -> pin.name
+          !isDot && scale >= PIN_LABEL_SCALE -> pin.name
+          else -> null
+        },
+    )
+  }
+}
+
+internal fun MapLibreMap.pinDisplays(
+  pins: List<MapPin>,
+  selectedPinId: String?,
+  density: Float,
+): List<PinDisplay> {
+  if (pins.isEmpty()) return emptyList()
+  return runCatching {
+    val points = pins.map { projection.toScreenLocation(it.position) }
+    computePinDisplays(
+      pins = pins,
+      points = points.map { ScreenPoint(it.x, it.y) },
+      selectedPinId = selectedPinId,
+      density = density,
+      zoom = cameraPosition.zoom,
+      unproject = { point -> projection.fromScreenLocation(PointF(point.x, point.y)) },
+    )
+  }.getOrElse {
+    pins.map { pin ->
+      PinDisplay(
+        pin = pin,
+        position = pin.position,
+        icon = pinImage(pin),
+        size = 1f,
+        isDot = false,
+        label = pin.name,
+      )
+    }
+  }
+}
+
+private fun distance(a: ScreenPoint, b: ScreenPoint): Float =
+  hypot(a.x - b.x, a.y - b.y)
+
+private fun pinKey(position: LatLng): Long =
+  (position.latitude * 1_000_000).roundToLong() * 1_000_000L +
+    (position.longitude * 1_000_000).roundToLong()
 
 internal fun pinsSignature(pins: List<MapPin>): String =
   pins.joinToString("|") { pin ->
@@ -618,49 +779,19 @@ internal fun MapLibreMap.findClientPinAt(position: LatLng, radiusPx: Float): Str
         screen.x + radiusPx,
         screen.y + radiusPx,
       )
-    queryRenderedFeatures(rect, MAP_PINS_LAYER_ID)
-      .firstOrNull()
+    queryRenderedFeatures(rect, MAP_PINS_LAYER_ID, MAP_PIN_DOT_LAYER_ID)
+      .minByOrNull { feature ->
+        val point = feature.geometry() as? Point
+        if (point == null) {
+          Float.MAX_VALUE
+        } else {
+          val featureScreen =
+            projection.toScreenLocation(LatLng(point.latitude(), point.longitude()))
+          hypot(featureScreen.x - screen.x, featureScreen.y - screen.y)
+        }
+      }
       ?.getStringProperty("id")
   }.getOrNull()
-
-internal data class ClusterHit(
-  val feature: Feature,
-  val id: Long,
-  val pointCount: Int,
-)
-
-internal fun MapLibreMap.findClientClusterAt(position: LatLng, radiusPx: Float): ClusterHit? =
-  runCatching {
-    val screen = projection.toScreenLocation(position)
-    val rect =
-      RectF(
-        screen.x - radiusPx,
-        screen.y - radiusPx,
-        screen.x + radiusPx,
-        screen.y + radiusPx,
-      )
-    val feature =
-      queryRenderedFeatures(rect, MAP_CLUSTER_LAYER_ID).firstOrNull()
-        ?: return@runCatching null
-    val id = feature.getNumberProperty("cluster_id")?.toLong() ?: return@runCatching null
-    val count = feature.getNumberProperty("point_count")?.toInt() ?: 0
-    ClusterHit(feature, id, count)
-  }.getOrNull()
-
-internal fun MapLibreMap.expandCluster(hit: ClusterHit) {
-  val source = getStyle()?.getSourceAs<GeoJsonSource>(MAP_PINS_SOURCE_ID) ?: return
-  val point = hit.feature.geometry() as? Point ?: return
-  val target = LatLng(point.latitude(), point.longitude())
-  val expansionZoom =
-    runCatching { source.getClusterExpansionZoom(hit.feature) }.getOrNull()
-      ?: (cameraPosition.zoom + 2.0).toInt()
-  animateCamera(
-    CameraUpdateFactory.newLatLngZoom(
-      target,
-      expansionZoom.toDouble().coerceAtLeast(cameraPosition.zoom + 1.0),
-    )
-  )
-}
 
 @SuppressLint("ClickableViewAccessibility")
 internal fun isWithinHitRadius(

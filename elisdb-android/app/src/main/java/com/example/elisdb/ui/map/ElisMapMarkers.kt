@@ -4,6 +4,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -14,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.MapLibreMap
 
 internal data class MapPin(
   val id: String,
@@ -30,6 +32,7 @@ internal fun ElisMapMarkers(
   onMapTapped: () -> Unit = {},
   userLocation: LatLng? = null,
   userLocationPending: Boolean = false,
+  selectedPinId: String? = null,
 ) {
   val context = LocalContext.current
   val density = LocalDensity.current.density
@@ -37,17 +40,7 @@ internal fun ElisMapMarkers(
   val map =
     rememberMapLibreMap(mapView, interactive = true) { map, latLng ->
       val pinId = map.findClientPinAt(latLng, CLICK_RADIUS_DP * density)
-      if (pinId != null) {
-        onPinClick(pinId)
-      } else {
-        val cluster = map.findClientClusterAt(latLng, CLICK_RADIUS_DP * density)
-        if (cluster != null) {
-          onMapTapped()
-          map.expandCluster(cluster)
-        } else {
-          onMapTapped()
-        }
-      }
+      if (pinId != null) onPinClick(pinId) else onMapTapped()
       true
     }
   val styleUrl = mapStyleUrl(isSystemInDarkTheme())
@@ -67,9 +60,22 @@ internal fun ElisMapMarkers(
     layersReady = true
   }
 
-  LaunchedEffect(style, layersReady, signature) {
-    if (style == null || !layersReady) return@LaunchedEffect
-    style.updateClientPins(pins)
+  DisposableEffect(style, map, laidOut, layersReady, signature, selectedPinId, density) {
+    val loadedStyle = style
+    val loadedMap = map
+    if (loadedStyle == null || loadedMap == null || !laidOut || !layersReady) {
+      onDispose {}
+    } else {
+      fun refreshPins() {
+        loadedStyle.updateClientPins(
+          loadedMap.pinDisplays(pins, selectedPinId, density)
+        )
+      }
+      val listener = MapLibreMap.OnCameraIdleListener { refreshPins() }
+      loadedMap.addOnCameraIdleListener(listener)
+      refreshPins()
+      onDispose { loadedMap.removeOnCameraIdleListener(listener) }
+    }
   }
 
   LaunchedEffect(style, layersReady, userLocation) {

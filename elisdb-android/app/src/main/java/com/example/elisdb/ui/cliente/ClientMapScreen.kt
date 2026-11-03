@@ -172,6 +172,7 @@ internal fun ClientMapScreen(
               onMapTapped = { selectedId = null },
               userLocation = myLocation?.let { LatLng(it.latitude, it.longitude) },
               userLocationPending = userLocationPending,
+              selectedPinId = selectedId,
               modifier = Modifier.fillMaxSize(),
             )
             Column(

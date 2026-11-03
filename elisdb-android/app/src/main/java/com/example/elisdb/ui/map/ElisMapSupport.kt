@@ -7,14 +7,10 @@ import android.graphics.RectF
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewTreeObserver
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -31,7 +27,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -325,57 +320,6 @@ internal fun MapStatusOverlay(
           CircularProgressIndicator()
         }
       }
-  }
-}
-
-@Composable
-internal fun MapAttribution(modifier: Modifier = Modifier) {
-  var showDialog by remember { mutableStateOf(false) }
-  val uriHandler = LocalUriHandler.current
-
-  Box(
-    modifier = modifier.fillMaxSize(),
-    contentAlignment = Alignment.TopEnd,
-  ) {
-    Text(
-      text = "© OpenStreetMap",
-      style = MaterialTheme.typography.labelSmall,
-      color = MaterialTheme.colorScheme.onSurface,
-      modifier = Modifier
-        .padding(4.dp)
-        .background(
-          color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-          shape = RoundedCornerShape(4.dp),
-        )
-        .clickable { showDialog = true }
-        .padding(horizontal = 6.dp, vertical = 3.dp),
-    )
-  }
-
-  if (showDialog) {
-    AlertDialog(
-      onDismissRequest = { showDialog = false },
-      title = { Text("Atribuição do mapa") },
-      text = {
-        Column {
-          Text("© OpenStreetMap contributors")
-          Text("Dados: OpenFreeMap / OpenMapTiles")
-          Text("MapLibre Native")
-          TextButton(
-            onClick = { uriHandler.openUri("https://www.openstreetmap.org/copyright") },
-          ) { Text("OpenStreetMap") }
-          TextButton(
-            onClick = { uriHandler.openUri("https://openfreemap.org") },
-          ) { Text("OpenFreeMap") }
-          TextButton(
-            onClick = { uriHandler.openUri("https://openmaptiles.org") },
-          ) { Text("OpenMapTiles") }
-        }
-      },
-      confirmButton = {
-        TextButton(onClick = { showDialog = false }) { Text("Fechar") }
-      },
-    )
   }
 }
 

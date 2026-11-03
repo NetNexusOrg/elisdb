@@ -116,6 +116,5 @@ internal fun ElisMap(
       mapRendered = mapRendered.value,
       modifier = Modifier.matchParentSize(),
     )
-    MapAttribution(modifier = Modifier.matchParentSize())
   }
 }

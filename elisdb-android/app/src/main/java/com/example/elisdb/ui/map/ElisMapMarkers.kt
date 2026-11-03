@@ -108,7 +108,6 @@ internal fun ElisMapMarkers(
       mapRendered = mapRendered.value,
       modifier = Modifier.matchParentSize(),
     )
-    MapAttribution(modifier = Modifier.matchParentSize())
   }
 }
 

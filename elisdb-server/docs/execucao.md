@@ -59,9 +59,10 @@ tags, nunca em `main`). Não é preciso reiniciar o servidor — o ficheiro é
 descoberto no pedido seguinte.
 
 1. Sobe `app.versionCode` e `app.versionName` em `elisdb-android/gradle.properties`.
-2. Escreve a secção da versão em `CHANGELOG.md` (`## [1.6.0]`, com **Novidades** e
-   **Correções**): é o texto que aparece como descrição do release no GitHub. Uma
-   tag sem secção correspondente falha o `release` antes de gerar o APK.
+2. Escreve a secção da versão em `elisdb-android/CHANGELOG.md` (`## [1.6.0]`, com
+   **Novidades** e **Correções**): é o texto que aparece como descrição do release
+   no GitHub. Uma tag sem secção correspondente falha o `release` antes de gerar o
+   APK.
 3. Cria a tag (`git tag v1.6.0 && git push origin v1.6.0`).
 4. Em cada telemóvel: **Sobre** → **Procurar atualizações** → **Transferir** →
    **Instalar**.
@@ -191,8 +192,8 @@ exigir checks verdes na `main` (*branch protection*), essa garantia vive no
 script de deploy, a partir da raiz do repositório:
 
 ```bash
-./scripts/deploy-server.sh --check   # só verifica, não toca na VPS
-./scripts/deploy-server.sh           # copia e reconstrói o contentor
+./elisdb-server/scripts/deploy-server.sh --check   # só verifica, não toca na VPS
+./elisdb-server/scripts/deploy-server.sh           # copia e reconstrói o contentor
 ```
 
 O script recusa publicar quando:

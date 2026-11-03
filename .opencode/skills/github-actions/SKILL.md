@@ -24,8 +24,8 @@ description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-relea
   full `:app:connectedDebugAndroidTest` suite on the emulator for visibility. It is not
   in `release.needs`, so a flaky UI test cannot block a release.
 - `release` (only on `v*` tags, `needs: [test, instrumented]`): extracts the release body from
-  `CHANGELOG.md` (step "Extract release notes": the `## [X.Y.Z]` section matching the tag;
-  a tag without that section fails before the build), decodes keystore from secret,
+  `elisdb-android/CHANGELOG.md` (step "Extract release notes": the `## [X.Y.Z]` section
+  matching the tag; a tag without that section fails before the build), decodes keystore from secret,
   `:app:assembleRelease`,
   renames the APK to `elisdb-<versionName>-<versionCode>.apk` (`APK_NAME` in `$GITHUB_ENV`),
   creates the GitHub Release via `softprops/action-gh-release` with `body_path` (the
@@ -44,7 +44,7 @@ entry or a broken Dockerfile fails on the push instead of on the VPS.
 
 The repository is private on a plan without branch protection (required status
 checks answer 403 "Upgrade to GitHub Pro or make this repository public"), so the
-production-side guard is `scripts/deploy-server.sh`: it refuses to deploy unless
+production-side guard is `elisdb-server/scripts/deploy-server.sh`: it refuses to deploy unless
 `elisdb-server/` is clean, local `main` equals `origin/main`, and the last commit
 touching `elisdb-server/` has a completed, successful **Server CI** run. It then
 rsyncs the code (never `compose.yaml`, which is host-specific) and runs

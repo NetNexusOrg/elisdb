@@ -8,7 +8,8 @@ repositório. O contexto técnico específico está nas skills em `.opencode/ski
 
 ElisDB — sistema de gestão de clientes **offline-first**: app Android (Kotlin +
 Jetpack Compose) + servidor de sync (Python + FastAPI + SQLite). Monorepo:
-`elisdb-android/`, `elisdb-server/`, `elisdb-memento/`, `openspec/`.
+`elisdb-android/`, `elisdb-server/`, `elisdb-telegram-bot/`, `elisdb-memento/`,
+`openspec/`.
 
 ## Regras gerais
 

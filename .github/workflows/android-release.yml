@@ -165,21 +165,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      # The release body is the hand-written section of CHANGELOG.md for this
-      # tag — what changed, for the people who use the app — instead of the
-      # generated "What's Changed"/"Full Changelog" text. Failing here, before
-      # the build, is better than publishing a release with no notes.
+      # The release body is the hand-written section of the Android component's
+      # changelog for this tag — what changed, for the people who use the app —
+      # instead of the generated "What's Changed"/"Full Changelog" text.
+      # Failing here, before the build, is better than publishing a release with
+      # no notes.
       - name: Extract release notes
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
+          changelog="elisdb-android/CHANGELOG.md"
           awk -v heading="## [${version}]" '
             index($0, heading) == 1 { found = 1; next }
             found && index($0, "## [") == 1 { exit }
             found { print }
-          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          ' "$changelog" > "$RUNNER_TEMP/release-notes.md"
           if [ ! -s "$RUNNER_TEMP/release-notes.md" ]; then
-            echo "::error::CHANGELOG.md has no '## [${version}]' section; add the release notes before tagging"
+            echo "::error::${changelog} has no '## [${version}]' section; add the release notes before tagging"
             exit 1
           fi
 
@@ -235,8 +237,9 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: elisdb-android/app/build/outputs/apk/release/${{ env.APK_NAME }}
-          # Notes written by hand in CHANGELOG.md (see "Extract release notes"),
-          # not the generated commit list with a "Full Changelog" link.
+          # Notes written by hand in elisdb-android/CHANGELOG.md (see
+          # "Extract release notes"), not the generated commit list with a
+          # "Full Changelog" link.
           body_path: ${{ runner.temp }}/release-notes.md
 
       # Publishes the build to the server, where the app picks it up from

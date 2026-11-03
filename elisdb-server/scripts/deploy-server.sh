@@ -12,7 +12,7 @@ TARGET="${ELISDB_DEPLOY_TARGET:-docker/elisdb-server}"
 # Opcional: URL de /health a confirmar depois do deploy (ex.: o URL público).
 HEALTH_URL="${ELISDB_HEALTH_URL:-}"
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 erro() { echo "Erro: $*" >&2; exit 1; }

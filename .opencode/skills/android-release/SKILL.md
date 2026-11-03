@@ -31,7 +31,7 @@ Base facts in `project-context` and `gradle-build`.
 1. Bump `versionCode`/`versionName` in `gradle.properties`.
 2. Run local checks: `./gradlew :app:testDebugUnitTest` (and lint).
 3. Build the signed APK locally to verify signing works (`scripts/build-release.sh`).
-4. Write the release notes in `CHANGELOG.md` under `## [X.Y.Z]` (the section title must match the tag; it becomes the GitHub Release description).
+4. Write the release notes in `elisdb-android/CHANGELOG.md` under `## [X.Y.Z]` (the section title must match the tag; it becomes the GitHub Release description).
 5. Commit, push to `main`.
 6. Tag the release: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 7. CI builds the signed APK and creates the GitHub Release automatically (see `github-actions`).
@@ -39,4 +39,4 @@ Base facts in `project-context` and `gradle-build`.
 ## Rules
 
 - Do not create production tags just to test CI; test via the non-tag `test` job.
-- Release notes live in `CHANGELOG.md` (`Novidades` / `Correções`, for the people who use the app). A tag without a matching section fails the `release` job before the build — never publish notes with secrets or photo data.
+- Release notes live in `elisdb-android/CHANGELOG.md` (`Novidades` / `Correções`, for the people who use the app). A tag without a matching section fails the `release` job before the build — never publish notes with secrets or photo data.

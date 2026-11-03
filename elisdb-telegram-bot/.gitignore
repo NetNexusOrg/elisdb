@@ -1,0 +1,6 @@
+# Credenciais e estado local do bot Telegram.
+# O token fica dentro do projeto, mas nunca deve ser commitado.
+*.txt
+!requirements.txt
+*.session
+.env

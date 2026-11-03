@@ -45,6 +45,8 @@ internal fun ElisMap(
   var centered by remember(mapView) { mutableStateOf(false) }
   var lastCenteredMarker by remember(mapView) { mutableStateOf<LatLng?>(null) }
   var layersReady by remember(style) { mutableStateOf(false) }
+  var cameraReady by remember(mapView) { mutableStateOf(false) }
+  val mapRendered = rememberMapRenderedState(mapView)
 
   LaunchedEffect(style) {
     val loadedStyle = style ?: return@LaunchedEffect
@@ -73,9 +75,11 @@ internal fun ElisMap(
     val shouldCenter = !centered || (!draggable && markerPosition != lastCenteredMarker)
     if (!shouldCenter) return@LaunchedEffect
     val target = markerPosition ?: DEFAULT_CENTER
+    if (!cameraReady) mapRendered.value = false
     map.moveCamera(CameraUpdateFactory.newLatLngZoom(target, MAP_DEFAULT_ZOOM))
     centered = true
     lastCenteredMarker = markerPosition
+    cameraReady = true
   }
 
   val controller =
@@ -106,6 +110,8 @@ internal fun ElisMap(
     MapStatusOverlay(
       state = styleState,
       laidOut = laidOut,
+      cameraReady = cameraReady,
+      mapRendered = mapRendered.value,
       modifier = Modifier.matchParentSize(),
     )
     MapAttribution(modifier = Modifier.matchParentSize())

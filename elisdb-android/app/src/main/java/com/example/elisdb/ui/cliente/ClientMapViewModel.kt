@@ -48,6 +48,8 @@ class ClientMapViewModel(
 
   private val _myLocation = MutableStateFlow<Localizacao?>(null)
   val myLocation: StateFlow<Localizacao?> = _myLocation.asStateFlow()
+  private val _locationResolved = MutableStateFlow(false)
+  val locationResolved: StateFlow<Boolean> = _locationResolved.asStateFlow()
   private var locationJob: Job? = null
 
   fun onFiltroChange(value: ClientMapFilter) {
@@ -59,8 +61,16 @@ class ClientMapViewModel(
     if (locationJob?.isActive == true) return
     locationJob =
       viewModelScope.launch {
-        _myLocation.value = locationProvider()
+        try {
+          _myLocation.value = locationProvider()
+        } finally {
+          _locationResolved.value = true
+        }
       }
+  }
+
+  fun onLocationUnavailable() {
+    _locationResolved.value = true
   }
 
   val uiState: StateFlow<ClientMapUiState> =

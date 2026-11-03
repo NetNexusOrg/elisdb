@@ -28,6 +28,7 @@ internal fun ElisMapMarkers(
   modifier: Modifier = Modifier,
   onMapTapped: () -> Unit = {},
   userLocation: LatLng? = null,
+  userLocationPending: Boolean = false,
 ) {
   val context = LocalContext.current
   val density = LocalDensity.current.density
@@ -55,6 +56,8 @@ internal fun ElisMapMarkers(
   var centeredOnUser by remember(mapView) { mutableStateOf(false) }
   var hasFittedPins by remember(mapView) { mutableStateOf(false) }
   var layersReady by remember(style) { mutableStateOf(false) }
+  var cameraReady by remember(mapView) { mutableStateOf(false) }
+  val mapRendered = rememberMapRenderedState(mapView)
 
   LaunchedEffect(style) {
     val loadedStyle = style ?: return@LaunchedEffect
@@ -72,8 +75,8 @@ internal fun ElisMapMarkers(
     style.updateUserLocation(userLocation)
   }
 
-  LaunchedEffect(style, map, laidOut, signature, userLocation) {
-    if (style == null || map == null || !laidOut) return@LaunchedEffect
+  LaunchedEffect(style, map, laidOut, signature, userLocation, userLocationPending) {
+    if (style == null || map == null || !laidOut || userLocationPending) return@LaunchedEffect
     val target = mapCameraTarget(
       pins = pins,
       userLocation = userLocation,
@@ -81,7 +84,9 @@ internal fun ElisMapMarkers(
       hasFittedPins = hasFittedPins,
     )
     if (target == MapCameraTarget.None) return@LaunchedEffect
+    if (!cameraReady) mapRendered.value = false
     map.applyCameraTarget(target)
+    cameraReady = true
     if (userLocation != null && !centeredOnUser) {
       centeredOnUser = true
     } else {
@@ -97,6 +102,8 @@ internal fun ElisMapMarkers(
     MapStatusOverlay(
       state = styleState,
       laidOut = laidOut,
+      cameraReady = cameraReady,
+      mapRendered = mapRendered.value,
       modifier = Modifier.matchParentSize(),
     )
     MapAttribution(modifier = Modifier.matchParentSize())

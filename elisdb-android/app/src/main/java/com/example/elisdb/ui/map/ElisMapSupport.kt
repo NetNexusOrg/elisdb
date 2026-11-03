@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,7 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
@@ -83,26 +85,30 @@ internal fun rememberMapViewWithLifecycle(context: Context, interactive: Boolean
   val lifecycleOwner = LocalLifecycleOwner.current
   val mapView =
     remember(context, interactive, lifecycleOwner) {
-      val view = if (interactive) MapView(context) else NonInteractiveMapView(context)
+      val options = MapLibreMapOptions.createFromAttributes(context).textureMode(true)
+      val view =
+        if (interactive) MapView(context, options) else NonInteractiveMapView(context, options)
       view.onCreate(null)
       view
     }
 
   DisposableEffect(lifecycleOwner, mapView) {
+    var attached = mapView.isAttachedToWindow
     var started = false
     var resumed = false
     var destroyed = false
 
     fun start() {
-      if (!started && !destroyed) {
+      if (attached && !started && !destroyed) {
         mapView.onStart()
         started = true
       }
     }
 
     fun resume() {
+      if (!attached || destroyed) return
       start()
-      if (!resumed && !destroyed) {
+      if (!resumed) {
         mapView.onResume()
         resumed = true
       }
@@ -131,25 +137,51 @@ internal fun rememberMapViewWithLifecycle(context: Context, interactive: Boolean
       }
     }
 
+    fun sync() {
+      if (destroyed) return
+      if (!attached) {
+        stop()
+        return
+      }
+      when {
+        lifecycleOwner.lifecycle.currentState == Lifecycle.State.RESUMED -> resume()
+        lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) -> start()
+        else -> stop()
+      }
+    }
+
     val observer =
       LifecycleEventObserver { _, event ->
         when (event) {
-          Lifecycle.Event.ON_START -> start()
-          Lifecycle.Event.ON_RESUME -> resume()
+          Lifecycle.Event.ON_START -> if (attached) start()
+          Lifecycle.Event.ON_RESUME -> if (attached) resume()
           Lifecycle.Event.ON_PAUSE -> pause()
           Lifecycle.Event.ON_STOP -> stop()
           Lifecycle.Event.ON_DESTROY -> destroy()
           else -> Unit
         }
       }
+
+    val attachListener =
+      object : View.OnAttachStateChangeListener {
+        override fun onViewAttachedToWindow(view: View) {
+          attached = true
+          sync()
+        }
+
+        override fun onViewDetachedFromWindow(view: View) {
+          attached = false
+          stop()
+        }
+      }
+
+    mapView.addOnAttachStateChangeListener(attachListener)
     lifecycleOwner.lifecycle.addObserver(observer)
-    when {
-      lifecycleOwner.lifecycle.currentState == Lifecycle.State.RESUMED -> resume()
-      lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) -> start()
-    }
+    sync()
 
     onDispose {
       lifecycleOwner.lifecycle.removeObserver(observer)
+      mapView.removeOnAttachStateChangeListener(attachListener)
       destroy()
     }
   }
@@ -242,9 +274,25 @@ internal fun rememberIsLaidOut(view: View): Boolean {
 }
 
 @Composable
+internal fun rememberMapRenderedState(mapView: MapView): MutableState<Boolean> {
+  val rendered = remember(mapView) { mutableStateOf(false) }
+  DisposableEffect(mapView) {
+    val listener =
+      MapView.OnDidFinishRenderingFrameListener { fullyRendered, _, _ ->
+        if (fullyRendered) rendered.value = true
+      }
+    mapView.addOnDidFinishRenderingFrameListener(listener)
+    onDispose { mapView.removeOnDidFinishRenderingFrameListener(listener) }
+  }
+  return rendered
+}
+
+@Composable
 internal fun MapStatusOverlay(
   state: MapStyleState,
   laidOut: Boolean,
+  cameraReady: Boolean = true,
+  mapRendered: Boolean = true,
   modifier: Modifier = Modifier,
 ) {
   when {
@@ -262,7 +310,7 @@ internal fun MapStatusOverlay(
         }
       }
 
-    !laidOut || state.style == null ->
+    !laidOut || state.style == null || !cameraReady || !mapRendered ->
       Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = modifier.fillMaxSize(),
@@ -761,7 +809,10 @@ internal class DraggableMarkerController(
 // Deliberately swallows all touch input (non-interactive map preview), so it
 // never needs to handle a click.
 @SuppressLint("ClickableViewAccessibility")
-internal class NonInteractiveMapView(context: Context) : MapView(context) {
+internal class NonInteractiveMapView(
+  context: Context,
+  options: MapLibreMapOptions,
+) : MapView(context, options) {
   override fun onTouchEvent(event: MotionEvent): Boolean = false
 
   override fun dispatchTouchEvent(event: MotionEvent): Boolean = false

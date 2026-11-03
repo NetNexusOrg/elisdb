@@ -60,10 +60,12 @@ fun ClientMapScreen(
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   val filtro by viewModel.filtro.collectAsStateWithLifecycle()
   val myLocation by viewModel.myLocation.collectAsStateWithLifecycle()
+  val locationResolved by viewModel.locationResolved.collectAsStateWithLifecycle()
   val context = LocalContext.current
   val locationPermissionLauncher =
     rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
       if (granted.values.any { it }) viewModel.refreshLocation()
+      else viewModel.onLocationUnavailable()
     }
 
   LaunchedEffect(Unit) {
@@ -83,6 +85,7 @@ fun ClientMapScreen(
     state = state,
     filtro = filtro,
     myLocation = myLocation,
+    userLocationPending = !locationResolved,
     onFiltroChange = viewModel::onFiltroChange,
     onClienteClick = onClienteClick,
     onBack = onBack,
@@ -99,6 +102,7 @@ internal fun ClientMapScreen(
   onClienteClick: (String) -> Unit,
   onBack: () -> Unit,
   myLocation: Localizacao? = null,
+  userLocationPending: Boolean = false,
   modifier: Modifier = Modifier,
 ) {
   var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -147,7 +151,7 @@ internal fun ClientMapScreen(
           CircularProgressIndicator(Modifier.align(Alignment.Center))
 
         is ClientMapUiState.Success ->
-          if (state.clientes.isEmpty() && myLocation == null) {
+          if (state.clientes.isEmpty() && myLocation == null && !userLocationPending) {
             EmptyMapMessage(
               totalClientes = state.totalClientes,
               semLocalizacao = state.semLocalizacao,
@@ -167,6 +171,7 @@ internal fun ClientMapScreen(
               onPinClick = { selectedId = it },
               onMapTapped = { selectedId = null },
               userLocation = myLocation?.let { LatLng(it.latitude, it.longitude) },
+              userLocationPending = userLocationPending,
               modifier = Modifier.fillMaxSize(),
             )
             Column(

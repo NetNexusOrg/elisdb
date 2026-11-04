@@ -10,3 +10,17 @@ mantém a app Android sincronizada. A versão de release vive em
 
 - Changelog inicial do componente servidor. As alterações ao servidor passam a
   ser registadas aqui.
+
+## [1.4.0] - 2026-11-04
+
+### Added
+
+- Campo opcional `tag` nos clientes: persistido na base de dados, aceite no
+  push, devolvido no pull, incluído na listagem e registado no histórico de
+  edições.
+- Migração automática e idempotente da coluna `clientes.tag` em bases de dados
+  existentes.
+
+### Changed
+
+- O limite de 100 caracteres da tag é validado na API.

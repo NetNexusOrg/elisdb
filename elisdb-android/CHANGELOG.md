@@ -8,6 +8,15 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [1.11.0] - 2026-11-04
+
+### Novidades
+
+- **Tags nos clientes.** Cada cliente pode ter uma etiqueta livre, editável no formulário e apresentada em maiúsculas na lista, no detalhe e no histórico.
+- **Filtrar por tag.** O menu de filtros da lista lista as tags existentes e mostra apenas os clientes com a tag escolhida.
+- **Filtro por tag no mapa.** O mapa de clientes ganha o mesmo filtro de tag, independente do filtro da lista.
+- **Menus de filtro expansíveis.** Os grupos Tags, Ordenação e Estado aparecem recolhidos e abrem ao tocar.
+
 ## [1.10.0] - 2026-11-03
 
 ### Novidades

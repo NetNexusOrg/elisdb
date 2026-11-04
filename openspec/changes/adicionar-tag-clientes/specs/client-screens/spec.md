@@ -97,6 +97,10 @@ The system SHALL provide a form to create a new client or edit an existing one, 
 - **THEN** the new client SHALL be stored with that tag
 - **AND** the user SHALL return to the client list
 
+#### Scenario: Tag field is the fourth input, below the notes
+- **WHEN** the create/edit client form is shown
+- **THEN** the tag field SHALL be the fourth input field, placed below the notes
+
 #### Scenario: Save edits to a client
 - **WHEN** the user edits a client and taps save in edit mode
 - **THEN** the client SHALL be updated

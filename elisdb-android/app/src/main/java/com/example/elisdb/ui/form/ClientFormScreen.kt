@@ -188,14 +188,6 @@ private fun ClientFormContent(
     )
 
     OutlinedTextField(
-      value = state.tag,
-      onValueChange = onTagChange,
-      label = { Text("Tag") },
-      singleLine = true,
-      modifier = Modifier.fillMaxWidth(),
-    )
-
-    OutlinedTextField(
       value = state.nome,
       onValueChange = onNomeChange,
       label = { Text("Nome *") },
@@ -209,6 +201,14 @@ private fun ClientFormContent(
       onValueChange = onNotasChange,
       label = { Text("Notas") },
       minLines = 2,
+      modifier = Modifier.fillMaxWidth(),
+    )
+
+    OutlinedTextField(
+      value = state.tag,
+      onValueChange = onTagChange,
+      label = { Text("Tag") },
+      singleLine = true,
       modifier = Modifier.fillMaxWidth(),
     )
 

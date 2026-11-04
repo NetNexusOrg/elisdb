@@ -53,6 +53,9 @@ class CreateFormStartsEmptyTest {
       composeTestRule.onNodeWithText("Contrato").fetchSemanticsNode().boundsInRoot.top
     assertTrue("O toggle ativo deve ser o primeiro campo", ativoTop < contratoTop)
     composeTestRule.onNodeWithText("Tag").assertExists()
+    val notasTop = composeTestRule.onNodeWithText("Notas").fetchSemanticsNode().boundsInRoot.top
+    val tagTop = composeTestRule.onNodeWithText("Tag").fetchSemanticsNode().boundsInRoot.top
+    assertTrue("A tag deveria aparecer abaixo das notas", notasTop < tagTop)
     composeTestRule.onNodeWithText("O cliente está em serviço.").assertDoesNotExist()
     composeTestRule
       .onNodeWithText("Cliente inativo: fica guardado, mas marcado como fora de serviço.")

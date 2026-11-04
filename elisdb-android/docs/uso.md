@@ -77,7 +77,7 @@ Fluxos principais:
   recentes primeiro** (pelo cliente criado mais recentemente) ou **Última edição
   primeiro** (pelo cliente alterado mais recentemente). Com um filtro ou uma ordem
   diferentes da predefinição o ícone fica destacado.
-- **Novo/editar cliente** — formulário com nome, contrato, tag, coordenadas, notas e
+- **Novo/editar cliente** — formulário com contrato, nome, notas, tag, coordenadas e
   o interruptor **Cliente ativo**.
 - **Mapa de clientes** — o ícone de mapa na barra superior da lista abre o mapa
   dos clientes com localização. Ao abrir, pede acesso à localização e centra o

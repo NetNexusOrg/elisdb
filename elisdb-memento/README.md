@@ -105,6 +105,26 @@ Depois o comando é o mesmo:
 Se o servidor estiver noutra máquina, o URL no config tem de ser o URL que o
 teu computador usa para chegar ao servidor.
 
+### VPS / fora do monorepo
+
+O `./importar` é um script **bash**, não um ficheiro Python. Não o executes com
+`python3 importar`; usa sempre:
+
+```bash
+./importar
+```
+
+Se não existir `elisdb-server/.venv`, o wrapper usa o `python3` ativo (por
+exemplo, um venv já ativado) desde que tenha o módulo `cryptography`. Se não
+tiver, cria um venv local:
+
+```bash
+cd elisdb-memento
+python3 -m venv .venv
+.venv/bin/pip install cryptography
+./importar
+```
+
 ## O que aparece durante a execução
 
 Primeiro mostra a verificação do CSV: linhas, linhas com nome, nomes únicos,

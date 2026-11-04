@@ -67,10 +67,12 @@ DOCKER_TIMEOUT_SECONDS = 120
 # Safeguard do CSV: o export tem de trazer estas colunas e os valores têm de
 # caber nos limites do servidor (app/models.py).
 CAMPOS_OBRIGATORIOS = ("Nome", "PDL", "Coordenadas", "Notas")
+# `Rota` é usada como tag quando existe; `Foto` e `Plantas` são ignoradas.
 CAMPOS_OPCIONAIS = ("Rota", "Foto", "Plantas")
 CAMPOS_CONHECIDOS = set(CAMPOS_OBRIGATORIOS) | set(CAMPOS_OPCIONAIS)
 MAX_NOME = 200
 MAX_TEXTO = 100_000
+MAX_TAG = 100
 MAX_ERROS_VALIDACAO = 50
 
 # Headers usados pelo servidor (app/auth.py).
@@ -536,6 +538,14 @@ def validar_csv(rows: list[dict], cabecalho: list[str]) -> ValidacaoCsv:
                 f"(máximo {MAX_TEXTO}).",
             )
 
+        rota = str(row.get("Rota") or "").strip()
+        if len(rota) > MAX_TAG:
+            _erro_validacao(
+                validacao,
+                f"Linha {numero}: Rota/tag com {len(rota)} caracteres "
+                f"(máximo {MAX_TAG}).",
+            )
+
         validacao.com_nome += 1
         if nome_normalizado in vistos:
             _aviso_validacao(
@@ -840,6 +850,10 @@ def revisar_tipos_a_b(analise: Analise) -> None:
         if len(contratos) > 1:
             print(f"  Aviso: PDL/contrato diferentes: {', '.join(contratos)}")
             print("  Mantém-se o contrato da primeira linha.")
+        rotas = sorted({r for r in caso.rotas if r})
+        if len(rotas) > 1:
+            print(f"  Aviso: Rotas/tags diferentes: {', '.join(rotas)}")
+            print("  Mantém-se a tag da primeira linha.")
         if not caso.pares_validos:
             print("  Sem coordenadas válidas; fica sem localização.")
             continue
@@ -861,6 +875,7 @@ def _print_cliente(item: ClienteNovo, indice: int, total: int) -> None:
     print()
     print(f"[{indice}/{total}] {cliente.get('nome')}")
     print(f"  PDL (contrato): {_fmt_contrato(cliente)}")
+    print(f"  Tag (Rota): {cliente.get('tag') or '—'}")
     print(f"  Coordenadas: {_fmt_coords(cliente)}")
     print(f"  Notas: {_fmt_notas(cliente)}")
     if item.origem != "normal":
@@ -889,6 +904,7 @@ def _print_detalhes(item: ClienteNovo) -> None:
     print("Detalhes:")
     print(f"  nome: {cliente.get('nome')}")
     print(f"  PDL (contrato): {_fmt_contrato(cliente)}")
+    print(f"  tag: {cliente.get('tag') or '—'}")
     print(f"  coordenadas: {_fmt_coords(cliente)}")
     print(f"  notas: {_fmt_notas(cliente, limite=100000)}")
     if item.existente_semelhante is not None:
@@ -974,6 +990,7 @@ def _cliente_payload(cliente: dict[str, Any]) -> dict[str, Any]:
         "id": cliente["id"],
         "nome": cliente["nome"],
         "contrato": cliente.get("contrato"),
+        "tag": cliente.get("tag"),
         "latitude": cliente.get("latitude"),
         "longitude": cliente.get("longitude"),
         "notas": cliente.get("notas"),

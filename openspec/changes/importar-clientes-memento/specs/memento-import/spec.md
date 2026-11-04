@@ -33,11 +33,19 @@ The system SHALL authenticate to the server with an ed25519 key stored in `memen
 
 ### Requirement: Read and map the Memento CSV
 
-The system SHALL read `ELIS.csv` as UTF-8 with an optional BOM and map `Nome` to the client name, `PDL` to `contrato`, `Coordenadas` to `latitude`/`longitude`, and `Notas` to `notas`. It SHALL ignore `Rota`, `Foto`, and `Plantas`. Empty contracts and notes SHALL be stored as NULL.
+The system SHALL read `ELIS.csv` as UTF-8 with an optional BOM and map `Nome` to the client name, `PDL` to `contrato`, `Rota` to `tag`, `Coordenadas` to `latitude`/`longitude`, and `Notas` to `notas`. It SHALL ignore `Foto` and `Plantas`. Empty contracts, tags and notes SHALL be stored as NULL.
 
 #### Scenario: Normal row is mapped
-- **WHEN** a row has a name, PDL, coordinates, and notes
-- **THEN** the import SHALL send the mapped contract, name, coordinates, and notes
+- **WHEN** a row has a name, PDL, Rota, coordinates, and notes
+- **THEN** the import SHALL send the mapped contract, tag, name, coordinates, and notes
+
+#### Scenario: Rota is mapped to the tag
+- **WHEN** a row has a non-empty Rota value
+- **THEN** the imported client SHALL carry that value as its tag, trimmed and preserving its original casing
+
+#### Scenario: Empty Rota is allowed
+- **WHEN** a row has no Rota value
+- **THEN** the client SHALL be importable with no tag
 
 #### Scenario: Empty coordinates are allowed
 - **WHEN** a row has no coordinates
@@ -49,7 +57,7 @@ The system SHALL read `ELIS.csv` as UTF-8 with an optional BOM and map `Nome` to
 
 ### Requirement: Validate CSV structure before contacting the server
 
-The system SHALL validate the CSV structure before loading the config or contacting the server. It SHALL require `Nome`, `PDL`, `Coordenadas`, and `Notas`, accept `Rota`, `Foto`, and `Plantas`, and warn about unknown columns. It SHALL require at least one data row and one non-empty name. It SHALL enforce a normalized name up to 200 characters and contract/notes up to 100 000 characters.
+The system SHALL validate the CSV structure before loading the config or contacting the server. It SHALL require `Nome`, `PDL`, `Coordenadas`, and `Notas`, accept `Rota`, `Foto`, and `Plantas`, and warn about unknown columns. It SHALL require at least one data row and one non-empty name. It SHALL enforce a normalized name up to 200 characters, contract/notes up to 100 000 characters, and the tag (`Rota`) up to 100 characters.
 
 #### Scenario: Required column is missing
 - **WHEN** the CSV does not contain `Nome`, `PDL`, `Coordenadas`, or `Notas`
@@ -57,6 +65,10 @@ The system SHALL validate the CSV structure before loading the config or contact
 
 #### Scenario: Field exceeds the server limit
 - **WHEN** a normalized name, contract, or notes value exceeds the server limit
+- **THEN** the system SHALL abort with a non-zero exit code before contacting the server
+
+#### Scenario: Tag exceeds the server limit
+- **WHEN** a `Rota` value exceeds 100 characters
 - **THEN** the system SHALL abort with a non-zero exit code before contacting the server
 
 #### Scenario: CSV has no usable rows

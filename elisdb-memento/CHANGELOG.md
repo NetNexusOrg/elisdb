@@ -13,6 +13,8 @@ Scripts de migração do export Memento (CSV) para o formato de dados do ElisDB.
 - Safeguard do CSV antes de contactar o servidor: colunas obrigatórias, limites
   de tamanho do servidor e validação de coordenadas; erros estruturais abortam
   sem enviar nem escrever relatório.
+- Mapeamento da coluna `Rota` do Memento para a tag do cliente, com limite de
+  100 caracteres.
 - Testes do importador com HTTP/Docker mockados.
 
 ### Changed
@@ -29,4 +31,5 @@ Scripts de migração do export Memento (CSV) para o formato de dados do ElisDB.
 
 - O relatório e o ficheiro de exclusões contêm dados de clientes e são
   ignorados pelo Git.
-- Fotos e `Rota` continuam fora do âmbito da importação.
+- Fotos continuam fora do âmbito da importação; `Rota` passa a ser importada
+  como tag.

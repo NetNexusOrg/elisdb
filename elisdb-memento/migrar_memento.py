@@ -100,6 +100,7 @@ class CasoTipoB:
     escolhido: tuple[str, str] | None
     notas_originais: list[str]
     contratos: list[str] = field(default_factory=list)
+    rotas: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -125,6 +126,7 @@ CREATE TABLE clientes (
     id TEXT PRIMARY KEY,
     nome TEXT UNIQUE COLLATE NOCASE,
     contrato TEXT,
+    tag TEXT,
     latitude REAL,
     longitude REAL,
     notas TEXT,
@@ -144,9 +146,9 @@ def gerar_db(caminho: str, clientes: list[dict]) -> None:
     conn = sqlite3.connect(caminho)
     conn.executescript(SCHEMA)
     conn.executemany(
-        "INSERT INTO clientes (id, nome, contrato, latitude, longitude, notas, "
+        "INSERT INTO clientes (id, nome, contrato, tag, latitude, longitude, notas, "
         "updated_at, created_at, delivery_ts, ativo) "
-        "VALUES (:id, :nome, :contrato, :latitude, :longitude, :notas, "
+        "VALUES (:id, :nome, :contrato, :tag, :latitude, :longitude, :notas, "
         ":updated_at, :created_at, :delivery_ts, :ativo)",
         clientes,
     )
@@ -189,6 +191,7 @@ def migrar(rows: list[dict], timestamp_s: int) -> tuple[list[dict], Relatorio]:
             pares_validos: list[tuple[str, str]] = []
             notas_originais: list[str] = []
             contratos: list[str] = []
+            rotas: list[str] = []
             tem_linha_valida = False
             for ln in linhas:
                 c = classify(ln.get("Coordenadas") or "")
@@ -204,6 +207,7 @@ def migrar(rows: list[dict], timestamp_s: int) -> tuple[list[dict], Relatorio]:
                     rel.erros_parsing.append((nome, ln.get("Coordenadas") or ""))
                 notas_originais.append((ln.get("Notas") or "").strip())
                 contratos.append((ln.get("PDL") or "").strip())
+                rotas.append((ln.get("Rota") or "").strip())
             escolhido = pares_validos[0] if pares_validos else None
             rel.tipo_b.append(
                 CasoTipoB(
@@ -213,6 +217,7 @@ def migrar(rows: list[dict], timestamp_s: int) -> tuple[list[dict], Relatorio]:
                     escolhido,
                     notas_originais,
                     contratos,
+                    rotas,
                 )
             )
             if not tem_linha_valida:
@@ -220,12 +225,14 @@ def migrar(rows: list[dict], timestamp_s: int) -> tuple[list[dict], Relatorio]:
                 # um cliente sem localização só porque o parsing falhou.
                 continue
             contrato = linhas[0]["PDL"].strip() or None
+            tag = (linhas[0].get("Rota") or "").strip() or None
             notas = "\n\n".join(n for n in notas_originais if n) or None
             clientes.append(
                 {
                     "id": str(uuid.uuid4()),
                     "nome": nome,
                     "contrato": contrato,
+                    "tag": tag,
                     "latitude": float(escolhido[0]) if escolhido else None,
                     "longitude": float(escolhido[1]) if escolhido else None,
                     "notas": notas,
@@ -258,6 +265,7 @@ def migrar(rows: list[dict], timestamp_s: int) -> tuple[list[dict], Relatorio]:
         # c == "vazio": latitude/longitude ficam NULL (não é erro); já contado no input
 
         contrato = (ln.get("PDL") or "").strip() or None
+        tag = (ln.get("Rota") or "").strip() or None
         notas = notas_originais or None
         if c == "tipo_a":
             extras = f"Coordenadas alternativas: {rel.tipo_a[-1].notas_extra}"
@@ -267,6 +275,7 @@ def migrar(rows: list[dict], timestamp_s: int) -> tuple[list[dict], Relatorio]:
                 "id": str(uuid.uuid4()),
                 "nome": nome,
                 "contrato": contrato,
+                "tag": tag,
                 "latitude": lat,
                 "longitude": lon,
                 "notas": notas,

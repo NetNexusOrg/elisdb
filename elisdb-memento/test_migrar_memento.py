@@ -76,12 +76,36 @@ def test_migrar_linha_normal():
     c = clientes[0]
     assert c["nome"] == "ANA"
     assert c["contrato"] == "CT-1"
+    assert c["tag"] == "1"
     assert c["latitude"] == 37.1
     assert c["longitude"] == -8.2
     assert c["notas"] == "x"
     assert c["created_at"] == 1000 == c["updated_at"]
     assert len(rel.tipo_a) == 0
     assert len(rel.tipo_b) == 0
+
+
+def test_migrar_rota_como_tag_preserva_valor():
+    rows = [_row(nome="Ana", rota="  Rota A  ")]
+    clientes, _ = migrar(rows, 1000)
+    assert clientes[0]["tag"] == "Rota A"
+
+
+def test_migrar_rota_vazia_fica_null():
+    rows = [_row(nome="Ana", rota="   ")]
+    clientes, _ = migrar(rows, 1000)
+    assert clientes[0]["tag"] is None
+
+
+def test_migrar_tipo_b_usa_rota_da_primeira_linha():
+    rows = [
+        _row(nome="VERANDA", rota="21"),
+        _row(nome="Veranda", rota="22"),
+    ]
+    clientes, rel = migrar(rows, 1000)
+    assert len(clientes) == 1
+    assert clientes[0]["tag"] == "21"
+    assert rel.tipo_b[0].rotas == ["21", "22"]
 
 
 def test_migrar_tipo_a_primeira_mais_notas():
@@ -166,6 +190,7 @@ def test_output_db_schema(tmp_path):
         "id",
         "nome",
         "contrato",
+        "tag",
         "latitude",
         "longitude",
         "notas",

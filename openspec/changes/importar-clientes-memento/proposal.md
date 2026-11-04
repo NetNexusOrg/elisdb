@@ -31,9 +31,12 @@ ElisDB sem tocar nos clientes que já lá estão.
 - `migrar_memento.py` passa a usar a mesma normalização de nomes do servidor e
   deixa de gerar clientes para linhas cujo campo de coordenadas é um erro de
   parsing.
+- A coluna `Rota` do Memento passa a ser importada como a **tag** do cliente
+  (valor com `trim`, preservando maiúsculas/minúsculas; limite de 100
+  caracteres).
 
 Não há alterações ao servidor, à app Android, ao schema da base de dados nem à
-API. As fotos e a coluna `Rota` continuam fora do âmbito.
+API. As fotos continuam fora do âmbito; a `Rota` passa a ser importada como tag.
 
 ## Capabilities
 

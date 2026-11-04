@@ -18,6 +18,13 @@ numéricos, latitude -90..90, longitude -180..180). Erros estruturais abortam
 com exit code 1 sem contactar o servidor; coordenadas inválidas numa linha são
 reportadas e essa linha é saltada, permitindo importar as restantes.
 
+### Rota como tag
+A coluna `Rota` do Memento é a `tag` da ElisDB. O valor é guardado com `trim`,
+preservando maiúsculas/minúsculas; vazio → NULL. O safeguard valida o limite de
+100 caracteres do servidor. Em TIPO B usa-se a Rota da primeira linha, com aviso
+se as linhas tiverem Rotas diferentes. A tag não participa na deteção de
+duplicados, que continua a usar o nome normalizado.
+
 ### API em vez de acesso direto à base de dados
 A importação usa pedidos assinados com ed25519 para `/api/time`,
 `/api/clients` e `/api/push`. Assim o servidor mantém a autoridade sobre
@@ -80,8 +87,8 @@ e o config já estavam ignorados.
   é a salvaguarda manual.
 - **Renomeações:** sem ID estável, uma renomeação no Memento parece um cliente
   novo; a heurística de semelhança apenas avisa.
-- **Fotos e Rota:** não são importadas nesta fase; os URLs de fotos do Memento
-  não são transferidos.
+- **Fotos:** não são importadas nesta fase; os URLs de fotos do Memento não são
+  transferidos. A coluna `Rota` é importada como a tag do cliente.
 - **Confirmação longa:** com centenas de novos clientes, a revisão 1 a 1 é
   demorada; `f` permite terminá-la a qualquer momento.
 - **Docker na primeira execução:** se o servidor for remoto ou o Docker não

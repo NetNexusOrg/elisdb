@@ -5,6 +5,7 @@
 - [x] 1.3 Guardar as notas originais e os contratos dos casos TIPO A/B para permitir revisão e aviso de contratos diferentes
 - [x] 1.4 Atualizar os testes de `migrar_memento.py`
 - [x] 1.5 Adicionar um safeguard que valida o cabeçalho, os limites de tamanho e as coordenadas do CSV antes de contactar o servidor
+- [x] 1.6 Mapear `Rota` para `tag` no `migrar_memento.py` e incluir `tag` no schema e no insert do SQLite gerado
 
 ## 2. Importador e configuração
 
@@ -13,6 +14,7 @@
 - [x] 2.3 Criar a chave dedicada via Docker na primeira execução local e mostrar instruções de setup único quando não for possível
 - [x] 2.4 Implementar pedidos assinados ed25519 para `/api/time`, `/api/clients` e `/api/push`
 - [x] 2.5 Criar o wrapper executável `elisdb-memento/importar`
+- [x] 2.6 Incluir `tag` no payload de push e validar o limite de 100 caracteres da `Rota` no safeguard
 
 ## 3. Comparação e revisão
 
@@ -21,6 +23,7 @@
 - [x] 3.3 Implementar revisão opcional de TIPO A/B e escolha de coordenadas
 - [x] 3.4 Implementar revisão de possíveis duplicados, com omissão por defeito
 - [x] 3.5 Implementar confirmação 1 a 1 com `s`, `n`, `v`, `f` e `q`
+- [x] 3.6 Mostrar a tag na pré-visualização e avisar quando as linhas do TIPO B têm Rotas diferentes
 
 ## 4. Envio e relatório
 
@@ -38,3 +41,4 @@
 - [x] 5.4 Criar `elisdb-memento/README.md` com o fluxo operacional, limitações e segurança
 - [x] 5.5 Atualizar `elisdb-memento/CHANGELOG.md`
 - [x] 5.6 Validar a change com `openspec validate importar-clientes-memento`
+- [x] 5.7 Testar o mapeamento `Rota`→`tag`, Rota vazia, limite de 100 caracteres e Rotas diferentes em TIPO B

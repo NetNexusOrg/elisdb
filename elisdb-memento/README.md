@@ -30,7 +30,17 @@ cliente são a pré-visualização; se responderes `n`, nada é enviado.
 
 O `PDL` do Memento é o **contrato** da ElisDB. O contrato não é único (há PDLs
 repetidos), por isso a comparação de duplicados usa sempre o **nome
-normalizado**.
+normalizado**. A `Rota` do Memento é a **tag** do cliente.
+
+| Memento | ElisDB |
+| --- | --- |
+| `Nome` | `nome` |
+| `PDL` | `contrato` |
+| `Rota` | `tag` |
+| `Coordenadas` (`lat,lon`) | `latitude` + `longitude` |
+| `Notas` | `notas` |
+
+`Foto` e `Plantas` continuam a ser ignoradas.
 
 ## Verificação do CSV (safeguard)
 
@@ -38,11 +48,11 @@ Antes de criar a chave ou falar com o servidor, o script verifica se o export é
 compatível com a ElisDB:
 
 - exige as colunas `Nome`, `PDL`, `Coordenadas` e `Notas`;
-- aceita `Rota`, `Foto` e `Plantas` (ignoradas) e avisa sobre colunas
-  desconhecidas;
+- aceita `Rota` (usada como tag), `Foto` e `Plantas` (ignoradas) e avisa sobre
+  colunas desconhecidas;
 - exige pelo menos uma linha de dados e pelo menos um `Nome` preenchido;
 - aplica os limites do servidor: nome até 200 caracteres (já normalizado),
-  contrato/notas até 100 000;
+  contrato/notas até 100 000 e tag/`Rota` até 100;
 - valida as coordenadas: vazias são permitidas, pares completos, valores
   numéricos, latitude entre -90 e 90 e longitude entre -180 e 180.
 
@@ -179,8 +189,9 @@ ignoradas.
 
 ## Limitações
 
-- **Fotos e `Rota` não são importadas.** O CSV do Memento tem URLs de fotos,
-  não imagens; `Rota` não existe na ElisDB.
+- **Fotos não são importadas.** O CSV do Memento tem URLs de fotos, não
+  imagens. A coluna `Rota` é importada como a **tag** do cliente (valor com
+  trim, preservando maiúsculas/minúsculas).
 - **Eliminações não são detetadas.** O CSV não tem tombstones. Se um cliente
   foi apagado na ElisDB mas continua no Memento, volta a ser criado. Usa o
   ficheiro de exclusões ou apaga também no Memento.

@@ -14,9 +14,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 import importar_memento as imp  # noqa: E402
 
 
-def _row(nome="Ana", pdl="", coord="37.1,-8.2", notas=""):
+def _row(nome="Ana", pdl="", coord="37.1,-8.2", notas="", rota="1"):
     return {
-        "Rota": "1",
+        "Rota": rota,
         "PDL": pdl,
         "Nome": nome,
         "Coordenadas": coord,
@@ -26,11 +26,12 @@ def _row(nome="Ana", pdl="", coord="37.1,-8.2", notas=""):
     }
 
 
-def _cliente(nome="Ana", contrato=None, lat=37.1, lon=-8.2, notas=None):
+def _cliente(nome="Ana", contrato=None, lat=37.1, lon=-8.2, notas=None, tag=None):
     return {
         "id": f"id-{nome}",
         "nome": nome,
         "contrato": contrato,
+        "tag": tag,
         "latitude": lat,
         "longitude": lon,
         "notas": notas,
@@ -371,6 +372,29 @@ def test_validar_csv_nome_demasiado_longo():
     validacao = imp.validar_csv([_row(nome="X" * 201)], CABECALHO_REAL)
     assert not validacao.ok
     assert any("Nome com 201" in erro for erro in validacao.erros)
+
+
+def test_validar_csv_rota_demasiado_longa():
+    validacao = imp.validar_csv([_row(rota="X" * 101)], CABECALHO_REAL)
+    assert not validacao.ok
+    assert any("Rota/tag com 101" in erro for erro in validacao.erros)
+
+
+def test_validar_csv_rota_e_opcional():
+    row = _row()
+    row.pop("Rota")
+    validacao = imp.validar_csv([row], CABECALHO_REAL)
+    assert validacao.ok
+
+
+def test_cliente_payload_inclui_tag():
+    payload = imp._cliente_payload(_cliente(nome="ANA", tag="Rota A"))
+    assert payload["tag"] == "Rota A"
+
+
+def test_print_cliente_mostra_tag(capsys):
+    imp._print_cliente(imp.ClienteNovo(_cliente(nome="ANA", tag="Rota A")), 1, 1)
+    assert "Tag (Rota): Rota A" in capsys.readouterr().out
 
 
 def test_validar_csv_vazio():

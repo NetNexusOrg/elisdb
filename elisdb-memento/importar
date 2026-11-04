@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Importa os clientes do export Memento para o servidor ElisDB.
+# Comando único, sem opções: ./elisdb-memento/importar
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo="$(cd "$here/.." && pwd)"
+python="$repo/elisdb-server/.venv/bin/python"
+
+if [[ ! -x "$python" ]]; then
+  echo "Erro: não encontrei $python." >&2
+  echo "Cria o venv do servidor primeiro (ver elisdb-server/README.md)." >&2
+  exit 1
+fi
+
+exec "$python" "$here/importar_memento.py"

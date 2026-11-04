@@ -21,6 +21,35 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+
+def normalize_nome(nome: str) -> str:
+    """Normaliza o nome exatamente como o servidor ElisDB.
+
+    O servidor usa trim, colapso de espaços internos e maiúsculas; usar a mesma
+    regra aqui evita que o script de importação trate como novos clientes que o
+    servidor já considera existentes.
+    """
+    return re.sub(r"\s+", " ", nome).strip().upper()
+
+
+def ler_csv_com_cabecalho(caminho: str) -> tuple[list[str], list[dict]]:
+    """Lê o CSV e devolve o cabeçalho e as linhas.
+
+    O cabeçalho é devolvido separadamente para que o importador possa validar
+    a compatibilidade do export antes de contactar o servidor.
+    """
+    with open(caminho, newline="", encoding="utf-8-sig") as fh:
+        reader = csv.DictReader(fh)
+        rows = list(reader)
+        return list(reader.fieldnames or []), rows
+
+
+def ler_csv(caminho: str) -> list[dict]:
+    """Lê o export do Memento (UTF-8 com BOM) para uma lista de dicionários."""
+    _, rows = ler_csv_com_cabecalho(caminho)
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # Parsing de coordenadas
 # ---------------------------------------------------------------------------
@@ -60,6 +89,7 @@ class CasoTipoA:
     pares: list[tuple[str, str]]
     escolhido: tuple[str, str]
     notas_extra: str
+    notas_originais: str = ""
 
 
 @dataclass
@@ -69,6 +99,7 @@ class CasoTipoB:
     pares_validos: list[tuple[str, str]]
     escolhido: tuple[str, str] | None
     notas_originais: list[str]
+    contratos: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -140,36 +171,54 @@ def migrar(rows: list[dict], timestamp_s: int) -> tuple[list[dict], Relatorio]:
     # independentemente de como a linha é depois processada/agrupada.
     rel.coords_vazias = sum(1 for r in rows if classify(r.get("Coordenadas") or "") == "vazio")
 
-    # Agrupar por nome normalizado (trim/upper) para detetar TIPO B.
+    # Agrupar pela mesma normalização do servidor para detetar TIPO B.
     grupos: dict[str, list[dict]] = {}
     for r in rows:
         nome_raw = (r.get("Nome") or "").strip()
         if not nome_raw:
             rel.linhas_ignoradas += 1
             continue
-        chave = nome_raw.upper()
+        chave = normalize_nome(nome_raw)
         grupos.setdefault(chave, []).append(r)
 
     clientes: list[dict] = []
     for chave, linhas in grupos.items():
-        nome = linhas[0]["Nome"].strip().upper()
+        nome = normalize_nome(linhas[0]["Nome"])
         if len(linhas) > 1:
             # TIPO B: várias linhas com o mesmo nome normalizado.
             pares_validos: list[tuple[str, str]] = []
             notas_originais: list[str] = []
+            contratos: list[str] = []
+            tem_linha_valida = False
             for ln in linhas:
                 c = classify(ln.get("Coordenadas") or "")
                 if c == "ok":
                     pares_validos.append(split_pairs(ln["Coordenadas"])[0])
+                    tem_linha_valida = True
                 elif c == "tipo_a":
                     pares_validos.extend(split_pairs(ln["Coordenadas"]))
+                    tem_linha_valida = True
+                elif c == "vazio":
+                    tem_linha_valida = True
                 elif c == "erro":
                     rel.erros_parsing.append((nome, ln.get("Coordenadas") or ""))
                 notas_originais.append((ln.get("Notas") or "").strip())
+                contratos.append((ln.get("PDL") or "").strip())
             escolhido = pares_validos[0] if pares_validos else None
             rel.tipo_b.append(
-                CasoTipoB(nome, len(linhas), pares_validos, escolhido, notas_originais)
+                CasoTipoB(
+                    nome,
+                    len(linhas),
+                    pares_validos,
+                    escolhido,
+                    notas_originais,
+                    contratos,
+                )
             )
+            if not tem_linha_valida:
+                # Todas as linhas do grupo têm coordenadas inválidas: não criar
+                # um cliente sem localização só porque o parsing falhou.
+                continue
             contrato = linhas[0]["PDL"].strip() or None
             notas = "\n\n".join(n for n in notas_originais if n) or None
             clientes.append(
@@ -192,6 +241,7 @@ def migrar(rows: list[dict], timestamp_s: int) -> tuple[list[dict], Relatorio]:
         coords = ln.get("Coordenadas") or ""
         c = classify(coords)
         lat = lon = None
+        notas_originais = (ln.get("Notas") or "").strip()
         if c == "ok":
             lat, lon = (float(x) for x in split_pairs(coords)[0])
         elif c == "tipo_a":
@@ -199,13 +249,16 @@ def migrar(rows: list[dict], timestamp_s: int) -> tuple[list[dict], Relatorio]:
             escolhido = pares[0]
             lat, lon = (float(x) for x in escolhido)
             restantes = " | ".join(f"{p[0]},{p[1]}" for p in pares[1:])
-            rel.tipo_a.append(CasoTipoA(nome, pares, escolhido, restantes))
+            rel.tipo_a.append(
+                CasoTipoA(nome, pares, escolhido, restantes, notas_originais)
+            )
         elif c == "erro":
             rel.erros_parsing.append((nome, coords))
+            continue
         # c == "vazio": latitude/longitude ficam NULL (não é erro); já contado no input
 
         contrato = (ln.get("PDL") or "").strip() or None
-        notas = (ln.get("Notas") or "").strip() or None
+        notas = notas_originais or None
         if c == "tipo_a":
             extras = f"Coordenadas alternativas: {rel.tipo_a[-1].notas_extra}"
             notas = "\n\n".join(n for n in [notas, extras] if n)
@@ -284,8 +337,7 @@ def main() -> int:
     args = ap.parse_args()
 
     try:
-        with open(args.input, newline="", encoding="utf-8-sig") as fh:
-            rows = list(csv.DictReader(fh))
+        rows = ler_csv(args.input)
     except FileNotFoundError:
         print(f"Erro: ficheiro de entrada não encontrado: {args.input}", file=sys.stderr)
         return 1

@@ -33,6 +33,8 @@ elisdb-server/uv.lock
 # ---- Dados reais de migração (não versionar) ----
 elisdb-memento/*.csv
 elisdb-memento/memento-import.db
+elisdb-memento/memento-import-report.txt
+elisdb-memento/memento-import-exclude.txt
 
 # ---- Node / OpenCode ----
 node_modules/

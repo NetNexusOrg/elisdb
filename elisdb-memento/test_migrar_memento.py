@@ -7,7 +7,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from migrar_memento import classify, extract_numbers, migrar, split_pairs  # noqa: E402
+from migrar_memento import (  # noqa: E402
+    classify,
+    extract_numbers,
+    ler_csv_com_cabecalho,
+    migrar,
+    normalize_nome,
+    split_pairs,
+)
 
 
 def test_extract_numbers():
@@ -33,6 +40,22 @@ def test_classify():
 def test_split_pairs():
     assert split_pairs("37.1,-8.2") == [("37.1", "-8.2")]
     assert split_pairs("37.1,-8.2, 37.0,-8.1") == [("37.1", "-8.2"), ("37.0", "-8.1")]
+
+
+def test_normalize_nome_matches_server():
+    assert normalize_nome("  ana   maria  ") == "ANA MARIA"
+    assert normalize_nome("Ana\tMaria") == "ANA MARIA"
+
+
+def test_migrar_colapsa_espacos_internos():
+    rows = [
+        _row(nome="Ana   Maria", coord="37.1,-8.2"),
+        _row(nome="ana maria", coord="37.1,-8.2"),
+    ]
+    clientes, rel = migrar(rows, 1000)
+    assert len(clientes) == 1
+    assert clientes[0]["nome"] == "ANA MARIA"
+    assert len(rel.tipo_b) == 1
 
 
 def _row(nome="Ana", pdl="", coord="37.1,-8.2", notas="", rota="1"):
@@ -102,12 +125,23 @@ def test_migrar_coords_vazias_null():
     assert len(rel.erros_parsing) == 0
 
 
-def test_migrar_erro_parsing():
+def test_migrar_erro_parsing_nao_cria_cliente():
     rows = [_row(nome="Ana", coord="37.1,-8.2,37.0")]
     clientes, rel = migrar(rows, 1000)
-    assert len(clientes) == 1  # a linha existe mas sem coords válidas
-    assert clientes[0]["latitude"] is None
+    assert len(clientes) == 0
     assert len(rel.erros_parsing) == 1
+
+
+def test_migrar_tipo_b_com_erro_mantem_linha_valida():
+    rows = [
+        _row(nome="CLUB HOUSE", coord="37.1,-8.2,37.0"),
+        _row(nome="club house", coord="37.2,-8.3"),
+    ]
+    clientes, rel = migrar(rows, 1000)
+    assert len(clientes) == 1
+    assert clientes[0]["latitude"] == 37.2
+    assert len(rel.erros_parsing) == 1
+    assert len(rel.tipo_b) == 1
 
 
 def test_migrar_output_sem_duplicados_nocase(tmp_path):
@@ -162,3 +196,17 @@ def test_output_uses_seconds_and_current_fields(tmp_path):
     assert row == (timestamp, timestamp, timestamp, 1)
     # Milissegundos seriam ~1000x maiores; o servidor espera segundos.
     assert row[0] < 100_000_000_000
+
+
+def test_ler_csv_com_cabecalho(tmp_path):
+    csv_path = tmp_path / "ELIS.csv"
+    csv_path.write_text(
+        "Rota,PDL,Nome,Coordenadas,Notas,Foto,Plantas\n"
+        '1,10,Ana,"37.1,-8.2",,, \n',
+        encoding="utf-8-sig",
+    )
+    cabecalho, rows = ler_csv_com_cabecalho(str(csv_path))
+    assert cabecalho == ["Rota", "PDL", "Nome", "Coordenadas", "Notas", "Foto", "Plantas"]
+    assert len(rows) == 1
+    assert rows[0]["Nome"] == "Ana"
+    assert rows[0]["PDL"] == "10"

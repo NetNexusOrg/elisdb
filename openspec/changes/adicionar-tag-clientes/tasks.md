@@ -23,12 +23,24 @@
 - [x] 3.4 Adicionar o rótulo `"tag" -> "Tag"` em `ClientLogScreen`
 - [x] 3.5 Atualizar/criar testes unitários e Compose do formulário, detalhe e lista; correr `./gradlew :app:testDebugUnitTest`
 
-## 4. Verificação final
+## 4. Filtro por tag
 
-- [x] 4.1 Correr `./gradlew assembleDebug lintDebug` e confirmar build verde
-- [ ] 4.2 Correr `./gradlew connectedDebugAndroidTest` (migração + Compose) num emulador
-- [x] 4.3 Validar a change com `openspec validate adicionar-tag-clientes`
-- [ ] 4.4 Smoke test: criar/editar tag, ver na lista e no detalhe, sincronizar e confirmar persistência após reiniciar a app
+- [x] 4.1 Derivar as tags disponíveis dos clientes guardados (distintas, em maiúsculas e ordenadas) e aplicar o filtro de tag antes da pesquisa livre em `ClientListViewModel`
+- [x] 4.2 Listar as tags e "Todas as tags" no menu do ícone de filtros, marcar a seleção e destacar o ícone quando há filtro de tag ativo
+- [x] 4.3 Adicionar testes unitários do filtro de tag e um teste Compose que escolhe uma tag e confirma que só aparecem os clientes correspondentes; correr `:app:testDebugUnitTest`
+
+## 5. Filtro por tag no mapa
+
+- [x] 5.1 Adicionar o filtro de tag ao `ClientMapViewModel` e expor as tags disponíveis, independentes do filtro da lista
+- [x] 5.2 Mostrar as secções expansíveis Tags e Estado no menu do mapa
+- [x] 5.3 Adicionar testes unitários do filtro de tag do mapa e um teste Compose das tags no menu
+
+## 6. Verificação final
+
+- [x] 6.1 Correr `./gradlew assembleDebug lintDebug` e confirmar build verde
+- [x] 6.2 Correr `./gradlew connectedDebugAndroidTest` (migração + Compose) num emulador
+- [x] 6.3 Validar a change com `openspec validate adicionar-tag-clientes`
+- [x] 6.4 Smoke test: criar/editar tag, ver na lista e no detalhe, sincronizar e confirmar persistência após reiniciar a app
 
 ## Workflow follow-up
 

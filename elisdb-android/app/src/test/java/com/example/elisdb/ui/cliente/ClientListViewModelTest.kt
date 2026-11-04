@@ -205,6 +205,71 @@ class ClientListViewModelTest {
   }
 
   @Test
+  fun uiState_tagsDisponiveisSaoDistintasEmMaiusculasEOrdenadas() = runTest(dispatcher) {
+    val repo =
+      FakeClientRepository(
+        clientesComFotosFlow =
+          flowOf(
+            listOf(
+              ClienteComFotos(
+                cliente = Cliente(id = "1", nome = "Maria", tag = "premium", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              ),
+              ClienteComFotos(
+                cliente = Cliente(id = "2", nome = "João", tag = "Premium", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              ),
+              ClienteComFotos(
+                cliente = Cliente(id = "3", nome = "Ana", tag = "gold", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              ),
+              ClienteComFotos(
+                cliente = Cliente(id = "4", nome = "Rui", tag = null, latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              ),
+            )
+          )
+      )
+    val viewModel = ClientListViewModel(repo)
+    val state = viewModel.uiState.first { it is ClientListUiState.Success } as ClientListUiState.Success
+    assertEquals(listOf("GOLD", "PREMIUM"), state.tagsDisponiveis)
+  }
+
+  @Test
+  fun uiState_filtroDeTagMostraSoClientesComATag() = runTest(dispatcher) {
+    val repo =
+      FakeClientRepository(
+        clientesComFotosFlow =
+          flowOf(
+            listOf(
+              ClienteComFotos(
+                cliente = Cliente(id = "1", nome = "Maria", tag = "premium", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              ),
+              ClienteComFotos(
+                cliente = Cliente(id = "2", nome = "João", tag = "gold", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              ),
+            )
+          )
+      )
+    val viewModel = ClientListViewModel(repo)
+    viewModel.uiState.first { it is ClientListUiState.Success }
+
+    viewModel.onTagFiltroChange("PREMIUM")
+    var state =
+      viewModel.uiState.first { it is ClientListUiState.Success && it.tagFiltro == "PREMIUM" }
+        as ClientListUiState.Success
+    assertEquals(listOf("Maria"), state.clientes.map { it.nome })
+
+    viewModel.onTagFiltroChange(null)
+    state =
+      viewModel.uiState.first { it is ClientListUiState.Success && it.tagFiltro == null }
+        as ClientListUiState.Success
+    assertEquals(listOf("João", "Maria"), state.clientes.map { it.nome })
+  }
+
+  @Test
   fun uiState_ordemRecenteMostraMaisNovosPrimeiro() = runTest(dispatcher) {
     val repo =
       FakeClientRepository(

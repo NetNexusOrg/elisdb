@@ -34,6 +34,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
@@ -76,6 +78,7 @@ fun ClientListScreen(
     onQueryChange = viewModel::onQueryChange,
     onFiltroChange = viewModel::onFiltroChange,
     onOrdemChange = viewModel::onOrdemChange,
+    onTagFiltroChange = viewModel::onTagFiltroChange,
     onConfigClick = onConfigClick,
     onAboutClick = onAboutClick,
     onMapClick = onMapClick,
@@ -92,6 +95,7 @@ internal fun ClientListScreen(
   onQueryChange: (String) -> Unit,
   onFiltroChange: (ClientStatusFilter) -> Unit,
   onOrdemChange: (ClientSortOrder) -> Unit,
+  onTagFiltroChange: (String?) -> Unit,
   onConfigClick: () -> Unit,
   onAboutClick: () -> Unit,
   onMapClick: () -> Unit,
@@ -152,6 +156,15 @@ internal fun ClientListScreen(
                   }
                 }
                 var filtroOpen by remember { mutableStateOf(false) }
+                var estadoExpanded by remember { mutableStateOf(false) }
+                var tagsExpanded by remember { mutableStateOf(false) }
+                var ordemExpanded by remember { mutableStateOf(false) }
+                val closeFilters: () -> Unit = {
+                  filtroOpen = false
+                  estadoExpanded = false
+                  tagsExpanded = false
+                  ordemExpanded = false
+                }
                 Box {
                   IconButton(onClick = { filtroOpen = true }) {
                     Icon(
@@ -159,7 +172,8 @@ internal fun ClientListScreen(
                       contentDescription = "Filtrar e ordenar",
                       tint =
                         if (state.filtro == ClientStatusFilter.ALL &&
-                          state.ordem == ClientSortOrder.NAME
+                          state.ordem == ClientSortOrder.NAME &&
+                          state.tagFiltro == null
                         ) {
                           MaterialTheme.colorScheme.onSurfaceVariant
                         } else {
@@ -167,39 +181,89 @@ internal fun ClientListScreen(
                         },
                     )
                   }
-                  DropdownMenu(expanded = filtroOpen, onDismissRequest = { filtroOpen = false }) {
-                    ClientStatusFilter.entries.forEach { option ->
-                      DropdownMenuItem(
-                        text = { Text(option.label()) },
-                        onClick = {
-                          filtroOpen = false
-                          onFiltroChange(option)
-                        },
-                        leadingIcon = {
-                          if (option == state.filtro) {
-                            Icon(Icons.Default.Check, contentDescription = null)
-                          } else {
-                            Spacer(Modifier.size(24.dp))
-                          }
-                        },
-                      )
+                  DropdownMenu(expanded = filtroOpen, onDismissRequest = closeFilters) {
+                    if (state.tagsDisponiveis.isNotEmpty()) {
+                      FilterSectionHeader("Tags", tagsExpanded) {
+                        tagsExpanded = !tagsExpanded
+                      }
+                      if (tagsExpanded) {
+                        DropdownMenuItem(
+                          text = { Text("Todas as tags") },
+                          onClick = {
+                            closeFilters()
+                            onTagFiltroChange(null)
+                          },
+                          modifier = Modifier.testTag("tag_filter_all"),
+                          leadingIcon = {
+                            if (state.tagFiltro == null) {
+                              Icon(Icons.Default.Check, contentDescription = null)
+                            } else {
+                              Spacer(Modifier.size(24.dp))
+                            }
+                          },
+                        )
+                        state.tagsDisponiveis.forEach { tag ->
+                          DropdownMenuItem(
+                            text = { Text(tag) },
+                            onClick = {
+                              closeFilters()
+                              onTagFiltroChange(tag)
+                            },
+                            modifier = Modifier.testTag("tag_filter_$tag"),
+                            leadingIcon = {
+                              if (state.tagFiltro == tag) {
+                                Icon(Icons.Default.Check, contentDescription = null)
+                              } else {
+                                Spacer(Modifier.size(24.dp))
+                              }
+                            },
+                          )
+                        }
+                      }
+                      HorizontalDivider()
+                    }
+                    FilterSectionHeader("Ordenação", ordemExpanded) {
+                      ordemExpanded = !ordemExpanded
+                    }
+                    if (ordemExpanded) {
+                      ClientSortOrder.entries.forEach { option ->
+                        DropdownMenuItem(
+                          text = { Text(option.label()) },
+                          onClick = {
+                            closeFilters()
+                            onOrdemChange(option)
+                          },
+                          leadingIcon = {
+                            if (option == state.ordem) {
+                              Icon(Icons.Default.Check, contentDescription = null)
+                            } else {
+                              Spacer(Modifier.size(24.dp))
+                            }
+                          },
+                        )
+                      }
                     }
                     HorizontalDivider()
-                    ClientSortOrder.entries.forEach { option ->
-                      DropdownMenuItem(
-                        text = { Text(option.label()) },
-                        onClick = {
-                          filtroOpen = false
-                          onOrdemChange(option)
-                        },
-                        leadingIcon = {
-                          if (option == state.ordem) {
-                            Icon(Icons.Default.Check, contentDescription = null)
-                          } else {
-                            Spacer(Modifier.size(24.dp))
-                          }
-                        },
-                      )
+                    FilterSectionHeader("Estado", estadoExpanded) {
+                      estadoExpanded = !estadoExpanded
+                    }
+                    if (estadoExpanded) {
+                      ClientStatusFilter.entries.forEach { option ->
+                        DropdownMenuItem(
+                          text = { Text(option.label()) },
+                          onClick = {
+                            closeFilters()
+                            onFiltroChange(option)
+                          },
+                          leadingIcon = {
+                            if (option == state.filtro) {
+                              Icon(Icons.Default.Check, contentDescription = null)
+                            } else {
+                              Spacer(Modifier.size(24.dp))
+                            }
+                          },
+                        )
+                      }
                     }
                   }
                 }
@@ -216,7 +280,8 @@ internal fun ClientListScreen(
               Text(
                 when {
                   state.query.isNotBlank() -> "Nenhum cliente corresponde à pesquisa."
-                  state.filtro != ClientStatusFilter.ALL -> "Nenhum cliente corresponde ao filtro."
+                  state.filtro != ClientStatusFilter.ALL || state.tagFiltro != null ->
+                    "Nenhum cliente corresponde ao filtro."
                   else -> "Ainda não há clientes guardados."
                 }
               )
@@ -326,6 +391,24 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  C
       }
     }
   }
+}
+
+@Composable
+internal fun FilterSectionHeader(
+  title: String,
+  expanded: Boolean,
+  onToggle: () -> Unit,
+) {
+  DropdownMenuItem(
+    text = { Text(title, style = MaterialTheme.typography.titleSmall) },
+    onClick = onToggle,
+    trailingIcon = {
+      Icon(
+        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+        contentDescription = if (expanded) "Recolher $title" else "Expandir $title",
+      )
+    },
+  )
 }
 
 private fun ClientStatusFilter.label(): String =

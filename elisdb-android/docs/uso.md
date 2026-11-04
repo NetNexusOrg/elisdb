@@ -73,18 +73,23 @@ Fluxos principais:
   (sempre em maiúsculas), e os clientes inativos têm a etiqueta **Inativo** e
   o texto atenuado. O ícone de controlos dentro da caixa de pesquisa filtra por
   estado (**Todos os clientes**, **Só clientes ativos** ou **Só clientes
-  inativos**) e define a ordem: **Ordem alfabética** (predefinição), **Mais
+  inativos**), a lista de tags existentes (para mostrar apenas os clientes com a
+  tag escolhida) e define a ordem: **Ordem alfabética** (predefinição), **Mais
   recentes primeiro** (pelo cliente criado mais recentemente) ou **Última edição
   primeiro** (pelo cliente alterado mais recentemente). Com um filtro ou uma ordem
-  diferentes da predefinição o ícone fica destacado.
+  diferentes da predefinição o ícone fica destacado. Os grupos **Tags**,
+  **Ordenação** e **Estado** aparecem recolhidos e mostram as opções ao tocar no
+  respetivo título.
 - **Novo/editar cliente** — formulário com contrato, nome, notas, tag, coordenadas e
   o interruptor **Cliente ativo**.
 - **Mapa de clientes** — o ícone de mapa na barra superior da lista abre o mapa
   dos clientes com localização. Ao abrir, pede acesso à localização e centra o
   mapa na posição atual, com um ponto azul; sem permissão ou localização
-  disponível, enquadra os pins como antes. O menu (≡) permite mostrar **Todos os
-  clientes**, **Apenas ativos** (predefinição) ou **Apenas inativos**; a pesquisa
-  e o filtro da lista não se aplicam ao mapa. Os pins vermelhos são clientes
+  disponível, enquadra os pins como antes. O menu (≡) agrupa **Tags** e
+  **Estado** em secções expansíveis: em **Estado** podes mostrar **Todos os
+  clientes**, **Apenas ativos** (predefinição) ou **Apenas inativos**; em
+  **Tags** escolhes uma tag ou **Todas as tags**. A pesquisa e o filtro da lista
+  não se aplicam ao mapa. Os pins vermelhos são clientes
   ativos e os cinzas inativos; cada pin mostra o nome do cliente por cima. Tocar
   num pin mostra o nome, o contrato e o estado, com o botão **Abrir cliente**.
   Os mapas usam tiles vetoriais do OpenStreetMap servidos pelo OpenFreeMap e

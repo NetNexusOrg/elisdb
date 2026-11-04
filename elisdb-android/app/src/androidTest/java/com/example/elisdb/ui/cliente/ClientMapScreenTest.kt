@@ -39,11 +39,30 @@ class ClientMapScreenTest {
     setMapContent(emptyList())
 
     composeTestRule.onNodeWithContentDescription("Filtrar clientes").performClick()
+    composeTestRule.onNodeWithText("Estado").performClick()
     composeTestRule.waitForIdle()
 
     composeTestRule.onNodeWithText("Todos os clientes").assertExists()
     composeTestRule.onNodeWithText("Apenas ativos").assertExists()
     composeTestRule.onNodeWithText("Apenas inativos").assertExists()
+  }
+
+  @Test
+  fun mapa_menuMostraTagsDisponiveis() {
+    setMapContent(
+      listOf(
+        Cliente(id = "1", nome = "Maria", tag = "PREMIUM", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        Cliente(id = "2", nome = "João", tag = "GOLD", latitude = 3.0, longitude = 4.0, dataCriacao = 0, updatedAt = 0),
+      )
+    )
+
+    composeTestRule.onNodeWithContentDescription("Filtrar clientes").performClick()
+    composeTestRule.onNodeWithText("Tags").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Todas as tags").assertExists()
+    composeTestRule.onNodeWithText("GOLD").assertExists()
+    composeTestRule.onNodeWithText("PREMIUM").assertExists()
   }
 
   @Test
@@ -83,11 +102,14 @@ class ClientMapScreenTest {
     composeTestRule.setContent {
       val state by viewModel.uiState.collectAsStateWithLifecycle()
       val filtro by viewModel.filtro.collectAsStateWithLifecycle()
+      val tagFiltro by viewModel.tagFiltro.collectAsStateWithLifecycle()
       ElisdbTheme {
         ClientMapScreen(
           state = state,
           filtro = filtro,
+          tagFiltro = tagFiltro,
           onFiltroChange = viewModel::onFiltroChange,
+          onTagFiltroChange = viewModel::onTagFiltroChange,
           onClienteClick = {},
           onBack = {},
         )

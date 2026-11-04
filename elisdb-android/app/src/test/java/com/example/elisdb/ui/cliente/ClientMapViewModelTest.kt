@@ -114,6 +114,61 @@ class ClientMapViewModelTest {
   }
 
   @Test
+  fun uiState_tagsDisponiveisSaoDistintasEmMaiusculasEOrdenadas() = runTest(dispatcher) {
+    val viewModel =
+      ClientMapViewModel(
+        FakeMapRepository(
+          flowOf(
+            listOf(
+              cliente("1", "Maria", latitude = 1.0, longitude = 2.0, tag = "premium"),
+              cliente("2", "João", latitude = 3.0, longitude = 4.0, tag = "Premium"),
+              cliente("3", "Ana", latitude = 5.0, longitude = 6.0, tag = "gold"),
+              cliente("4", "Rui", latitude = 7.0, longitude = 8.0, tag = null),
+            )
+          )
+        )
+      )
+
+    val state = viewModel.uiState.first { it is ClientMapUiState.Success } as ClientMapUiState.Success
+
+    assertEquals(listOf("GOLD", "PREMIUM"), state.tagsDisponiveis)
+  }
+
+  @Test
+  fun uiState_filtroDeTagMostraSoClientesComATag() = runTest(dispatcher) {
+    val viewModel =
+      ClientMapViewModel(
+        FakeMapRepository(
+          flowOf(
+            listOf(
+              cliente("1", "Maria", latitude = 1.0, longitude = 2.0, tag = "premium"),
+              cliente("2", "João", latitude = 3.0, longitude = 4.0, tag = "gold"),
+            )
+          )
+        )
+      )
+    viewModel.uiState.first { it is ClientMapUiState.Success }
+
+    viewModel.onTagFiltroChange("PREMIUM")
+    dispatcher.scheduler.advanceUntilIdle()
+
+    var state =
+      viewModel.uiState.first { it is ClientMapUiState.Success && it.tagFiltro == "PREMIUM" }
+        as ClientMapUiState.Success
+    assertEquals(listOf("Maria"), state.clientes.map { it.nome })
+    assertEquals("PREMIUM", state.tagFiltro)
+
+    viewModel.onTagFiltroChange(null)
+    dispatcher.scheduler.advanceUntilIdle()
+
+    state =
+      viewModel.uiState.first { it is ClientMapUiState.Success && it.clientes.size == 2 }
+        as ClientMapUiState.Success
+    assertEquals(listOf("João", "Maria"), state.clientes.map { it.nome })
+    assertEquals(null, state.tagFiltro)
+  }
+
+  @Test
   fun uiState_semClientesMostraListaVazia() = runTest(dispatcher) {
     val viewModel = ClientMapViewModel(FakeMapRepository(flowOf(emptyList())))
 
@@ -201,10 +256,12 @@ private fun cliente(
   latitude: Double?,
   longitude: Double?,
   ativo: Boolean = true,
+  tag: String? = null,
 ): Cliente =
   Cliente(
     id = id,
     nome = nome,
+    tag = tag,
     latitude = latitude,
     longitude = longitude,
     ativo = ativo,

@@ -2,7 +2,7 @@
 
 ### Requirement: Client list screen
 
-The system SHALL show a list of all clients, each row displaying the client's name, the contract reference when present, the tag when present, and a thumbnail: the client's first photo when present, otherwise a generic profile image. Inactive clients SHALL be labelled. The system SHALL allow filtering the list by a search term and by status. The screen SHALL have a top bar with a title and a menu holding the create-client, synchronization, server and about actions.
+The system SHALL show a list of all clients, each row displaying the client's name, the contract reference when present, the tag when present, and a thumbnail: the client's first photo when present, otherwise a generic profile image. Inactive clients SHALL be labelled. The system SHALL allow filtering the list by a search term, by status and by tag. The screen SHALL have a top bar with a title and a menu holding the create-client, synchronization, server and about actions.
 
 #### Scenario: List shows clients with thumbnails
 - **WHEN** the client list screen is shown and clients exist
@@ -46,6 +46,30 @@ The system SHALL show a list of all clients, each row displaying the client's na
 - **THEN** the list SHALL show only clients with that status
 - **AND** the filter control SHALL indicate that a filter is applied
 - **AND** the default selection SHALL show every client regardless of status
+
+#### Scenario: Filter the list by tag
+- **WHEN** the user opens the filter menu and chooses one of the available tags
+- **THEN** the list SHALL show only clients whose tag matches the chosen tag
+- **AND** the menu SHALL mark the chosen tag as selected
+- **AND** the filter control SHALL indicate that a filter is applied
+
+#### Scenario: Available tags come from the stored clients
+- **WHEN** the user opens the filter menu
+- **THEN** it SHALL list the distinct tags present in the stored clients, in uppercase and sorted
+- **AND** clients without a tag SHALL NOT add an option
+
+#### Scenario: Filter groups are collapsible
+- **WHEN** the user opens the filter menu
+- **THEN** the status, tag and sort groups SHALL be presented as collapsed headers
+- **AND** choosing a header SHALL reveal its options and collapse it again when chosen a second time
+
+#### Scenario: Clear the tag filter
+- **WHEN** the user chooses "Todas as tags" in the filter menu
+- **THEN** the list SHALL show clients with any tag again
+
+#### Scenario: Tag filter matches no client
+- **WHEN** the chosen tag filter matches no client
+- **THEN** the system SHALL indicate that no clients correspond to the filter
 
 #### Scenario: Search matches no client
 - **WHEN** the search term does not match any client

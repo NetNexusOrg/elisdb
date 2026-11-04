@@ -14,13 +14,13 @@ aditiva e tolerante a campos desconhecidos: o cliente Android usa
 - Manter uma única migração aditiva em cada base de dados.
 - Reutilizar o padrão existente de campo opcional (trim, branco → `NULL`).
 - Registar a alteração da tag no histórico de edições.
+- Permitir filtrar a lista pelas tags existentes, sem alterar a pesquisa livre.
 
 **Non-Goals**
 
-- Filtro por tag na lista (fase futura).
-- Múltiplas tags por cliente, gestão de catálogo de tags ou normalização
-  automática de maiúsculas.
+- Múltiplas tags por cliente ou gestão de um catálogo de tags.
 - Alterar a pesquisa livre para incluir a tag.
+- Persistir a escolha do filtro de tag entre arranques da app.
 
 ## Decisions
 
@@ -32,11 +32,10 @@ sem migrar dados.
 
 ### Normalização
 
-Guardar `trim(tag)` e converter branco em `NULL`, tal como `contrato`/`notas`.
-Preservar as maiúsculas/minúsculas escritas pelo utilizador; o filtro futuro
-compara sem distinção de caixa/acentos (mesmo `normalizeForSearch` já usado na
-pesquisa). Alternativa rejeitada: forçar maiúsculas como o `nome`, o que
-surpreenderia o utilizador numa etiqueta livre.
+Guardar `trim(tag)` e converter branco em `NULL`, tal como `contrato`/`notas`,
+mas normalizar para maiúsculas: a tag é apresentada sempre em maiúsculas na
+lista, no detalhe, no formulário e no histórico. O filtro compara o valor já
+normalizado, sem distinção de caixa.
 
 ### Limite de 100 caracteres
 
@@ -61,9 +60,26 @@ incompatíveis.
 
 ### Ordem de apresentação
 
-Tag editável entre Contrato e Nome no formulário; no detalhe aparece como
-etiqueta logo abaixo do nome; na lista aparece na linha secundária, junto ao
-contrato e ao label "Inativo". A pesquisa livre mantém-se em nome/contrato/notas.
+Tag editável como 4.º campo do formulário, abaixo das notas; no detalhe aparece
+como etiqueta logo abaixo do nome; na lista aparece à direita do cartão, na
+mesma linha do contrato e do label "Inativo". A pesquisa livre mantém-se em
+nome/contrato/notas.
+
+### Filtro por tag
+
+As tags disponíveis são derivadas dos clientes guardados no dispositivo
+(distintas, em maiúsculas e ordenadas), pelo que o menu funciona offline e
+acompanha automaticamente a criação/remoção de tags. O filtro é aplicado depois
+do filtro de estado e antes da pesquisa livre; "Todas as tags" limpa a seleção.
+Se a tag selecionada deixar de existir, o filtro efetivo volta a "todas", para
+não deixar a lista presa num resultado vazio. Alternativa rejeitada: persistir a
+tag escolhida nas preferências — fica fora do âmbito e o filtro é uma ação
+exploratória.
+
+O mapa de clientes reutiliza o mesmo filtro de tag no seu próprio menu, também
+independente da lista: a tag escolhida no mapa não altera o filtro da lista e
+vice-versa. As tags disponíveis vêm de todos os clientes guardados, mesmo os que
+não têm coordenadas.
 
 ## Risks / Trade-offs
 

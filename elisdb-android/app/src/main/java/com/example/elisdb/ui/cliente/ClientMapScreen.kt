@@ -24,6 +24,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -59,6 +60,7 @@ fun ClientMapScreen(
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   val filtro by viewModel.filtro.collectAsStateWithLifecycle()
+  val tagFiltro by viewModel.tagFiltro.collectAsStateWithLifecycle()
   val myLocation by viewModel.myLocation.collectAsStateWithLifecycle()
   val locationResolved by viewModel.locationResolved.collectAsStateWithLifecycle()
   val context = LocalContext.current
@@ -84,9 +86,11 @@ fun ClientMapScreen(
   ClientMapScreen(
     state = state,
     filtro = filtro,
+    tagFiltro = tagFiltro,
     myLocation = myLocation,
     userLocationPending = !locationResolved,
     onFiltroChange = viewModel::onFiltroChange,
+    onTagFiltroChange = viewModel::onTagFiltroChange,
     onClienteClick = onClienteClick,
     onBack = onBack,
     modifier = modifier,
@@ -98,7 +102,9 @@ fun ClientMapScreen(
 internal fun ClientMapScreen(
   state: ClientMapUiState,
   filtro: ClientMapFilter,
+  tagFiltro: String?,
   onFiltroChange: (ClientMapFilter) -> Unit,
+  onTagFiltroChange: (String?) -> Unit,
   onClienteClick: (String) -> Unit,
   onBack: () -> Unit,
   myLocation: Localizacao? = null,
@@ -120,25 +126,76 @@ internal fun ClientMapScreen(
         },
         actions = {
           var menuOpen by remember { mutableStateOf(false) }
+          var tagsExpanded by remember { mutableStateOf(false) }
+          var estadoExpanded by remember { mutableStateOf(false) }
+          val closeMenu: () -> Unit = {
+            menuOpen = false
+            tagsExpanded = false
+            estadoExpanded = false
+          }
           IconButton(onClick = { menuOpen = true }) {
             Icon(Icons.Default.Menu, contentDescription = "Filtrar clientes")
           }
-          DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            ClientMapFilter.entries.forEach { option ->
-              DropdownMenuItem(
-                text = { Text(option.label) },
-                onClick = {
-                  menuOpen = false
-                  onFiltroChange(option)
-                },
-                leadingIcon = {
-                  if (option == filtro) {
-                    Icon(Icons.Default.Check, contentDescription = null)
-                  } else {
-                    Spacer(Modifier.size(24.dp))
-                  }
-                },
-              )
+          DropdownMenu(expanded = menuOpen, onDismissRequest = closeMenu) {
+            val tags = (state as? ClientMapUiState.Success)?.tagsDisponiveis.orEmpty()
+            if (tags.isNotEmpty()) {
+              FilterSectionHeader("Tags", tagsExpanded) {
+                tagsExpanded = !tagsExpanded
+              }
+              if (tagsExpanded) {
+                DropdownMenuItem(
+                  text = { Text("Todas as tags") },
+                  onClick = {
+                    closeMenu()
+                    onTagFiltroChange(null)
+                  },
+                  leadingIcon = {
+                    if (tagFiltro == null) {
+                      Icon(Icons.Default.Check, contentDescription = null)
+                    } else {
+                      Spacer(Modifier.size(24.dp))
+                    }
+                  },
+                )
+                tags.forEach { tag ->
+                  DropdownMenuItem(
+                    text = { Text(tag) },
+                    onClick = {
+                      closeMenu()
+                      onTagFiltroChange(tag)
+                    },
+                    leadingIcon = {
+                      if (tagFiltro == tag) {
+                        Icon(Icons.Default.Check, contentDescription = null)
+                      } else {
+                        Spacer(Modifier.size(24.dp))
+                      }
+                    },
+                  )
+                }
+              }
+              HorizontalDivider()
+            }
+            FilterSectionHeader("Estado", estadoExpanded) {
+              estadoExpanded = !estadoExpanded
+            }
+            if (estadoExpanded) {
+              ClientMapFilter.entries.forEach { option ->
+                DropdownMenuItem(
+                  text = { Text(option.label) },
+                  onClick = {
+                    closeMenu()
+                    onFiltroChange(option)
+                  },
+                  leadingIcon = {
+                    if (option == filtro) {
+                      Icon(Icons.Default.Check, contentDescription = null)
+                    } else {
+                      Spacer(Modifier.size(24.dp))
+                    }
+                  },
+                )
+              }
             }
           }
         },

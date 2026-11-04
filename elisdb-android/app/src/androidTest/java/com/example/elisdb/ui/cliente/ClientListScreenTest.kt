@@ -51,9 +51,15 @@ class ClientListScreenTest {
     composeTestRule.onNodeWithText("Sofia").assertExists()
     composeTestRule.onNodeWithText("PREMIUM").assertExists()
     val nameLeft =
-      composeTestRule.onNodeWithText("Sofia").fetchSemanticsNode().boundsInRoot.left
+      composeTestRule
+        .onNodeWithText("Sofia", useUnmergedTree = true)
+        .fetchSemanticsNode()
+        .boundsInRoot.left
     val tagLeft =
-      composeTestRule.onNodeWithText("PREMIUM").fetchSemanticsNode().boundsInRoot.left
+      composeTestRule
+        .onNodeWithText("PREMIUM", useUnmergedTree = true)
+        .fetchSemanticsNode()
+        .boundsInRoot.left
     assertTrue("A tag deveria aparecer do lado direito do cartão", nameLeft < tagLeft)
   }
 
@@ -114,6 +120,7 @@ class ClientListScreenTest {
     setListContent(listOf(ativo, inativo))
 
     composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
+    composeTestRule.onNodeWithText("Estado").performClick()
     composeTestRule.onNodeWithText("Só clientes inativos").performClick()
     composeTestRule.waitForIdle()
 
@@ -122,10 +129,42 @@ class ClientListScreenTest {
   }
 
   @Test
+  fun lista_filtroDeTagMostraApenasOsClientesComATag() {
+    val premium =
+      ClienteComFotos(
+        cliente = Cliente(id = "1", nome = "Maria", tag = "PREMIUM", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        fotos = emptyList(),
+      )
+    val gold =
+      ClienteComFotos(
+        cliente = Cliente(id = "2", nome = "João", tag = "GOLD", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        fotos = emptyList(),
+      )
+    setListContent(listOf(premium, gold))
+
+    composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
+    composeTestRule.onNodeWithText("Tags").performClick()
+    composeTestRule.onNodeWithTag("tag_filter_PREMIUM").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Maria").assertExists()
+    composeTestRule.onNodeWithText("João").assertDoesNotExist()
+
+    composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
+    composeTestRule.onNodeWithText("Tags").performClick()
+    composeTestRule.onNodeWithTag("tag_filter_all").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Maria").assertExists()
+    composeTestRule.onNodeWithText("João").assertExists()
+  }
+
+  @Test
   fun lista_ordemMaisRecentesMostraAsOpcoesDeOrdenacao() {
     setListContent(clientes)
 
     composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
+    composeTestRule.onNodeWithText("Ordenação").performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Ordem alfabética").assertExists()
     composeTestRule.onNodeWithText("Mais recentes primeiro").assertExists()

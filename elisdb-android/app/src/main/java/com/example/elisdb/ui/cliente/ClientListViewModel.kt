@@ -36,6 +36,7 @@ data class ClientListItem(
   val nome: String,
   val primeiraFotoUri: String?,
   val contrato: String? = null,
+  val tag: String? = null,
   val ativo: Boolean = true,
 )
 
@@ -123,6 +124,7 @@ class ClientListViewModel(
                 nome = it.cliente.nome,
                 primeiraFotoUri = it.fotos.firstOrNull()?.uriLocal,
                 contrato = it.cliente.contrato,
+                tag = it.cliente.tag,
                 ativo = it.cliente.ativo,
               )
             },

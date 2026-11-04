@@ -40,6 +40,19 @@ class ClientListScreenTest {
     )
 
   @Test
+  fun lista_mostraTagDoCliente() {
+    val comTag =
+      ClienteComFotos(
+        cliente = Cliente(id = "4", nome = "Sofia", tag = "Premium", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        fotos = emptyList(),
+      )
+    setListContent(listOf(comTag))
+
+    composeTestRule.onNodeWithText("Sofia").assertExists()
+    composeTestRule.onNodeWithText("Premium").assertExists()
+  }
+
+  @Test
   fun lista_clienteInativoMostraEtiqueta() {
     val inativo =
       ClienteComFotos(

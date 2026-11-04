@@ -8,6 +8,8 @@ data class Cliente(
   @PrimaryKey val id: String,
   val nome: String,
   val contrato: String? = null,
+  /** Optional free-text label used to group clients (filtering comes later). */
+  val tag: String? = null,
   val latitude: Double? = null,
   val longitude: Double? = null,
   val notas: String? = null,

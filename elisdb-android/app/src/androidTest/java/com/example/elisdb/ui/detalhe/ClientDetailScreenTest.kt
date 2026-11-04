@@ -53,6 +53,36 @@ class ClientDetailScreenTest {
   }
 
   @Test
+  fun detalhe_mostraTagAbaixoDoNome() {
+    val cliente =
+      Cliente(
+        id = "8",
+        nome = "Marta",
+        tag = "Premium",
+        latitude = 1.0,
+        longitude = 2.0,
+        dataCriacao = 0,
+        updatedAt = 0,
+      )
+    setDetailContent(cliente)
+
+    composeTestRule.onNodeWithText("Premium").assertExists()
+    val nameTop =
+      composeTestRule.onAllNodesWithText("Marta").fetchSemanticsNodes().maxOf { it.boundsInRoot.top }
+    val tagTop = composeTestRule.onNodeWithText("Premium").fetchSemanticsNode().boundsInRoot.top
+    assertTrue("A tag deveria aparecer abaixo do nome", nameTop < tagTop)
+  }
+
+  @Test
+  fun detalhe_semTagNaoMostraEtiqueta() {
+    val cliente = Cliente(id = "9", nome = "Nuno", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
+    setDetailContent(cliente)
+
+    val nodesNuno = composeTestRule.onAllNodesWithText("Nuno").fetchSemanticsNodes()
+    assertTrue("Nuno deveria aparecer apenas uma vez", nodesNuno.size == 1)
+  }
+
+  @Test
   fun detalhe_inativoApareceDepoisDoContratoNaTopBar() {
     val cliente =
       Cliente(

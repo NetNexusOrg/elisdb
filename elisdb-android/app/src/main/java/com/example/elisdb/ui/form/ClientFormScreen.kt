@@ -116,6 +116,7 @@ fun ClientFormScreen(
           state = state,
           onNomeChange = viewModel::onNomeChange,
           onContratoChange = viewModel::onContratoChange,
+          onTagChange = viewModel::onTagChange,
           onNotasChange = viewModel::onNotasChange,
           onAtivoChange = viewModel::onAtivoChange,
           onLocationChange = viewModel::onLocationChange,
@@ -137,6 +138,7 @@ private fun ClientFormContent(
   state: ClientFormUiState,
   onNomeChange: (String) -> Unit,
   onContratoChange: (String) -> Unit,
+  onTagChange: (String) -> Unit,
   onNotasChange: (String) -> Unit,
   onAtivoChange: (Boolean) -> Unit,
   onLocationChange: (Double, Double) -> Unit,
@@ -181,6 +183,14 @@ private fun ClientFormContent(
       value = state.contrato,
       onValueChange = onContratoChange,
       label = { Text("Contrato") },
+      singleLine = true,
+      modifier = Modifier.fillMaxWidth(),
+    )
+
+    OutlinedTextField(
+      value = state.tag,
+      onValueChange = onTagChange,
+      label = { Text("Tag") },
       singleLine = true,
       modifier = Modifier.fillMaxWidth(),
     )

@@ -54,6 +54,7 @@ class ClienteIn(BaseModel):
     id: str
     nome: str = Field(max_length=200)
     contrato: str | None = Field(None, max_length=100_000)
+    tag: str | None = Field(None, max_length=100)
     latitude: float | None = None
     longitude: float | None = None
     notas: str | None = Field(None, max_length=100_000)
@@ -84,6 +85,7 @@ class ClienteOut(BaseModel):
     id: str
     nome: str
     contrato: str | None = None
+    tag: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     notas: str | None = None
@@ -120,7 +122,7 @@ class AuditFieldChange(BaseModel):
     notes body cannot bloat the audit trail.
     """
 
-    field: str  # nome | contrato | notas | localizacao | ativo
+    field: str  # nome | contrato | tag | notas | localizacao | ativo
     old: str | None = None
     new: str | None = None
     truncated: bool = False

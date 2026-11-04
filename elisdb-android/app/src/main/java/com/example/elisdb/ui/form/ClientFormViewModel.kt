@@ -22,12 +22,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** Matches the server's maximum length for the optional client tag. */
+private const val MAX_TAG_LENGTH = 100
+
 data class ClientFormUiState(
   val isNew: Boolean = true,
   val clienteId: String? = null,
   val isLoading: Boolean = false,
   val nome: String = "",
   val contrato: String = "",
+  val tag: String = "",
   val notas: String = "",
   val ativo: Boolean = true,
   val latitude: Double? = null,
@@ -70,6 +74,7 @@ class ClientFormViewModel(
           isLoading = false,
           nome = data?.cliente?.nome.orEmpty(),
           contrato = data?.cliente?.contrato.orEmpty(),
+          tag = data?.cliente?.tag.orEmpty(),
           notas = data?.cliente?.notas.orEmpty(),
           ativo = data?.cliente?.ativo ?: true,
           latitude = data?.cliente?.latitude,
@@ -84,6 +89,9 @@ class ClientFormViewModel(
     _uiState.update { it.copy(nome = value.uppercase(Locale.ROOT), nomeError = false) }
 
   fun onContratoChange(value: String) = _uiState.update { it.copy(contrato = value) }
+
+  fun onTagChange(value: String) =
+    _uiState.update { it.copy(tag = value.take(MAX_TAG_LENGTH)) }
 
   fun onNotasChange(value: String) = _uiState.update { it.copy(notas = value) }
 
@@ -151,6 +159,7 @@ class ClientFormViewModel(
             id = state.clienteId,
             nome = state.nome,
             contrato = state.contrato,
+            tag = state.tag,
             latitude = state.latitude,
             longitude = state.longitude,
             notas = state.notas,

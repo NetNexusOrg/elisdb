@@ -243,6 +243,15 @@ private fun ClientDetailContent(
   ) {
     Text(cliente.nome, style = MaterialTheme.typography.headlineSmall)
 
+    val tag = cliente.tag?.takeIf { it.isNotBlank() }
+    if (tag != null) {
+      Text(
+        text = tag,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+      )
+    }
+
     val latitude = cliente.latitude
     val longitude = cliente.longitude
     if (latitude != null && longitude != null) {

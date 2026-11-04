@@ -213,6 +213,53 @@ def test_edit_details_describe_the_changed_fields(tmp_path):
     assert "photos" not in details
 
 
+def test_tag_change_appears_in_the_edit_details(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    db.save_client(_cliente(id="a", tag="Premium", updated_at=1000), [], actor)
+    db.save_client(_cliente(id="a", tag="", updated_at=1001), [], actor)
+
+    fields = {field["field"]: field for field in db.client_history("a")[-1]["details"]["fields"]}
+    assert fields["tag"]["old"] == "Premium"
+    assert fields["tag"]["new"] is None
+
+
+def test_tag_survives_the_coordinate_rebuild(tmp_path):
+    db_path = str(tmp_path / "legacy-tag.db")
+    conn = connect(db_path)
+    # A legacy table without the tag and with NOT NULL coordinates forces the
+    # rebuild; the tag column must be added first and copied through it.
+    conn.executescript(
+        """
+        CREATE TABLE clientes_old (
+            id TEXT PRIMARY KEY,
+            nome TEXT NOT NULL,
+            contrato TEXT,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            notas TEXT,
+            updated_at INTEGER NOT NULL
+        );
+        DROP TABLE clientes;
+        ALTER TABLE clientes_old RENAME TO clientes;
+        INSERT INTO clientes (id, nome, latitude, longitude, updated_at)
+            VALUES ('1', 'ANA', 1.0, 2.0, 1000);
+        """
+    )
+    conn.commit()
+
+    _apply_schema(conn)
+    columns = [row["name"] for row in conn.execute("PRAGMA table_info(clientes)").fetchall()]
+    assert "tag" in columns
+    assert conn.execute("SELECT tag FROM clientes WHERE id='1'").fetchone()[0] is None
+
+    conn.execute("UPDATE clientes SET tag = 'Premium' WHERE id='1'")
+    conn.commit()
+    _apply_schema(conn)  # idempotent: the value is not reset
+    assert conn.execute("SELECT tag FROM clientes WHERE id='1'").fetchone()[0] == "Premium"
+    conn.close()
+
+
 def test_location_change_is_a_single_field(tmp_path):
     db = _db(tmp_path)
     actor = {"id": "key-1", "comment": "Joao"}

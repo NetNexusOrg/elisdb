@@ -489,6 +489,7 @@ class SyncCoordinator(
         id = server.id,
         nome = server.nome.uppercase(Locale.ROOT),
         contrato = server.contrato,
+        tag = server.tag,
         latitude = server.latitude,
         longitude = server.longitude,
         notas = server.notas,

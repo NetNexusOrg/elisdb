@@ -8,6 +8,7 @@ data class ClienteInDto(
   val id: String,
   val nome: String,
   val contrato: String? = null,
+  val tag: String? = null,
   val latitude: Double? = null,
   val longitude: Double? = null,
   val notas: String? = null,
@@ -51,6 +52,8 @@ data class ClienteOutDto(
   val id: String,
   val nome: String,
   val contrato: String? = null,
+  /** Absent on older servers, which store no tag. */
+  val tag: String? = null,
   val latitude: Double? = null,
   val longitude: Double? = null,
   val notas: String? = null,

@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS clientes (
     id TEXT PRIMARY KEY,
     nome TEXT NOT NULL,
     contrato TEXT,
+    tag TEXT,
     latitude REAL,
     longitude REAL,
     notas TEXT,
@@ -108,6 +109,18 @@ def _migrate_clients_created_at(conn: sqlite3.Connection) -> None:
             "ALTER TABLE clientes ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0"
         )
         conn.execute("UPDATE clientes SET created_at = updated_at")
+
+
+def _migrate_clients_tag(conn: sqlite3.Connection) -> None:
+    """Idempotently add the optional clientes.tag column.
+
+    Existing rows get no tag (NULL), which is the same as an empty tag.
+    """
+    columns = [
+        row["name"] for row in conn.execute("PRAGMA table_info(clientes)").fetchall()
+    ]
+    if "tag" not in columns:
+        conn.execute("ALTER TABLE clientes ADD COLUMN tag TEXT")
 
 
 def _migrate_delivery_ts(conn: sqlite3.Connection) -> None:
@@ -194,6 +207,7 @@ def _migrate_clients_nullable_coords(conn: sqlite3.Connection) -> None:
                 id TEXT PRIMARY KEY,
                 nome TEXT NOT NULL,
                 contrato TEXT,
+                tag TEXT,
                 latitude REAL,
                 longitude REAL,
                 notas TEXT,
@@ -207,8 +221,8 @@ def _migrate_clients_nullable_coords(conn: sqlite3.Connection) -> None:
         conn.execute(
             """
             INSERT INTO clientes_new
-                (id, nome, contrato, latitude, longitude, notas, updated_at, created_at, delivery_ts, ativo)
-            SELECT id, nome, contrato, latitude, longitude, notas, updated_at, created_at, delivery_ts, ativo
+                (id, nome, contrato, tag, latitude, longitude, notas, updated_at, created_at, delivery_ts, ativo)
+            SELECT id, nome, contrato, tag, latitude, longitude, notas, updated_at, created_at, delivery_ts, ativo
             FROM clientes
             """
         )
@@ -326,10 +340,10 @@ def build_audit_details(
         )
 
     fields: list[dict] = []
-    for name in ("nome", "contrato", "notas"):
+    for name in ("nome", "contrato", "tag", "notas"):
         old = before.get(name)
         new = after.get(name)
-        if name in ("contrato", "notas"):
+        if name in ("contrato", "tag", "notas"):
             # Empty text and NULL mean the same thing to the user.
             old = old or None
             new = new or None
@@ -418,6 +432,7 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     _migrate_keys_comment(conn)
     _migrate_keys_provisioned(conn)
     _migrate_clients_created_at(conn)
+    _migrate_clients_tag(conn)
     _migrate_fotos_hash(conn)
     # delivery_ts must exist before the coordinate rebuild, which copies it.
     _migrate_delivery_ts(conn)
@@ -544,7 +559,7 @@ class Database:
             delivery_ts = max(cliente.updated_at, watermark + 1)
 
             existing = conn.execute(
-                "SELECT id, updated_at, nome, contrato, latitude, longitude, notas, ativo "
+                "SELECT id, updated_at, nome, contrato, tag, latitude, longitude, notas, ativo "
                 "FROM clientes WHERE id = ?",
                 (cliente.id,),
             ).fetchone()
@@ -562,10 +577,11 @@ class Database:
                 before = dict(existing)
                 before_photos = self._photo_ids(conn, cliente.id)
                 conn.execute(
-                    "UPDATE clientes SET nome=?, contrato=?, latitude=?, longitude=?, notas=?, ativo=?, updated_at=?, delivery_ts=? WHERE id=?",
+                    "UPDATE clientes SET nome=?, contrato=?, tag=?, latitude=?, longitude=?, notas=?, ativo=?, updated_at=?, delivery_ts=? WHERE id=?",
                     (
                         nome,
                         cliente.contrato,
+                        cliente.tag,
                         cliente.latitude,
                         cliente.longitude,
                         cliente.notas,
@@ -583,6 +599,7 @@ class Database:
                     {
                         "nome": nome,
                         "contrato": cliente.contrato,
+                        "tag": cliente.tag,
                         "latitude": cliente.latitude,
                         "longitude": cliente.longitude,
                         "notas": cliente.notas,
@@ -606,12 +623,13 @@ class Database:
 
             try:
                 conn.execute(
-                    "INSERT INTO clientes (id, nome, contrato, latitude, longitude, notas, ativo, updated_at, created_at, delivery_ts) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO clientes (id, nome, contrato, tag, latitude, longitude, notas, ativo, updated_at, created_at, delivery_ts) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         cliente.id,
                         nome,
                         cliente.contrato,
+                        cliente.tag,
                         cliente.latitude,
                         cliente.longitude,
                         cliente.notas,
@@ -638,6 +656,7 @@ class Database:
                 {
                     "nome": nome,
                     "contrato": cliente.contrato,
+                    "tag": cliente.tag,
                     "latitude": cliente.latitude,
                     "longitude": cliente.longitude,
                     "notas": cliente.notas,
@@ -981,7 +1000,7 @@ class Database:
         conn = self._conn()
         try:
             rows = conn.execute(
-                "SELECT id, nome, contrato, latitude, longitude, notas, ativo, updated_at, created_at "
+                "SELECT id, nome, contrato, tag, latitude, longitude, notas, ativo, updated_at, created_at "
                 "FROM clientes ORDER BY nome COLLATE NOCASE"
             ).fetchall()
             return [dict(r) for r in rows]
@@ -1001,7 +1020,7 @@ class Database:
         Returns None when the client does not exist.
         """
         row = conn.execute(
-            "SELECT id, nome, contrato, latitude, longitude, notas, ativo, updated_at, created_at, delivery_ts "
+            "SELECT id, nome, contrato, tag, latitude, longitude, notas, ativo, updated_at, created_at, delivery_ts "
             "FROM clientes WHERE id = ?",
             (cliente_id,),
         ).fetchone()

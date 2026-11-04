@@ -51,6 +51,7 @@ class ClientFormViewModelTest {
     assertNull(state.clienteId)
     assertEquals("", state.nome)
     assertEquals("", state.contrato)
+    assertEquals("", state.tag)
     assertNull(state.latitude)
   }
 
@@ -74,6 +75,38 @@ class ClientFormViewModelTest {
       )
     dispatcher.scheduler.advanceUntilIdle()
     assertEquals("CT-123", viewModel.uiState.value.contrato)
+  }
+
+  @Test
+  fun editMode_carregaTagExistente() = runTest(dispatcher) {
+    val cliente = Cliente(id = "9", nome = "Maria", tag = "Premium", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
+    val viewModel =
+      ClientFormViewModel(
+        FakeClientRepository(existing = ClienteComFotos(cliente = cliente, fotos = emptyList())),
+        { null },
+        "9",
+      )
+    dispatcher.scheduler.advanceUntilIdle()
+    assertEquals("Premium", viewModel.uiState.value.tag)
+  }
+
+  @Test
+  fun onTagChange_limitaAoCemCaracteres() = runTest(dispatcher) {
+    val viewModel = ClientFormViewModel(FakeClientRepository(), { null }, null)
+    viewModel.onTagChange("x".repeat(150))
+    assertEquals(100, viewModel.uiState.value.tag.length)
+  }
+
+  @Test
+  fun save_incluiTagNoDraft() = runTest(dispatcher) {
+    val repo = FakeClientRepository(savedId = "45")
+    val viewModel = ClientFormViewModel(repo, { null }, null)
+    viewModel.onNomeChange("Maria")
+    viewModel.onTagChange("Premium")
+    viewModel.onLocationChange(1.0, 2.0)
+    viewModel.save()
+    dispatcher.scheduler.advanceUntilIdle()
+    assertEquals("Premium", repo.savedDraft?.tag)
   }
 
   @Test

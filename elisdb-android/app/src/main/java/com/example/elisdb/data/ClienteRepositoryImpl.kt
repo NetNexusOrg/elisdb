@@ -24,6 +24,7 @@ data class ClienteDraft(
   val id: String? = null,
   val nome: String,
   val contrato: String? = null,
+  val tag: String? = null,
   val latitude: Double? = null,
   val longitude: Double? = null,
   val notas: String? = null,
@@ -92,6 +93,7 @@ class ClienteRepositoryImpl(
                 id = newId,
                 nome = draft.nome.trim().uppercase(Locale.ROOT),
                 contrato = draft.contrato?.takeIf { it.isNotBlank() },
+                tag = draft.tag?.trim()?.takeIf { it.isNotBlank() },
                 latitude = draft.latitude,
                 longitude = draft.longitude,
                 notas = draft.notas?.takeIf { it.isNotBlank() },
@@ -111,6 +113,7 @@ class ClienteRepositoryImpl(
               existing.copy(
                 nome = draft.nome.trim().uppercase(Locale.ROOT),
                 contrato = draft.contrato?.takeIf { it.isNotBlank() },
+                tag = draft.tag?.trim()?.takeIf { it.isNotBlank() },
                 latitude = draft.latitude,
                 longitude = draft.longitude,
                 notas = draft.notas?.takeIf { it.isNotBlank() },

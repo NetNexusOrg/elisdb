@@ -89,6 +89,25 @@ class ClientListViewModelTest {
   }
 
   @Test
+  fun uiState_mapeiaTagDoCliente() = runTest(dispatcher) {
+    val repo =
+      FakeClientRepository(
+        clientesComFotosFlow =
+          flowOf(
+            listOf(
+              ClienteComFotos(
+                cliente = Cliente(id = "1", nome = "Maria", tag = "Premium", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              )
+            )
+          )
+      )
+    val viewModel = ClientListViewModel(repo)
+    val state = viewModel.uiState.first { it is ClientListUiState.Success }
+    assertEquals("Premium", (state as ClientListUiState.Success).clientes.single().tag)
+  }
+
+  @Test
   fun uiState_queryFiltraClientes() = runTest(dispatcher) {
     val repo =
       FakeClientRepository(

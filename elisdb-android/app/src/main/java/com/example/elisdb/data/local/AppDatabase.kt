@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
   entities = [Cliente::class, Foto::class, SyncMeta::class],
-  version = 10,
+  version = 11,
   exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -199,6 +199,15 @@ abstract class AppDatabase : RoomDatabase() {
           // Active/inactive status. Existing clients default to active, so the
           // migration never changes what the user already sees.
           db.execSQL("ALTER TABLE clientes ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1")
+        }
+      }
+
+    val MIGRATION_10_11: Migration =
+      object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+          // Optional free-text tag. Existing clients have no tag, which is the
+          // same as an empty one.
+          db.execSQL("ALTER TABLE clientes ADD COLUMN tag TEXT")
         }
       }
   }

@@ -280,7 +280,8 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  C
           )
         }
         val contrato = cliente.contrato?.takeIf { it.isNotBlank() }
-        if (contrato != null || !cliente.ativo) {
+        val tag = cliente.tag?.takeIf { it.isNotBlank() }
+        if (contrato != null || tag != null || !cliente.ativo) {
           Row(verticalAlignment = Alignment.CenterVertically) {
             if (contrato != null) {
               Text(
@@ -289,6 +290,19 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  C
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+              )
+            }
+            if (tag != null) {
+              Text(
+                text = tag,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier =
+                  Modifier.padding(start = if (contrato != null) 6.dp else 0.dp)
+                    .weight(1f, fill = false),
               )
             }
             if (!cliente.ativo) {
@@ -296,7 +310,10 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  C
                 text = "Inativo",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(start = if (contrato != null) 6.dp else 0.dp),
+                modifier =
+                  Modifier.padding(
+                    start = if (contrato != null || tag != null) 6.dp else 0.dp
+                  ),
               )
             }
           }

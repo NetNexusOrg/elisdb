@@ -67,6 +67,10 @@ def test_field_length_limit_rejects_request(server):
     response = client.post("/api/push", _body([_record(id="1", nome=too_long)]))
     assert response.status_code == 422
 
+    too_long_tag = "x" * 101
+    response = client.post("/api/push", _body([_record(id="2", nome="Bea", tag=too_long_tag)]))
+    assert response.status_code == 422
+
 
 def test_far_future_timestamp_is_rejected_per_record(server):
     client, _db = server
@@ -396,6 +400,40 @@ def test_activation_appears_in_history(server):
     assert entries[-1]["details"]["fields"] == [
         {"field": "ativo", "old": "Inativo", "new": "Ativo", "truncated": False}
     ]
+
+
+def test_tag_roundtrips_and_appears_in_history(server):
+    client, _db = server
+    pushed = client.post(
+        "/api/push",
+        _body([_record(id="1", nome="Ana", updated_at=1000, tag="Premium")]),
+    )
+    assert pushed.json()[0]["status"] == "accepted"
+
+    stored = client.get("/api/pull").json()["records"][0]["client"]
+    assert stored["tag"] == "Premium"
+
+    accepted = client.post(
+        "/api/push",
+        _body([_record(id="1", nome="Ana", updated_at=2000, tag="Standard")]),
+    )
+    assert accepted.json()[0]["status"] == "accepted"
+
+    stored = client.get("/api/pull?limit=1000").json()["records"][0]["client"]
+    assert stored["tag"] == "Standard"
+
+    entries = client.get("/api/clients/1/history").json()
+    assert entries[-1]["details"]["fields"] == [
+        {"field": "tag", "old": "Premium", "new": "Standard", "truncated": False}
+    ]
+
+
+def test_client_without_tag_roundtrips_without_one(server):
+    client, _db = server
+    client.post("/api/push", _body([_record(id="1", nome="Ana", updated_at=1000)]))
+
+    stored = client.get("/api/pull").json()["records"][0]["client"]
+    assert stored["tag"] is None
 
 
 def _fresh_server(tmp_path, monkeypatch, **env):

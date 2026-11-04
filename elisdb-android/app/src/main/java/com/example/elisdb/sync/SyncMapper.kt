@@ -21,6 +21,7 @@ object SyncMapper {
           id = cliente.id,
           nome = cliente.nome,
           contrato = cliente.contrato,
+          tag = cliente.tag,
           latitude = cliente.latitude,
           longitude = cliente.longitude,
           notas = cliente.notas,

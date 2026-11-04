@@ -309,6 +309,7 @@ private fun fieldLabel(field: String): String =
   when (field) {
     "nome" -> "Nome"
     "contrato" -> "Contrato"
+    "tag" -> "Tag"
     "notas" -> "Notas"
     "localizacao" -> "Localização"
     else -> field

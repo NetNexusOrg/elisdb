@@ -68,15 +68,15 @@ de continuar a trabalhar.
 
 Fluxos principais:
 
-- **Lista de clientes** — o ecrã inicial; pesquisa e ordenação. O contrato
-  aparece por baixo do nome e os clientes inativos têm a etiqueta **Inativo** e
+- **Lista de clientes** — o ecrã inicial; pesquisa e ordenação. O contrato e a
+  tag aparecem por baixo do nome e os clientes inativos têm a etiqueta **Inativo** e
   o texto atenuado. O ícone de controlos dentro da caixa de pesquisa filtra por
   estado (**Todos os clientes**, **Só clientes ativos** ou **Só clientes
   inativos**) e define a ordem: **Ordem alfabética** (predefinição), **Mais
   recentes primeiro** (pelo cliente criado mais recentemente) ou **Última edição
   primeiro** (pelo cliente alterado mais recentemente). Com um filtro ou uma ordem
   diferentes da predefinição o ícone fica destacado.
-- **Novo/editar cliente** — formulário com nome, contrato, coordenadas, notas e
+- **Novo/editar cliente** — formulário com nome, contrato, tag, coordenadas, notas e
   o interruptor **Cliente ativo**.
 - **Mapa de clientes** — o ícone de mapa na barra superior da lista abre o mapa
   dos clientes com localização. Ao abrir, pede acesso à localização e centra o
@@ -91,7 +91,7 @@ Fluxos principais:
   continuam visíveis.
 - **Mapa** — escolher/indicar a localização (Picker).
 - **Fotos** — capturar e associar imagens; ver em ecrã inteiro.
-- **Detalhe do cliente** — mapa, navegação, notas e fotos. O mapa em ecrã
+- **Detalhe do cliente** — nome com a tag por baixo, mapa, navegação, notas e fotos. O mapa em ecrã
   inteiro centra-se no cliente e mostra também a tua localização atual (ponto
   azul), se houver permissão; afasta o zoom para te situares. Um cliente inativo
   mostra a etiqueta **Inativo** na barra superior, depois do contrato; no menu (≡) podes

@@ -59,6 +59,7 @@ import com.example.elisdb.data.local.ClienteComFotos
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.ui.map.ElisMap
 import java.io.File
+import java.util.Locale
 import org.maplibre.android.geometry.LatLng
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -243,7 +244,7 @@ private fun ClientDetailContent(
   ) {
     Text(cliente.nome, style = MaterialTheme.typography.headlineSmall)
 
-    val tag = cliente.tag?.takeIf { it.isNotBlank() }
+    val tag = cliente.tag?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
     if (tag != null) {
       Text(
         text = tag,

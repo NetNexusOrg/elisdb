@@ -49,7 +49,12 @@ class ClientListScreenTest {
     setListContent(listOf(comTag))
 
     composeTestRule.onNodeWithText("Sofia").assertExists()
-    composeTestRule.onNodeWithText("Premium").assertExists()
+    composeTestRule.onNodeWithText("PREMIUM").assertExists()
+    val nameLeft =
+      composeTestRule.onNodeWithText("Sofia").fetchSemanticsNode().boundsInRoot.left
+    val tagLeft =
+      composeTestRule.onNodeWithText("PREMIUM").fetchSemanticsNode().boundsInRoot.left
+    assertTrue("A tag deveria aparecer do lado direito do cartão", nameLeft < tagLeft)
   }
 
   @Test

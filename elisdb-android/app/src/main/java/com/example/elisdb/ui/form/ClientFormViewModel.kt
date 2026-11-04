@@ -74,7 +74,7 @@ class ClientFormViewModel(
           isLoading = false,
           nome = data?.cliente?.nome.orEmpty(),
           contrato = data?.cliente?.contrato.orEmpty(),
-          tag = data?.cliente?.tag.orEmpty(),
+          tag = data?.cliente?.tag?.uppercase(Locale.ROOT).orEmpty(),
           notas = data?.cliente?.notas.orEmpty(),
           ativo = data?.cliente?.ativo ?: true,
           latitude = data?.cliente?.latitude,
@@ -91,7 +91,7 @@ class ClientFormViewModel(
   fun onContratoChange(value: String) = _uiState.update { it.copy(contrato = value) }
 
   fun onTagChange(value: String) =
-    _uiState.update { it.copy(tag = value.take(MAX_TAG_LENGTH)) }
+    _uiState.update { it.copy(tag = value.uppercase(Locale.ROOT).take(MAX_TAG_LENGTH)) }
 
   fun onNotasChange(value: String) = _uiState.update { it.copy(notas = value) }
 

@@ -233,9 +233,14 @@ private fun FieldChangeRow(change: AuditFieldDto) {
       style = MaterialTheme.typography.labelSmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    // Tags are always presented uppercased, including historical values.
+    val oldText =
+      change.old?.let { if (change.field == "tag") it.uppercase(Locale.ROOT) else it } ?: "—"
+    val newText =
+      change.new?.let { if (change.field == "tag") it.uppercase(Locale.ROOT) else it } ?: "—"
     Row {
       Text(
-        text = change.old ?: "—",
+        text = oldText,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textDecoration = TextDecoration.LineThrough,
@@ -249,7 +254,7 @@ private fun FieldChangeRow(change: AuditFieldDto) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
       Text(
-        text = change.new ?: "—",
+        text = newText,
         style = MaterialTheme.typography.bodySmall,
         maxLines = 3,
         overflow = TextOverflow.Ellipsis,

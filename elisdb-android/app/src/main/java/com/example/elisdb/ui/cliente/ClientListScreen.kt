@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import java.io.File
+import java.util.Locale
 
 @Composable
 fun ClientListScreen(
@@ -280,40 +282,43 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  C
           )
         }
         val contrato = cliente.contrato?.takeIf { it.isNotBlank() }
-        val tag = cliente.tag?.takeIf { it.isNotBlank() }
+        val tag = cliente.tag?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
         if (contrato != null || tag != null || !cliente.ativo) {
-          Row(verticalAlignment = Alignment.CenterVertically) {
-            if (contrato != null) {
-              Text(
-                text = contrato,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-              )
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Row(
+              modifier = Modifier.weight(1f),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              if (contrato != null) {
+                Text(
+                  text = contrato,
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                  modifier = Modifier.weight(1f, fill = false),
+                )
+              }
+              if (!cliente.ativo) {
+                Text(
+                  text = "Inativo",
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.error,
+                  modifier = Modifier.padding(start = if (contrato != null) 6.dp else 0.dp),
+                )
+              }
             }
             if (tag != null) {
               Text(
                 text = tag,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier =
-                  Modifier.padding(start = if (contrato != null) 6.dp else 0.dp)
-                    .weight(1f, fill = false),
-              )
-            }
-            if (!cliente.ativo) {
-              Text(
-                text = "Inativo",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier =
-                  Modifier.padding(
-                    start = if (contrato != null || tag != null) 6.dp else 0.dp
-                  ),
+                modifier = Modifier.padding(start = 8.dp).widthIn(max = 120.dp),
               )
             }
           }

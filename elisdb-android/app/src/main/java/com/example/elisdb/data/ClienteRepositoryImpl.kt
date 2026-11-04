@@ -93,7 +93,7 @@ class ClienteRepositoryImpl(
                 id = newId,
                 nome = draft.nome.trim().uppercase(Locale.ROOT),
                 contrato = draft.contrato?.takeIf { it.isNotBlank() },
-                tag = draft.tag?.trim()?.takeIf { it.isNotBlank() },
+                tag = draft.tag?.trim()?.uppercase(Locale.ROOT)?.takeIf { it.isNotBlank() },
                 latitude = draft.latitude,
                 longitude = draft.longitude,
                 notas = draft.notas?.takeIf { it.isNotBlank() },
@@ -113,7 +113,7 @@ class ClienteRepositoryImpl(
               existing.copy(
                 nome = draft.nome.trim().uppercase(Locale.ROOT),
                 contrato = draft.contrato?.takeIf { it.isNotBlank() },
-                tag = draft.tag?.trim()?.takeIf { it.isNotBlank() },
+                tag = draft.tag?.trim()?.uppercase(Locale.ROOT)?.takeIf { it.isNotBlank() },
                 latitude = draft.latitude,
                 longitude = draft.longitude,
                 notas = draft.notas?.takeIf { it.isNotBlank() },

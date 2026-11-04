@@ -66,10 +66,10 @@ class ClientDetailScreenTest {
       )
     setDetailContent(cliente)
 
-    composeTestRule.onNodeWithText("Premium").assertExists()
+    composeTestRule.onNodeWithText("PREMIUM").assertExists()
     val nameTop =
       composeTestRule.onAllNodesWithText("Marta").fetchSemanticsNodes().maxOf { it.boundsInRoot.top }
-    val tagTop = composeTestRule.onNodeWithText("Premium").fetchSemanticsNode().boundsInRoot.top
+    val tagTop = composeTestRule.onNodeWithText("PREMIUM").fetchSemanticsNode().boundsInRoot.top
     assertTrue("A tag deveria aparecer abaixo do nome", nameTop < tagTop)
   }
 

@@ -87,7 +87,14 @@ class ClientFormViewModelTest {
         "9",
       )
     dispatcher.scheduler.advanceUntilIdle()
-    assertEquals("Premium", viewModel.uiState.value.tag)
+    assertEquals("PREMIUM", viewModel.uiState.value.tag)
+  }
+
+  @Test
+  fun onTagChange_escreverMinusculasFicaEmMaiusculas() = runTest(dispatcher) {
+    val viewModel = ClientFormViewModel(FakeClientRepository(), { null }, null)
+    viewModel.onTagChange("premium")
+    assertEquals("PREMIUM", viewModel.uiState.value.tag)
   }
 
   @Test
@@ -106,7 +113,7 @@ class ClientFormViewModelTest {
     viewModel.onLocationChange(1.0, 2.0)
     viewModel.save()
     dispatcher.scheduler.advanceUntilIdle()
-    assertEquals("Premium", repo.savedDraft?.tag)
+    assertEquals("PREMIUM", repo.savedDraft?.tag)
   }
 
   @Test

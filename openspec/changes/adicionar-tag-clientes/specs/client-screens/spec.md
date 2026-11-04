@@ -14,9 +14,9 @@ The system SHALL show a list of all clients, each row displaying the client's na
 - **THEN** the row SHALL display the contract reference below the client's name
 - **AND** rows for clients without a contract SHALL NOT leave an empty line
 
-#### Scenario: Tag shown in the row
+#### Scenario: Tag shown on the contract line, aligned right
 - **WHEN** a listed client has a tag
-- **THEN** the row SHALL display the tag in its secondary line
+- **THEN** the row SHALL display the tag on the same line as the contract reference and the inactive label, aligned to the right side of the card
 - **AND** rows for clients without a tag SHALL NOT leave an empty placeholder
 
 #### Scenario: Generic image for clients without a photo
@@ -176,3 +176,25 @@ The system SHALL show a client's name, tag, notes, a map with the client's locat
 - **WHEN** the user opens the overflow menu on the detail screen and taps delete, and confirms
 - **THEN** the client SHALL be deleted
 - **AND** the user SHALL return to the client list
+
+## ADDED Requirements
+
+### Requirement: Client tag presented in uppercase
+
+The system SHALL present the client tag in uppercase letters in the client list, the detail screen, the create/edit form and the edit history, regardless of the casing stored or typed.
+
+#### Scenario: Tag uppercased while typing
+- **WHEN** the user types a tag in the create/edit form using lowercase or mixed-case letters
+- **THEN** the tag field SHALL display the entered text in uppercase letters as it is typed
+
+#### Scenario: Tag shown uppercased in the list
+- **WHEN** the client list screen is shown and a client has a tag
+- **THEN** the tag SHALL be displayed in uppercase letters
+
+#### Scenario: Tag shown uppercased in the detail screen
+- **WHEN** a client detail screen is shown and the client has a tag
+- **THEN** the tag SHALL be displayed in uppercase letters
+
+#### Scenario: Historical tag values shown uppercased in the log
+- **WHEN** the edit history shows a changed tag value
+- **THEN** the previous and new tag values SHALL be displayed in uppercase letters

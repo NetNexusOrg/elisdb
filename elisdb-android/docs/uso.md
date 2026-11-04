@@ -68,8 +68,9 @@ de continuar a trabalhar.
 
 Fluxos principais:
 
-- **Lista de clientes** — o ecrã inicial; pesquisa e ordenação. O contrato e a
-  tag aparecem por baixo do nome e os clientes inativos têm a etiqueta **Inativo** e
+- **Lista de clientes** — o ecrã inicial; pesquisa e ordenação. O contrato
+  aparece por baixo do nome, a tag à direita do cartão na mesma linha do contrato
+  (sempre em maiúsculas), e os clientes inativos têm a etiqueta **Inativo** e
   o texto atenuado. O ícone de controlos dentro da caixa de pesquisa filtra por
   estado (**Todos os clientes**, **Só clientes ativos** ou **Só clientes
   inativos**) e define a ordem: **Ordem alfabética** (predefinição), **Mais

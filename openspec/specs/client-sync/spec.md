@@ -3,9 +3,10 @@
 Enables the app to exchange client and photo data with the server's push/pull/delete API over authenticated HTTP and coordinates offline-first syncing: queue local changes, transmit pending records when online, pull the authoritative server state, and apply clears — without the app deciding conflicts, which the server owns.
 
 ## Requirements
+
 ### Requirement: Push records to the server
 
-The system SHALL send local client and photo records to the server via the push endpoint, returning a per-record status, and SHALL represent unsynced records as base64 photos. Each record SHALL remain pending until the server acknowledges its state, and the acknowledgement SHALL NOT write record content: a record edited while the request was in flight SHALL stay pending with the user's edit intact. Photos the server reports as missing SHALL be uploaded again instead of being remembered as delivered.
+The system SHALL send local client and photo records to the server via the push endpoint, including the client's optional tag, returning a per-record status, and SHALL represent unsynced records as base64 photos. Each record SHALL remain pending until the server acknowledges its state, and the acknowledgement SHALL NOT write record content: a record edited while the request was in flight SHALL stay pending with the user's edit intact. Photos the server reports as missing SHALL be uploaded again instead of being remembered as delivered.
 
 #### Scenario: Push returns per-record status
 - **WHEN** the app sends a batch of client and photo records to the server
@@ -37,9 +38,14 @@ The system SHALL send local client and photo records to the server via the push 
 - **THEN** the app SHALL NOT record them as delivered
 - **AND** SHALL upload them on the next push
 
+#### Scenario: Tag is included in the pushed record
+- **WHEN** the app pushes a client that has a tag
+- **THEN** the pushed record SHALL carry that tag
+- **AND** a client without a tag SHALL be pushed without one
+
 ### Requirement: Pull the authoritative dataset
 
-The system SHALL fetch all server client and photo records via the pull endpoint, so the caller can reconcile local data with the server, and SHALL apply the returned state as authoritative for records with no pending local edits.
+The system SHALL fetch all server client and photo records via the pull endpoint, including each client's optional tag, so the caller can reconcile local data with the server, and SHALL apply the returned state as authoritative for records with no pending local edits.
 
 #### Scenario: Pull returns all records with photos
 - **WHEN** the app requests a pull
@@ -50,6 +56,11 @@ The system SHALL fetch all server client and photo records via the pull endpoint
 #### Scenario: Pulled state accepted
 - **WHEN** a pull returns the server dataset
 - **THEN** records with no local pending edits SHALL be overwritten with the server values
+
+#### Scenario: Pulled tag is applied locally
+- **WHEN** a pulled server record carries a tag
+- **THEN** the locally stored client SHALL keep that tag
+- **AND** a pulled record without a tag SHALL store no tag locally
 
 #### Scenario: Pulled creation date preserved
 - **WHEN** a pulled server record includes a creation timestamp

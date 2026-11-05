@@ -3,14 +3,15 @@
 Stores client records and their associated photos locally on the device so the app can list, create, edit and delete clients persistently across app restarts.
 
 ## Requirements
+
 ### Requirement: Client record schema
 
-The system SHALL store client records containing a stable identifier, a mandatory name, an optional contract reference, optional latitude and longitude coordinates, optional free-text notes, an active/inactive status, a creation timestamp, and a modification timestamp, where the identifier and timestamps are compatible with the server so records can be synchronized by identifier and last-write-wins.
+The system SHALL store client records containing a stable identifier, a mandatory name, an optional contract reference, an optional tag, optional latitude and longitude coordinates, optional free-text notes, an active/inactive status, a creation timestamp, and a modification timestamp, where the identifier and timestamps are compatible with the server so records can be synchronized by identifier and last-write-wins.
 
 #### Scenario: A client record has all required fields
 - **WHEN** a client is created
 - **THEN** the record MUST contain a name and a creation timestamp
-- **AND** the contract reference, coordinates, and notes MAY be empty
+- **AND** the contract reference, tag, coordinates, and notes MAY be empty
 
 #### Scenario: Status defaults to active
 - **WHEN** a client is created without an explicit status
@@ -20,6 +21,11 @@ The system SHALL store client records containing a stable identifier, a mandator
 - **WHEN** the local database is migrated to include the status
 - **THEN** every previously stored client SHALL remain active
 - **AND** no client data SHALL be lost
+
+#### Scenario: Existing clients survive the tag migration
+- **WHEN** the local database is migrated to include the tag
+- **THEN** every previously stored client SHALL keep its data
+- **AND** its tag SHALL be empty
 
 #### Scenario: Unique client identifiers
 - **WHEN** multiple clients exist
@@ -53,10 +59,10 @@ The system SHALL store photo records linked to exactly one client, where each ph
 
 ### Requirement: Create client
 
-The system SHALL allow creating a client with a name, contract reference, coordinates, notes, photos and an active/inactive status.
+The system SHALL allow creating a client with a name, contract reference, tag, coordinates, notes, photos and an active/inactive status.
 
 #### Scenario: Create client with all fields
-- **WHEN** the user saves a new client with a name, contract reference, coordinates, notes and photos
+- **WHEN** the user saves a new client with a name, contract reference, tag, coordinates, notes and photos
 - **THEN** the client SHALL be persisted
 - **AND** the photos SHALL be linked to the created client
 
@@ -73,6 +79,10 @@ The system SHALL allow creating a client with a name, contract reference, coordi
 - **WHEN** the user saves a new client with the active switch turned off
 - **THEN** the client SHALL be persisted as inactive
 
+#### Scenario: Create a client without a tag
+- **WHEN** the user saves a new client leaving the tag empty
+- **THEN** the client SHALL be persisted with no tag
+
 ### Requirement: Read clients
 
 The system SHALL allow listing all stored clients and reading a single client by its identifier, including its photos.
@@ -87,7 +97,7 @@ The system SHALL allow listing all stored clients and reading a single client by
 
 ### Requirement: Update client
 
-The system SHALL allow editing a client's name, contract reference, coordinates, notes, photos and active/inactive status, preserving the client's identifier and refreshing its modification timestamp.
+The system SHALL allow editing a client's name, contract reference, tag, coordinates, notes, photos and active/inactive status, preserving the client's identifier and refreshing its modification timestamp.
 
 #### Scenario: Edit client fields
 - **WHEN** the user saves changes to an existing client
@@ -104,6 +114,11 @@ The system SHALL allow editing a client's name, contract reference, coordinates,
 - **WHEN** the user turns the active switch off and saves an existing client
 - **THEN** the client SHALL be stored as inactive
 - **AND** the client's photos and history SHALL be preserved
+
+#### Scenario: Clear a client's tag
+- **WHEN** the user clears the tag of an existing client and saves
+- **THEN** the client SHALL be stored without a tag
+- **AND** the client's other fields SHALL be preserved
 
 ### Requirement: Delete client
 

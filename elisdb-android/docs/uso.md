@@ -69,19 +69,23 @@ de continuar a trabalhar.
 Fluxos principais:
 
 - **Lista de clientes** — o ecrã inicial; pesquisa e ordenação. O contrato
-  aparece por baixo do nome, a tag à direita do cartão na mesma linha do contrato
-  (sempre em maiúsculas), e os clientes inativos têm a etiqueta **Inativo** e
+  aparece por baixo do nome e as tags à direita do cartão, na mesma linha do
+  contrato, passando para as linhas seguintes quando não cabem (sempre em
+  maiúsculas). Os clientes inativos têm a etiqueta **Inativo** e
   o texto atenuado. O ícone de controlos dentro da caixa de pesquisa filtra por
   estado (**Todos os clientes**, **Só clientes ativos** ou **Só clientes
-  inativos**), a lista de tags existentes (para mostrar apenas os clientes com a
-  tag escolhida) e define a ordem: **Ordem alfabética** (predefinição), **Mais
-  recentes primeiro** (pelo cliente criado mais recentemente) ou **Última edição
-  primeiro** (pelo cliente alterado mais recentemente). Com um filtro ou uma ordem
-  diferentes da predefinição o ícone fica destacado. Os grupos **Tags**,
-  **Ordenação** e **Estado** aparecem recolhidos e mostram as opções ao tocar no
-  respetivo título.
-- **Novo/editar cliente** — formulário com contrato, nome, notas, tag, coordenadas e
-  o interruptor **Cliente ativo**.
+  inativos**), a lista de tags existentes (para mostrar apenas os clientes que
+  tenham a tag escolhida) e define a ordem: **Ordem alfabética** (predefinição),
+  **Mais recentes primeiro** (pelo cliente criado mais recentemente) ou **Última
+  edição primeiro** (pelo cliente alterado mais recentemente). Com um filtro ou
+  uma ordem diferentes da predefinição o ícone fica destacado. Os grupos
+  **Tags**, **Ordenação** e **Estado** aparecem recolhidos e mostram as opções ao
+  tocar no respetivo título.
+- **Novo/editar cliente** — formulário com contrato, nome, notas, tags
+  (toca em **Adicionar tag** para abrir o campo, escreve a tag e confirma; cada
+  tag aparece como um chip que pode ser removido), coordenadas e o interruptor
+  **Cliente ativo**. Um cliente pode ter até 10 tags; são guardadas em maiúsculas
+  e por ordem alfabética.
 - **Mapa de clientes** — o ícone de mapa na barra superior da lista abre o mapa
   dos clientes com localização. Ao abrir, pede acesso à localização e centra o
   mapa na posição atual, com um ponto azul; sem permissão ou localização
@@ -97,7 +101,7 @@ Fluxos principais:
   continuam visíveis.
 - **Mapa** — escolher/indicar a localização (Picker).
 - **Fotos** — capturar e associar imagens; ver em ecrã inteiro.
-- **Detalhe do cliente** — nome com a tag por baixo, mapa, navegação, notas e fotos. O mapa em ecrã
+- **Detalhe do cliente** — nome com todas as tags por baixo, mapa, navegação, notas e fotos. O mapa em ecrã
   inteiro centra-se no cliente e mostra também a tua localização atual (ponto
   azul), se houver permissão; afasta o zoom para te situares. Um cliente inativo
   mostra a etiqueta **Inativo** na barra superior, depois do contrato; no menu (≡) podes

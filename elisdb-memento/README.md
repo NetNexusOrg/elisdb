@@ -40,7 +40,8 @@ normalizado**. A `Rota` do Memento é a **tag** do cliente.
 | `Coordenadas` (`lat,lon`) | `latitude` + `longitude` |
 | `Notas` | `notas` |
 
-`Foto` e `Plantas` continuam a ser ignoradas.
+`Foto` e `Plantas` continuam a ser ignoradas. A `Rota` é importada como uma
+única tag; se contiver `;`, o servidor interpreta-a como várias tags.
 
 ## Verificação do CSV (safeguard)
 

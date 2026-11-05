@@ -11,6 +11,11 @@ mantém a app Android sincronizada. A versão de release vive em
 - Changelog inicial do componente servidor. As alterações ao servidor passam a
   ser registadas aqui.
 
+### Changed
+
+- O campo `tag` aceita até 10 tags separadas por `;` (100 caracteres por tag e
+  500 no total), normalizadas em maiúsculas, sem duplicados e ordenadas.
+
 ## [1.4.0] - 2026-11-04
 
 ### Added

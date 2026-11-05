@@ -9,6 +9,7 @@ import com.example.elisdb.data.local.ClienteComFotos
 import com.example.elisdb.data.local.ClienteDao
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.data.local.FotoDao
+import com.example.elisdb.data.local.joinTags
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncManager
 import com.example.elisdb.sync.SyncStatus
@@ -24,7 +25,7 @@ data class ClienteDraft(
   val id: String? = null,
   val nome: String,
   val contrato: String? = null,
-  val tag: String? = null,
+  val tags: List<String> = emptyList(),
   val latitude: Double? = null,
   val longitude: Double? = null,
   val notas: String? = null,
@@ -82,6 +83,7 @@ class ClienteRepositoryImpl(
 
   override suspend fun save(draft: ClienteDraft): String {
     val now = nowEpochSeconds()
+    val tag = joinTags(draft.tags)
     val removedFiles = mutableListOf<Foto>()
     val clienteId =
       database.withTransaction {
@@ -93,7 +95,7 @@ class ClienteRepositoryImpl(
                 id = newId,
                 nome = draft.nome.trim().uppercase(Locale.ROOT),
                 contrato = draft.contrato?.takeIf { it.isNotBlank() },
-                tag = draft.tag?.trim()?.uppercase(Locale.ROOT)?.takeIf { it.isNotBlank() },
+                tag = tag,
                 latitude = draft.latitude,
                 longitude = draft.longitude,
                 notas = draft.notas?.takeIf { it.isNotBlank() },
@@ -113,7 +115,7 @@ class ClienteRepositoryImpl(
               existing.copy(
                 nome = draft.nome.trim().uppercase(Locale.ROOT),
                 contrato = draft.contrato?.takeIf { it.isNotBlank() },
-                tag = draft.tag?.trim()?.uppercase(Locale.ROOT)?.takeIf { it.isNotBlank() },
+                tag = tag,
                 latitude = draft.latitude,
                 longitude = draft.longitude,
                 notas = draft.notas?.takeIf { it.isNotBlank() },

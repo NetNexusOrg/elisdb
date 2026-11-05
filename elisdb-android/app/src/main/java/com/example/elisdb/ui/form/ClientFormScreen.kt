@@ -21,12 +21,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -36,6 +40,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -52,6 +58,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -116,7 +123,11 @@ fun ClientFormScreen(
           state = state,
           onNomeChange = viewModel::onNomeChange,
           onContratoChange = viewModel::onContratoChange,
-          onTagChange = viewModel::onTagChange,
+          onTagInputChange = viewModel::onTagInputChange,
+          onStartAddTag = viewModel::onStartAddTag,
+          onCancelAddTag = viewModel::onCancelAddTag,
+          onAddTag = viewModel::onAddTag,
+          onRemoveTag = viewModel::onRemoveTag,
           onNotasChange = viewModel::onNotasChange,
           onAtivoChange = viewModel::onAtivoChange,
           onLocationChange = viewModel::onLocationChange,
@@ -138,7 +149,11 @@ private fun ClientFormContent(
   state: ClientFormUiState,
   onNomeChange: (String) -> Unit,
   onContratoChange: (String) -> Unit,
-  onTagChange: (String) -> Unit,
+  onTagInputChange: (String) -> Unit,
+  onStartAddTag: () -> Unit,
+  onCancelAddTag: () -> Unit,
+  onAddTag: () -> Unit,
+  onRemoveTag: (String) -> Unit,
   onNotasChange: (String) -> Unit,
   onAtivoChange: (Boolean) -> Unit,
   onLocationChange: (Double, Double) -> Unit,
@@ -204,13 +219,60 @@ private fun ClientFormContent(
       modifier = Modifier.fillMaxWidth(),
     )
 
-    OutlinedTextField(
-      value = state.tag,
-      onValueChange = onTagChange,
-      label = { Text("Tag") },
-      singleLine = true,
-      modifier = Modifier.fillMaxWidth(),
-    )
+    if (state.tagInputVisible) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        OutlinedTextField(
+          value = state.tagInput,
+          onValueChange = onTagInputChange,
+          label = { Text("Tag") },
+          singleLine = true,
+          isError = state.tagError != null,
+          supportingText = state.tagError?.let { error -> { Text(error) } },
+          keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+          keyboardActions = KeyboardActions(onDone = { onAddTag() }),
+          modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onAddTag, enabled = state.tagInput.isNotBlank()) {
+          Icon(Icons.Default.Check, contentDescription = "Confirmar tag")
+        }
+        IconButton(onClick = onCancelAddTag) {
+          Icon(Icons.Default.Close, contentDescription = "Cancelar tag")
+        }
+      }
+    } else {
+      OutlinedButton(onClick = onStartAddTag, modifier = Modifier.fillMaxWidth()) {
+        Icon(Icons.Default.Add, contentDescription = null)
+        Spacer(Modifier.size(8.dp))
+        Text("Adicionar tag")
+      }
+    }
+
+    if (state.tags.isNotEmpty()) {
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        state.tags.chunked(3).forEach { row ->
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            row.forEach { tag ->
+              InputChip(
+                selected = false,
+                onClick = {},
+                label = { Text(tag) },
+                trailingIcon = {
+                  Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Remover tag $tag",
+                    modifier = Modifier.size(16.dp).clickable { onRemoveTag(tag) },
+                  )
+                },
+              )
+            }
+          }
+        }
+      }
+    }
 
     Text("Localização", style = MaterialTheme.typography.titleMedium)
     var showMapPicker by remember { mutableStateOf(false) }

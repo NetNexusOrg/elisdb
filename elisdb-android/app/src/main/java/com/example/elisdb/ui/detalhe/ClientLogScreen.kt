@@ -53,6 +53,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.elisdb.data.local.tagsOf
 
 /**
  * Dedicated page for a client's edit history: the log used to live in a small
@@ -235,9 +236,9 @@ private fun FieldChangeRow(change: AuditFieldDto) {
     )
     // Tags are always presented uppercased, including historical values.
     val oldText =
-      change.old?.let { if (change.field == "tag") it.uppercase(Locale.ROOT) else it } ?: "—"
+      if (change.field == "tag") formatTags(change.old) else change.old ?: "—"
     val newText =
-      change.new?.let { if (change.field == "tag") it.uppercase(Locale.ROOT) else it } ?: "—"
+      if (change.field == "tag") formatTags(change.new) else change.new ?: "—"
     Row {
       Text(
         text = oldText,
@@ -310,11 +311,14 @@ private fun PhotoChanges(photos: AuditPhotosDto, photoUris: Map<String, String>)
 private fun photoCount(verb: String, count: Int): String =
   if (count == 1) "$verb 1 foto" else "$verb $count fotos"
 
+private fun formatTags(value: String?): String =
+  tagsOf(value).joinToString(", ").ifEmpty { "—" }
+
 private fun fieldLabel(field: String): String =
   when (field) {
     "nome" -> "Nome"
     "contrato" -> "Contrato"
-    "tag" -> "Tag"
+    "tag" -> "Tags"
     "notas" -> "Notas"
     "localizacao" -> "Localização"
     else -> field

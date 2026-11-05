@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -57,9 +58,9 @@ import coil3.compose.AsyncImage
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
 import com.example.elisdb.data.local.Foto
+import com.example.elisdb.data.local.tagsOf
 import com.example.elisdb.ui.map.ElisMap
 import java.io.File
-import java.util.Locale
 import org.maplibre.android.geometry.LatLng
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -244,13 +245,28 @@ private fun ClientDetailContent(
   ) {
     Text(cliente.nome, style = MaterialTheme.typography.headlineSmall)
 
-    val tag = cliente.tag?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
-    if (tag != null) {
-      Text(
-        text = tag,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
-      )
+    val tags = tagsOf(cliente.tag)
+    if (tags.isNotEmpty()) {
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        tags.chunked(3).forEach { row ->
+          Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            row.forEach { tag ->
+              Text(
+                text = tag,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier =
+                  Modifier
+                    .background(
+                      MaterialTheme.colorScheme.secondaryContainer,
+                      RoundedCornerShape(6.dp),
+                    )
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+              )
+            }
+          }
+        }
+      }
     }
 
     val latitude = cliente.latitude

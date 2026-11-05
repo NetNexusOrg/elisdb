@@ -71,6 +71,12 @@ def test_field_length_limit_rejects_request(server):
     response = client.post("/api/push", _body([_record(id="2", nome="Bea", tag=too_long_tag)]))
     assert response.status_code == 422
 
+    too_long_total = ";".join(f"T{i}" + "x" * 88 for i in range(6))
+    response = client.post(
+        "/api/push", _body([_record(id="3", nome="Caio", tag=too_long_total)])
+    )
+    assert response.status_code == 422
+
 
 def test_far_future_timestamp_is_rejected_per_record(server):
     client, _db = server
@@ -411,7 +417,7 @@ def test_tag_roundtrips_and_appears_in_history(server):
     assert pushed.json()[0]["status"] == "accepted"
 
     stored = client.get("/api/pull").json()["records"][0]["client"]
-    assert stored["tag"] == "Premium"
+    assert stored["tag"] == "PREMIUM"
 
     accepted = client.post(
         "/api/push",
@@ -420,12 +426,33 @@ def test_tag_roundtrips_and_appears_in_history(server):
     assert accepted.json()[0]["status"] == "accepted"
 
     stored = client.get("/api/pull?limit=1000").json()["records"][0]["client"]
-    assert stored["tag"] == "Standard"
+    assert stored["tag"] == "STANDARD"
 
     entries = client.get("/api/clients/1/history").json()
     assert entries[-1]["details"]["fields"] == [
-        {"field": "tag", "old": "Premium", "new": "Standard", "truncated": False}
+        {"field": "tag", "old": "PREMIUM", "new": "STANDARD", "truncated": False}
     ]
+
+
+def test_multiple_tags_are_normalized(server):
+    client, _db = server
+    pushed = client.post(
+        "/api/push",
+        _body([_record(id="1", nome="Ana", updated_at=1000, tag="premium; gold;PREMIUM")]),
+    )
+    assert pushed.json()[0]["status"] == "accepted"
+
+    stored = client.get("/api/pull").json()["records"][0]["client"]
+    assert stored["tag"] == "GOLD;PREMIUM"
+
+
+def test_too_many_tags_are_rejected(server):
+    client, _db = server
+    tags = ";".join(f"TAG{i}" for i in range(11))
+    response = client.post(
+        "/api/push", _body([_record(id="1", nome="Ana", tag=tags)])
+    )
+    assert response.status_code == 422
 
 
 def test_client_without_tag_roundtrips_without_one(server):

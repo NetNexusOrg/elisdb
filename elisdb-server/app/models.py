@@ -14,6 +14,27 @@ def normalize_nome(nome: str) -> str:
 
 ALLOWED_PHOTO_MIMES = frozenset({"image/jpeg", "image/png", "image/webp"})
 
+# Multiple tags live in the single `tag` text field, separated by `;`.
+MAX_TAGS_PER_CLIENT = 10
+MAX_TAG_LENGTH = 100
+MAX_TAGS_FIELD_LENGTH = 500
+
+
+def normalize_tags(value: str | None) -> str | None:
+    """Return the canonical `;`-separated tag string.
+
+    Tags are trimmed, uppercased, de-duplicated and sorted. Empty values and
+    empty tags are dropped. Raises ValueError when the limits are exceeded.
+    """
+    if value is None:
+        return None
+    tags = sorted({part.strip().upper() for part in value.split(";") if part.strip()})
+    if len(tags) > MAX_TAGS_PER_CLIENT:
+        raise ValueError(f"too many tags (maximum {MAX_TAGS_PER_CLIENT})")
+    if any(len(tag) > MAX_TAG_LENGTH for tag in tags):
+        raise ValueError(f"tag too long (maximum {MAX_TAG_LENGTH} characters)")
+    return ";".join(tags) if tags else None
+
 
 def sniff_image_mime(data: bytes) -> str | None:
     """Return the supported image MIME type detected from the file signature."""
@@ -54,12 +75,17 @@ class ClienteIn(BaseModel):
     id: str
     nome: str = Field(max_length=200)
     contrato: str | None = Field(None, max_length=100_000)
-    tag: str | None = Field(None, max_length=100)
+    tag: str | None = Field(None, max_length=MAX_TAGS_FIELD_LENGTH)
     latitude: float | None = None
     longitude: float | None = None
     notas: str | None = Field(None, max_length=100_000)
     ativo: bool = True
     updated_at: int
+
+    @field_validator("tag")
+    @classmethod
+    def _normalize_tag_field(cls, v: str | None) -> str | None:
+        return normalize_tags(v)
 
 
 class RecordIn(BaseModel):

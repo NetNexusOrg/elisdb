@@ -7,6 +7,10 @@ import com.example.elisdb.data.ClienteRemovidoException
 import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.ClienteDraft
 import com.example.elisdb.data.local.Foto
+import com.example.elisdb.data.local.MAX_TAGS_FIELD_LENGTH
+import com.example.elisdb.data.local.MAX_TAGS_PER_CLIENT
+import com.example.elisdb.data.local.MAX_TAG_LENGTH
+import com.example.elisdb.data.local.tagsOf
 import com.example.elisdb.location.Localizacao
 import java.io.File
 import java.util.Locale
@@ -22,16 +26,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Matches the server's maximum length for the optional client tag. */
-private const val MAX_TAG_LENGTH = 100
-
 data class ClientFormUiState(
   val isNew: Boolean = true,
   val clienteId: String? = null,
   val isLoading: Boolean = false,
   val nome: String = "",
   val contrato: String = "",
-  val tag: String = "",
+  val tags: List<String> = emptyList(),
+  val tagInput: String = "",
+  val tagError: String? = null,
+  val tagInputVisible: Boolean = false,
   val notas: String = "",
   val ativo: Boolean = true,
   val latitude: Double? = null,
@@ -74,7 +78,10 @@ class ClientFormViewModel(
           isLoading = false,
           nome = data?.cliente?.nome.orEmpty(),
           contrato = data?.cliente?.contrato.orEmpty(),
-          tag = data?.cliente?.tag?.uppercase(Locale.ROOT).orEmpty(),
+          tags = tagsOf(data?.cliente?.tag),
+          tagInput = "",
+          tagError = null,
+          tagInputVisible = false,
           notas = data?.cliente?.notas.orEmpty(),
           ativo = data?.cliente?.ativo ?: true,
           latitude = data?.cliente?.latitude,
@@ -90,8 +97,61 @@ class ClientFormViewModel(
 
   fun onContratoChange(value: String) = _uiState.update { it.copy(contrato = value) }
 
-  fun onTagChange(value: String) =
-    _uiState.update { it.copy(tag = value.uppercase(Locale.ROOT).take(MAX_TAG_LENGTH)) }
+  fun onStartAddTag() =
+    _uiState.update { it.copy(tagInputVisible = true, tagError = null) }
+
+  fun onCancelAddTag() =
+    _uiState.update { it.copy(tagInputVisible = false, tagInput = "", tagError = null) }
+
+  fun onTagInputChange(value: String) =
+    _uiState.update {
+      it.copy(
+        tagInput = value.replace(";", "").uppercase(Locale.ROOT).take(MAX_TAG_LENGTH),
+        tagError = null,
+      )
+    }
+
+  fun onAddTag() {
+    val state = _uiState.value
+    val tag = state.tagInput.trim()
+    when {
+      tag.isEmpty() -> return
+      state.tags.size >= MAX_TAGS_PER_CLIENT ->
+        _uiState.update {
+          it.copy(tagError = "Máximo de $MAX_TAGS_PER_CLIENT tags por cliente.")
+        }
+      tag.length > MAX_TAG_LENGTH ->
+        _uiState.update {
+          it.copy(tagError = "A tag não pode ter mais de $MAX_TAG_LENGTH caracteres.")
+        }
+      state.tags.any { it.equals(tag, ignoreCase = true) } ->
+        _uiState.update {
+          it.copy(tagInput = "", tagError = null, tagInputVisible = false)
+        }
+      else -> {
+        val tags = (state.tags + tag).distinct().sorted()
+        if (tags.joinToString(";").length > MAX_TAGS_FIELD_LENGTH) {
+          _uiState.update {
+            it.copy(
+              tagError = "O conjunto de tags excede $MAX_TAGS_FIELD_LENGTH caracteres."
+            )
+          }
+        } else {
+          _uiState.update {
+            it.copy(
+              tags = tags,
+              tagInput = "",
+              tagError = null,
+              tagInputVisible = false,
+            )
+          }
+        }
+      }
+    }
+  }
+
+  fun onRemoveTag(tag: String) =
+    _uiState.update { it.copy(tags = it.tags - tag, tagError = null) }
 
   fun onNotasChange(value: String) = _uiState.update { it.copy(notas = value) }
 
@@ -159,7 +219,7 @@ class ClientFormViewModel(
             id = state.clienteId,
             nome = state.nome,
             contrato = state.contrato,
-            tag = state.tag,
+            tags = state.tags,
             latitude = state.latitude,
             longitude = state.longitude,
             notas = state.notas,

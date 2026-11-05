@@ -220,8 +220,19 @@ def test_tag_change_appears_in_the_edit_details(tmp_path):
     db.save_client(_cliente(id="a", tag="", updated_at=1001), [], actor)
 
     fields = {field["field"]: field for field in db.client_history("a")[-1]["details"]["fields"]}
-    assert fields["tag"]["old"] == "Premium"
+    assert fields["tag"]["old"] == "PREMIUM"
     assert fields["tag"]["new"] is None
+
+
+def test_multiple_tags_are_normalized_in_the_edit_details(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    db.save_client(_cliente(id="a", tag="gold;premium", updated_at=1000), [], actor)
+    db.save_client(_cliente(id="a", tag="premium", updated_at=1001), [], actor)
+
+    fields = {field["field"]: field for field in db.client_history("a")[-1]["details"]["fields"]}
+    assert fields["tag"]["old"] == "GOLD;PREMIUM"
+    assert fields["tag"]["new"] == "PREMIUM"
 
 
 def test_tag_survives_the_coordinate_rebuild(tmp_path):

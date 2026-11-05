@@ -58,7 +58,7 @@ class ClientDetailScreenTest {
       Cliente(
         id = "8",
         nome = "Marta",
-        tag = "Premium",
+        tag = "gold;premium",
         latitude = 1.0,
         longitude = 2.0,
         dataCriacao = 0,
@@ -66,6 +66,7 @@ class ClientDetailScreenTest {
       )
     setDetailContent(cliente)
 
+    composeTestRule.onNodeWithText("GOLD").assertExists()
     composeTestRule.onNodeWithText("PREMIUM").assertExists()
     val nameTop =
       composeTestRule.onAllNodesWithText("Marta").fetchSemanticsNodes().maxOf { it.boundsInRoot.top }

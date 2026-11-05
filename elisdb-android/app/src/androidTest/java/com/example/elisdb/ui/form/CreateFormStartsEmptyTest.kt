@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.elisdb.data.ClienteDraft
@@ -52,10 +53,13 @@ class CreateFormStartsEmptyTest {
     val contratoTop =
       composeTestRule.onNodeWithText("Contrato").fetchSemanticsNode().boundsInRoot.top
     assertTrue("O toggle ativo deve ser o primeiro campo", ativoTop < contratoTop)
-    composeTestRule.onNodeWithText("Tag").assertExists()
+    composeTestRule.onNodeWithText("Adicionar tag").assertExists()
     val notasTop = composeTestRule.onNodeWithText("Notas").fetchSemanticsNode().boundsInRoot.top
-    val tagTop = composeTestRule.onNodeWithText("Tag").fetchSemanticsNode().boundsInRoot.top
-    assertTrue("A tag deveria aparecer abaixo das notas", notasTop < tagTop)
+    val addTagTop =
+      composeTestRule.onNodeWithText("Adicionar tag").fetchSemanticsNode().boundsInRoot.top
+    assertTrue("O botão de tags deveria aparecer abaixo das notas", notasTop < addTagTop)
+    composeTestRule.onNodeWithText("Adicionar tag").performClick()
+    composeTestRule.onNodeWithText("Tag").assertExists()
     composeTestRule.onNodeWithText("O cliente está em serviço.").assertDoesNotExist()
     composeTestRule
       .onNodeWithText("Cliente inativo: fica guardado, mas marcado como fora de serviço.")

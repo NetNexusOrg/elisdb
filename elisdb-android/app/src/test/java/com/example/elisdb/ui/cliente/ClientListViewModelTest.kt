@@ -104,7 +104,7 @@ class ClientListViewModelTest {
       )
     val viewModel = ClientListViewModel(repo)
     val state = viewModel.uiState.first { it is ClientListUiState.Success }
-    assertEquals("Premium", (state as ClientListUiState.Success).clientes.single().tag)
+    assertEquals(listOf("PREMIUM"), (state as ClientListUiState.Success).clientes.single().tags)
   }
 
   @Test

@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,7 +57,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import java.io.File
-import java.util.Locale
 
 @Composable
 fun ClientListScreen(
@@ -347,8 +345,7 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  C
           )
         }
         val contrato = cliente.contrato?.takeIf { it.isNotBlank() }
-        val tag = cliente.tag?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
-        if (contrato != null || tag != null || !cliente.ativo) {
+        if (contrato != null || !cliente.ativo) {
           Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -376,15 +373,34 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  C
                 )
               }
             }
-            if (tag != null) {
-              Text(
-                text = tag,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 8.dp).widthIn(max = 120.dp),
-              )
+          }
+        }
+        if (cliente.tags.isNotEmpty()) {
+          Column(
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+          ) {
+            cliente.tags.chunked(3).forEach { row ->
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+              ) {
+                row.forEach { tag ->
+                  Text(
+                    text = tag,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    maxLines = 1,
+                    modifier =
+                      Modifier
+                        .background(
+                          MaterialTheme.colorScheme.secondaryContainer,
+                          RoundedCornerShape(4.dp),
+                        )
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                  )
+                }
+              }
             }
           }
         }

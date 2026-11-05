@@ -40,15 +40,16 @@ class ClientListScreenTest {
     )
 
   @Test
-  fun lista_mostraTagDoCliente() {
+  fun lista_mostraTodasAsTagsDoCliente() {
     val comTag =
       ClienteComFotos(
-        cliente = Cliente(id = "4", nome = "Sofia", tag = "Premium", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        cliente = Cliente(id = "4", nome = "Sofia", tag = "gold;premium", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
         fotos = emptyList(),
       )
     setListContent(listOf(comTag))
 
     composeTestRule.onNodeWithText("Sofia").assertExists()
+    composeTestRule.onNodeWithText("GOLD").assertExists()
     composeTestRule.onNodeWithText("PREMIUM").assertExists()
     val nameLeft =
       composeTestRule
@@ -60,7 +61,7 @@ class ClientListScreenTest {
         .onNodeWithText("PREMIUM", useUnmergedTree = true)
         .fetchSemanticsNode()
         .boundsInRoot.left
-    assertTrue("A tag deveria aparecer do lado direito do cartão", nameLeft < tagLeft)
+    assertTrue("As tags deveriam aparecer do lado direito do cartão", nameLeft < tagLeft)
   }
 
   @Test
@@ -132,7 +133,7 @@ class ClientListScreenTest {
   fun lista_filtroDeTagMostraApenasOsClientesComATag() {
     val premium =
       ClienteComFotos(
-        cliente = Cliente(id = "1", nome = "Maria", tag = "PREMIUM", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        cliente = Cliente(id = "1", nome = "Maria", tag = "GOLD;PREMIUM", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
         fotos = emptyList(),
       )
     val gold =
@@ -149,6 +150,14 @@ class ClientListScreenTest {
 
     composeTestRule.onNodeWithText("Maria").assertExists()
     composeTestRule.onNodeWithText("João").assertDoesNotExist()
+
+    composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
+    composeTestRule.onNodeWithText("Tags").performClick()
+    composeTestRule.onNodeWithTag("tag_filter_GOLD").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Maria").assertExists()
+    composeTestRule.onNodeWithText("João").assertExists()
 
     composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
     composeTestRule.onNodeWithText("Tags").performClick()

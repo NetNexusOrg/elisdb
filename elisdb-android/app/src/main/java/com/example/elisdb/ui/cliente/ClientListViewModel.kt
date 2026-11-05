@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.local.ClienteComFotos
+import com.example.elisdb.data.local.tagsOf
 import java.text.Normalizer
 import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,16 +32,13 @@ private fun normalizeForSearch(value: String?): String {
     .lowercase(Locale.ROOT)
 }
 
-/** Canonical tag used for listing and filtering, or null when the client has none. */
-private fun normalizedTag(cliente: ClienteComFotos): String? =
-  cliente.cliente.tag?.trim()?.takeIf { it.isNotEmpty() }?.uppercase(Locale.ROOT)
-
+/** Canonical tags used for listing and filtering. */
 data class ClientListItem(
   val id: String,
   val nome: String,
   val primeiraFotoUri: String?,
   val contrato: String? = null,
-  val tag: String? = null,
+  val tags: List<String> = emptyList(),
   val ativo: Boolean = true,
 )
 
@@ -103,7 +101,7 @@ class ClientListViewModel(
   val uiState: StateFlow<ClientListUiState> =
     combine(repository.clientesComFotos, query, filtro, ordem, tagFiltro) { clientes, q, f, o, tag ->
         val tagsDisponiveis =
-          clientes.mapNotNull(::normalizedTag).distinct().sorted()
+          clientes.flatMap { tagsOf(it.cliente.tag) }.distinct().sorted()
         // A tag that no longer exists is treated as "all tags", so the filter
         // never gets stuck showing an empty list.
         val tagSelecionada = tag?.takeIf { it in tagsDisponiveis }
@@ -115,7 +113,7 @@ class ClientListViewModel(
           }
         val byTag =
           if (tagSelecionada == null) byStatus
-          else byStatus.filter { normalizedTag(it) == tagSelecionada }
+          else byStatus.filter { tagsOf(it.cliente.tag).contains(tagSelecionada) }
         val filtered = if (q.isBlank()) byTag else byTag.filter { matchesQuery(it, q) }
         // Names are stored uppercase, but sorting here (not only in the DAO query)
         // keeps the order deterministic when the user switches it at runtime.
@@ -147,7 +145,7 @@ class ClientListViewModel(
                 nome = it.cliente.nome,
                 primeiraFotoUri = it.fotos.firstOrNull()?.uriLocal,
                 contrato = it.cliente.contrato,
-                tag = it.cliente.tag,
+                tags = tagsOf(it.cliente.tag),
                 ativo = it.cliente.ativo,
               )
             },

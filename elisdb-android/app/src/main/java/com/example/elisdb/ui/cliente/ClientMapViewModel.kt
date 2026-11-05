@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.local.Cliente
+import com.example.elisdb.data.local.tagsOf
 import com.example.elisdb.location.Localizacao
 import java.util.Locale
 import kotlinx.coroutines.Job
@@ -89,13 +90,13 @@ class ClientMapViewModel(
 
   val uiState: StateFlow<ClientMapUiState> =
     combine(repository.clientes, filtro, tagFiltro) { clientes, filtro, tag ->
-        val tagsDisponiveis = clientes.mapNotNull(::normalizedMapTag).distinct().sorted()
+        val tagsDisponiveis = clientes.flatMap { tagsOf(it.tag) }.distinct().sorted()
         // A tag that no longer exists is treated as "all tags", so the filter
         // never gets stuck showing an empty map.
         val tagSelecionada = tag?.takeIf { it in tagsDisponiveis }
         val porTag =
           if (tagSelecionada == null) clientes
-          else clientes.filter { normalizedMapTag(it) == tagSelecionada }
+          else clientes.filter { tagsOf(it.tag).contains(tagSelecionada) }
         val comLocalizacao =
           porTag.mapNotNull { cliente ->
             val latitude = cliente.latitude
@@ -134,9 +135,6 @@ class ClientMapViewModel(
       }
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ClientMapUiState.Loading)
 }
-
-private fun normalizedMapTag(cliente: Cliente): String? =
-  cliente.tag?.trim()?.takeIf { it.isNotEmpty() }?.uppercase(Locale.ROOT)
 
 private fun isValid(latitude: Double, longitude: Double): Boolean =
   latitude in -90.0..90.0 && longitude in -180.0..180.0

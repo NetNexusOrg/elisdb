@@ -51,7 +51,8 @@ class ClientFormViewModelTest {
     assertNull(state.clienteId)
     assertEquals("", state.nome)
     assertEquals("", state.contrato)
-    assertEquals("", state.tag)
+    assertEquals(emptyList<String>(), state.tags)
+    assertFalse(state.tagInputVisible)
     assertNull(state.latitude)
   }
 
@@ -79,7 +80,7 @@ class ClientFormViewModelTest {
 
   @Test
   fun editMode_carregaTagExistente() = runTest(dispatcher) {
-    val cliente = Cliente(id = "9", nome = "Maria", tag = "Premium", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
+    val cliente = Cliente(id = "9", nome = "Maria", tag = "Premium;GOLD", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
     val viewModel =
       ClientFormViewModel(
         FakeClientRepository(existing = ClienteComFotos(cliente = cliente, fotos = emptyList())),
@@ -87,21 +88,64 @@ class ClientFormViewModelTest {
         "9",
       )
     dispatcher.scheduler.advanceUntilIdle()
-    assertEquals("PREMIUM", viewModel.uiState.value.tag)
+    assertEquals(listOf("GOLD", "PREMIUM"), viewModel.uiState.value.tags)
   }
 
   @Test
-  fun onTagChange_escreverMinusculasFicaEmMaiusculas() = runTest(dispatcher) {
+  fun onTagInputChange_escreverMinusculasFicaEmMaiusculas() = runTest(dispatcher) {
     val viewModel = ClientFormViewModel(FakeClientRepository(), { null }, null)
-    viewModel.onTagChange("premium")
-    assertEquals("PREMIUM", viewModel.uiState.value.tag)
+    viewModel.onTagInputChange("premium")
+    assertEquals("PREMIUM", viewModel.uiState.value.tagInput)
   }
 
   @Test
-  fun onTagChange_limitaAoCemCaracteres() = runTest(dispatcher) {
+  fun onTagInputChange_limitaAoCemCaracteres() = runTest(dispatcher) {
     val viewModel = ClientFormViewModel(FakeClientRepository(), { null }, null)
-    viewModel.onTagChange("x".repeat(150))
-    assertEquals(100, viewModel.uiState.value.tag.length)
+    viewModel.onTagInputChange("x".repeat(150))
+    assertEquals(100, viewModel.uiState.value.tagInput.length)
+  }
+
+  @Test
+  fun onStartAddTag_mostraCampoDeTexto() = runTest(dispatcher) {
+    val viewModel = ClientFormViewModel(FakeClientRepository(), { null }, null)
+    assertFalse(viewModel.uiState.value.tagInputVisible)
+    viewModel.onStartAddTag()
+    assertTrue(viewModel.uiState.value.tagInputVisible)
+    viewModel.onCancelAddTag()
+    assertFalse(viewModel.uiState.value.tagInputVisible)
+  }
+
+  @Test
+  fun onAddTag_adicionaEmMaiusculasEOrdenado() = runTest(dispatcher) {
+    val viewModel = ClientFormViewModel(FakeClientRepository(), { null }, null)
+    viewModel.onTagInputChange("premium")
+    viewModel.onAddTag()
+    viewModel.onTagInputChange("gold")
+    viewModel.onAddTag()
+    assertEquals(listOf("GOLD", "PREMIUM"), viewModel.uiState.value.tags)
+    assertEquals("", viewModel.uiState.value.tagInput)
+    assertFalse(viewModel.uiState.value.tagInputVisible)
+  }
+
+  @Test
+  fun onAddTag_ignoraDuplicados() = runTest(dispatcher) {
+    val viewModel = ClientFormViewModel(FakeClientRepository(), { null }, null)
+    viewModel.onTagInputChange("premium")
+    viewModel.onAddTag()
+    viewModel.onTagInputChange("PREMIUM")
+    viewModel.onAddTag()
+    assertEquals(listOf("PREMIUM"), viewModel.uiState.value.tags)
+  }
+
+  @Test
+  fun onRemoveTag_removeDoEstado() = runTest(dispatcher) {
+    val viewModel = ClientFormViewModel(FakeClientRepository(), { null }, null)
+    viewModel.onTagInputChange("premium")
+    viewModel.onAddTag()
+    viewModel.onTagInputChange("gold")
+    viewModel.onAddTag()
+    viewModel.onRemoveTag("PREMIUM")
+    assertEquals(listOf("GOLD"), viewModel.uiState.value.tags)
   }
 
   @Test
@@ -109,11 +153,14 @@ class ClientFormViewModelTest {
     val repo = FakeClientRepository(savedId = "45")
     val viewModel = ClientFormViewModel(repo, { null }, null)
     viewModel.onNomeChange("Maria")
-    viewModel.onTagChange("Premium")
+    viewModel.onTagInputChange("premium")
+    viewModel.onAddTag()
+    viewModel.onTagInputChange("gold")
+    viewModel.onAddTag()
     viewModel.onLocationChange(1.0, 2.0)
     viewModel.save()
     dispatcher.scheduler.advanceUntilIdle()
-    assertEquals("PREMIUM", repo.savedDraft?.tag)
+    assertEquals(listOf("GOLD", "PREMIUM"), repo.savedDraft?.tags)
   }
 
   @Test

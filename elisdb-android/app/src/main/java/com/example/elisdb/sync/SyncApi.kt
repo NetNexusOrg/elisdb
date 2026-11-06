@@ -2,6 +2,7 @@ package com.example.elisdb.sync
 
 import com.example.elisdb.remote.AuditEntryDto
 import com.example.elisdb.remote.ClienteComFotosDto
+import com.example.elisdb.remote.HistoryPageDto
 import com.example.elisdb.remote.PullResponseDto
 import com.example.elisdb.remote.PushResultDto
 import com.example.elisdb.remote.RecordDto
@@ -11,6 +12,7 @@ interface SyncApi {
   suspend fun push(
     records: List<RecordDto>,
     timestamp: Long = System.currentTimeMillis() / 1000,
+    idempotencyKey: String? = null,
   ): List<PushResultDto>
 
   suspend fun pull(
@@ -30,8 +32,19 @@ interface SyncApi {
   /** Fetches the server's latest data timestamp and its live client count; authenticated. */
   suspend fun fetchServerInfo(timestamp: Long = System.currentTimeMillis() / 1000): ServerInfo
 
+  /** Fetches the server's current client records (without photo bytes). */
+  suspend fun fetchClients(timestamp: Long = System.currentTimeMillis() / 1000): List<com.example.elisdb.remote.ClienteOutDto>
+
   /** Fetches a client's edit history (who created/edited it and when). */
   suspend fun fetchClientHistory(id: String, timestamp: Long = System.currentTimeMillis() / 1000): List<AuditEntryDto>
+
+  /** Fetches a page of a client's edit history plus the next cursor. */
+  suspend fun fetchClientHistoryPage(
+    id: String,
+    limit: Int,
+    afterId: Int?,
+    timestamp: Long = System.currentTimeMillis() / 1000,
+  ): HistoryPageDto
 
   /** Downloads a photo's raw bytes by id. */
   suspend fun downloadPhoto(id: String, timestamp: Long = System.currentTimeMillis() / 1000): ByteArray

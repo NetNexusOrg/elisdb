@@ -3,6 +3,7 @@ photos, deletion, history and rate limiting."""
 
 import hashlib
 import json
+import os
 import time
 
 
@@ -22,10 +23,56 @@ def test_health_and_time_are_open(server):
     assert health.status_code == 200
     assert health.json()["status"] == "ok"
     assert health.json()["api_version"] == 2
+    assert health.json()["instance_id"]
 
     now = client.client.get("/api/time")
     assert now.status_code == 200
     assert isinstance(now.json()["time"], int)
+
+
+def test_instance_id_is_stable_and_latest_exposes_limits(server):
+    client, db = server
+    health = client.client.get("/health")
+    latest = client.get("/api/latest")
+    assert latest.status_code == 200
+    assert latest.json()["instance_id"] == health.json()["instance_id"]
+    assert latest.json()["instance_id"] == db.instance_id()
+    assert latest.json()["max_push_records"] == 200
+
+    # Opening the same database again (a restart) keeps the identity.
+    from app.database import Database
+
+    reopened = Database(db.db_path, fotos_dir=db.fotos_dir)
+    reopened.init()
+    assert reopened.instance_id() == db.instance_id()
+
+
+def test_instance_id_changes_for_a_new_database(tmp_path):
+    from app.database import Database
+
+    first = Database(str(tmp_path / "first.db"), fotos_dir=str(tmp_path / "photos-1"))
+    second = Database(str(tmp_path / "second.db"), fotos_dir=str(tmp_path / "photos-2"))
+    first.init()
+    second.init()
+
+    assert first.instance_id()
+    assert first.instance_id() == first.instance_id()
+    assert first.instance_id() != second.instance_id()
+
+
+def test_push_limit_is_advertised_and_enforced(tmp_path, monkeypatch):
+    client, _db = _fresh_server(tmp_path, monkeypatch, ELISDB_MAX_PUSH_RECORDS=3)
+    latest = client.get("/api/latest")
+    assert latest.status_code == 200
+    assert latest.json()["max_push_records"] == 3
+
+    response = client.post(
+        "/api/push",
+        _body([_record(id=str(i), nome=f"C{i}") for i in range(4)]),
+    )
+    assert response.status_code == 422
+    assert "3" in response.json()["detail"]
+    assert client.get("/api/pull").json()["records"] == []
 
 
 def test_missing_signature_is_rejected(server):
@@ -113,16 +160,63 @@ def test_replayed_request_is_rejected(server):
 def test_photo_upload_and_download_roundtrip(server):
     client, _db = server
     payload = b"\xff\xd8\xff\xe0fake-image-bytes"
-    assert client.put("/api/photos/f1", payload).status_code == 204
-    # A photo only gets a database row once a push references it.
+    # A photo can only be uploaded after a push references it.
     reference = [{"id": "f1", "mime": "image/jpeg", "ordem": 0}]
     client.post("/api/push", _body([_record(id="1", updated_at=1000, fotos=reference)]))
+    assert client.put("/api/photos/f1", payload).status_code == 204
     got = client.get("/api/photos/f1")
     assert got.status_code == 200
     assert got.content == payload
     assert got.headers["x-content-type-options"] == "nosniff"
     assert got.headers["content-disposition"] == "attachment"
     assert client.get("/api/photos/missing").status_code == 404
+
+
+def test_photo_upload_requires_a_reference(server):
+    client, _db = server
+    payload = b"\xff\xd8\xff\xe0orphan-bytes"
+    response = client.put("/api/photos/not-referenced", payload)
+    assert response.status_code == 404
+    assert "not referenced" in response.json()["detail"]
+
+
+def test_photo_quota_rejects_before_writing_the_file(tmp_path, monkeypatch):
+    client, db = _fresh_server(
+        tmp_path, monkeypatch, ELISDB_MAX_PHOTO_BYTES_TOTAL=10
+    )
+    reference = [
+        {"id": "p1", "mime": "image/jpeg", "ordem": 0},
+        {"id": "p2", "mime": "image/jpeg", "ordem": 1},
+    ]
+    client.post("/api/push", _body([_record(id="1", fotos=reference)]))
+
+    assert client.put("/api/photos/p1", b"\xff\xd8\xff\xe0" + b"x" * 4).status_code == 204
+    response = client.put("/api/photos/p2", b"\xff\xd8\xff\xe0" + b"y" * 4)
+    assert response.status_code == 413
+    assert not os.path.exists(db._foto("p2"))
+
+
+def test_periodic_gc_removes_an_orphan_without_a_push(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.database import Database
+    from app.main import create_app
+
+    monkeypatch.setenv("ELISDB_PHOTO_GC_INTERVAL_SECONDS", "1")
+    db = Database(str(tmp_path / "gc.db"), fotos_dir=str(tmp_path / "photos"))
+    db.init()
+    app = create_app(db)
+
+    with TestClient(app):
+        orphan = tmp_path / "photos" / "orphan.jpg"
+        orphan.write_bytes(b"\xff\xd8\xff\xe0orphan")
+        old = time.time() - 3600
+        os.utime(orphan, (old, old))
+        deadline = time.time() + 4
+        while orphan.exists() and time.time() < deadline:
+            time.sleep(0.1)
+
+    assert not orphan.exists()
 
 
 def test_photo_with_invalid_bytes_is_rejected(server):
@@ -343,12 +437,13 @@ def test_push_reports_photos_missing_on_the_server(server):
 def test_pull_carries_the_delivery_timestamp(server):
     client, _db = server
     client.post("/api/push", _body([_record(id="1", updated_at=1000)]))
-    client.post("/api/push", _body([_record(id="2", nome="Bea", updated_at=2000)]))
+    client.post("/api/push", _body([_record(id="2", nome="Bea", updated_at=1000)]))
 
-    # A deletion stamped behind the watermark must still be delivered: the
-    # tombstone keeps deleted_at=500 (LWW) and gets a later delivery value.
+    # A deletion newer than the record but far behind the server watermark must
+    # still be delivered: the tombstone keeps its device timestamp (LWW) and
+    # gets a later delivery value.
     now = int(time.time())
-    deleted = client.delete("/api/clients/2?deleted_at=500", timestamp=now)
+    deleted = client.delete("/api/clients/2?deleted_at=1500", timestamp=now)
     assert deleted.status_code == 204
 
     payload = client.get("/api/pull").json()
@@ -358,8 +453,38 @@ def test_pull_carries_the_delivery_timestamp(server):
 
     tombstone = payload["tombstones"][0]
     assert tombstone["id"] == "2"
-    assert tombstone["deleted_at"] == 500
+    assert tombstone["deleted_at"] == 1500
     assert tombstone["delivery_ts"] > client_row["delivery_ts"]
+
+
+def test_delete_rejects_negative_and_future_timestamps(server):
+    client, _db = server
+    client.post("/api/push", _body([_record(id="1", updated_at=1000)]))
+
+    negative = client.delete("/api/clients/1?deleted_at=-1")
+    assert negative.status_code == 400
+    assert "negative" in negative.json()["detail"]
+
+    future = client.delete("/api/clients/1?deleted_at=99999999999")
+    assert future.status_code == 400
+    assert "future" in future.json()["detail"]
+
+    payload = client.get("/api/pull").json()
+    assert [record["client"]["id"] for record in payload["records"]] == ["1"]
+
+
+def test_delete_older_than_the_stored_edit_is_rejected(server):
+    client, _db = server
+    client.post("/api/push", _body([_record(id="1", updated_at=2000)]))
+
+    response = client.delete("/api/clients/1?deleted_at=500")
+    assert response.status_code == 409
+    assert "not newer" in response.json()["detail"]
+
+    # The client is still present and no tombstone was written.
+    payload = client.get("/api/pull").json()
+    assert [record["client"]["id"] for record in payload["records"]] == ["1"]
+    assert payload["tombstones"] == []
 
 
 def test_client_status_defaults_to_active(server):
@@ -569,7 +694,7 @@ def test_startup_applies_configured_retention(tmp_path, monkeypatch):
         [],
         {"id": "key-1", "comment": "tester"},
     )
-    db.delete_client("1", deleted_at=1000)
+    db.delete_client("1", deleted_at=1001)
 
     monkeypatch.setenv("ELISDB_TOMBSTONE_RETENTION_DAYS", "1")
     monkeypatch.setenv("ELISDB_AUDIT_RETENTION_DAYS", "1")

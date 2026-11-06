@@ -17,6 +17,10 @@ class PhotoMaterializerTest {
 
   private fun download(bytes: ByteArray): suspend (String) -> ByteArray = { bytes }
 
+  private fun pngBytes(): ByteArray =
+    byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) +
+      byteArrayOf(1, 2, 3)
+
   @Test
   fun `same bytes are kept`() = runBlocking {
     val store = FakePhotoStore().apply { stage("file:/a.jpg", "aGk=") }
@@ -41,19 +45,23 @@ class PhotoMaterializerTest {
   }
 
   @Test
-  fun `mime or ordem mismatch forces materialize`() = runBlocking {
+  fun `declared mime mismatch is rejected and the previous file is kept`() = runBlocking {
     val store = FakePhotoStore().apply { stage("file:/a.jpg", "aGk=") }
     val m = PhotoMaterializer(store)
+    val png = pngBytes()
 
-    assertEquals(
-      "mime differs forces materialize",
-      MaterializeResult.Repointed("file:/foto_0.png"),
-      m.materialize(existing, server(sha256Of("aGk="), mime = "image/png"), download(decoded("aGk="))),
-    )
-    assertEquals(
-      "ordem differs forces materialize",
-      MaterializeResult.Repointed("file:/foto_1.jpg"),
-      m.materialize(existing, server(sha256Of("aGk="), ordem = 1), download(decoded("aGk="))),
-    )
+    try {
+      m.materialize(
+        existing,
+        server(PhotoHashes.sha256(png), mime = "image/jpeg"),
+        download(png),
+      )
+      error("expected a mismatch")
+    } catch (_: PhotoMimeMismatchException) {
+      // expected
+    }
+
+    assertEquals("nothing was stored", 0, store.storeCalls)
+    assertEquals("previous file is untouched", "aGk=", store.contentB64("file:/a.jpg"))
   }
 }

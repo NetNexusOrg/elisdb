@@ -10,6 +10,7 @@ import com.example.elisdb.remote.FotoOutDto
 import com.example.elisdb.remote.PullResponseDto
 import com.example.elisdb.remote.PushResultDto
 import com.example.elisdb.remote.TombstoneDto
+import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -28,6 +29,8 @@ class SyncCoordinatorTest {
     incrementalPullEnabled: Boolean = false,
     clockOffsetStore: FakeClockOffsetStore? = null,
     photoPushState: FakePhotoPushState? = null,
+    serverIdentityStore: FakeServerIdentityStore? = null,
+    maxPhotosPerClient: Int = 500,
     onWarning: (String) -> Unit = {},
     onError: (Throwable) -> Unit = {},
   ) =
@@ -40,6 +43,8 @@ class SyncCoordinatorTest {
       incrementalPullEnabled = incrementalPullEnabled,
       clockOffsetStore = clockOffsetStore,
       photoPushState = photoPushState,
+      serverIdentityStore = serverIdentityStore,
+      maxPhotosPerClient = maxPhotosPerClient,
       onWarning = onWarning,
       onError = onError,
     )
@@ -74,6 +79,45 @@ class SyncCoordinatorTest {
 
     assertFalse("pending should be cleared after ack", dao.data.first { it.id == "1" }.pending)
     assertEquals(1, api.pushed.size)
+  }
+
+  @Test
+  fun `push reuses an idempotency key while batch content is unchanged`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true)))
+    val api =
+      FakeSyncApi().apply {
+        pushResult = { records -> records.map { PushResultDto(it.client.id, "error") } }
+      }
+    val c = coord(dao, api = api)
+
+    c.sync()
+    c.sync()
+
+    assertEquals(2, api.pushIdempotencyKeys.size)
+    assertTrue("every batch carries a key", api.pushIdempotencyKeys.all { it != null })
+    assertEquals(
+      "an unchanged batch keeps its key across retries",
+      api.pushIdempotencyKeys[0],
+      api.pushIdempotencyKeys[1],
+    )
+  }
+
+  @Test
+  fun `push changes the idempotency key after a record edit`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, updatedAt = 100)))
+    val api =
+      FakeSyncApi().apply {
+        pushResult = { records -> records.map { PushResultDto(it.client.id, "error") } }
+      }
+    val c = coord(dao, api = api)
+
+    c.sync()
+    val firstKey = api.pushIdempotencyKeys.single()
+    dao.update(dao.data.first().copy(updatedAt = 200))
+    c.sync()
+    val secondKey = api.pushIdempotencyKeys.last()
+
+    assertNotEquals(firstKey, secondKey)
   }
 
   @Test
@@ -585,6 +629,108 @@ class SyncCoordinatorTest {
   }
 
   @Test
+  fun `photo sweeper skips staged files until they are no longer registered`() = runBlocking {
+    val staged = "file:/staged.jpg"
+    val orphan = "file:/orphan.jpg"
+    val photoStore =
+      FakePhotoStore().apply {
+        files.add(staged)
+        files.add(orphan)
+      }
+    val registry = FakeStagedPhotoRegistry(setOf(staged))
+    val sweeper = PhotoSweeper(FakeFotoDao(), photoStore, registry)
+
+    assertEquals(1, sweeper.sweep())
+    assertTrue("staged file kept", staged in photoStore.files)
+    assertFalse("orphan removed", orphan in photoStore.files)
+
+    registry.remove(staged)
+    assertEquals("staged file becomes sweepable after removal", 1, sweeper.sweep())
+    assertFalse(staged in photoStore.files)
+  }
+
+  @Test
+  fun `photo sweeper leaves young files alone and removes old orphans`() = runBlocking {
+    val young = File.createTempFile("elisdb-young", ".jpg").apply { writeText("young") }
+    val old = File.createTempFile("elisdb-old", ".jpg").apply {
+      writeText("old")
+      setLastModified(System.currentTimeMillis() - 2 * 60 * 60 * 1000)
+    }
+    try {
+      val photoStore =
+        FakePhotoStore().apply {
+          files.add(young.absolutePath)
+          files.add(old.absolutePath)
+        }
+      val sweeper = PhotoSweeper(FakeFotoDao(), photoStore, minAgeSeconds = 60 * 60)
+
+      assertEquals(1, sweeper.sweep())
+      assertTrue("young file kept during grace period", young.absolutePath in photoStore.files)
+      assertFalse("old orphan removed", old.absolutePath in photoStore.files)
+    } finally {
+      young.delete()
+      old.delete()
+    }
+  }
+
+  @Test
+  fun `pull preserves a local edit newer than the tombstone and re-queues it`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("1", pending = false, updatedAt = 1_000, nome = "Maria")))
+    val api =
+      FakeSyncApi().apply {
+        pullResponse =
+          pullResponseOf(
+            tombstones = listOf(TombstoneDto(id = "1", deletedAt = 500, deliveryTs = 900)),
+          )
+      }
+    val c = coord(clienteDao = dao, api = api)
+
+    c.sync()
+
+    val local = dao.data.single { it.id == "1" }
+    assertTrue("newer local edit is kept and queued for push", local.pending)
+    assertFalse("newer local edit is not marked as a pending deletion", local.deletePending)
+    assertFalse("newer local edit is not demoted to local-only", local.localOnly)
+  }
+
+  @Test
+  fun `pull removes a local record older than the tombstone`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("1", pending = false, updatedAt = 100, nome = "Maria")))
+    val api =
+      FakeSyncApi().apply {
+        pullResponse =
+          pullResponseOf(
+            tombstones = listOf(TombstoneDto(id = "1", deletedAt = 500, deliveryTs = 900)),
+          )
+      }
+    val c = coord(clienteDao = dao, api = api)
+
+    c.sync()
+
+    assertTrue("older local record is deleted", dao.data.none { it.id == "1" })
+  }
+
+  private class FakeStagedPhotoRegistry(initial: Set<String> = emptySet()) : StagedPhotoRegistry {
+    private val paths = initial.toMutableSet()
+
+    override fun add(path: String) {
+      paths += path
+    }
+
+    override fun remove(path: String) {
+      paths -= path
+    }
+
+    override fun paths(): Set<String> = paths.toSet()
+
+    override fun pruneOlderThan(maxAgeMillis: Long) = Unit
+
+    override fun clear() {
+      paths.clear()
+    }
+  }
+
+  @Test
   fun `pull preserves photos of a client already stored locally`() = runBlocking {
     val dao = FakeClienteDao(listOf(cliente("s1", pending = false, updatedAt = 300L)))
     val fotoDao =
@@ -824,7 +970,7 @@ class SyncCoordinatorTest {
   }
 
   @Test
-  fun `stale ack clears the watermark once so the pull re-fetches the server version`() = runBlocking {
+  fun `stale ack keeps the watermark and refreshes the winning server version`() = runBlocking {
     val dao =
       FakeClienteDao(
         listOf(
@@ -835,21 +981,23 @@ class SyncCoordinatorTest {
     val api =
       FakeSyncApi().apply {
         pushResult = { it.map { r -> PushResultDto(r.client.id, "stale") } }
-        pullResponse =
-          pullResponseOf(
-            serverItem(id = "1", nome = "MARIA", updatedAt = 700),
-            serverItem(id = "2", nome = "JOAO", updatedAt = 700),
+        clientsResponse =
+          listOf(
+            ClienteOutDto(id = "1", nome = "Maria", updatedAt = 700),
+            ClienteOutDto(id = "2", nome = "Joao", updatedAt = 700),
           )
+        pullResponse = pullResponseOf()
       }
     val watermark = FakePullWatermark(value = 500L)
     val c = coord(clienteDao = dao, api = api, pullWatermark = watermark, incrementalPullEnabled = true)
 
     c.sync()
 
-    assertEquals("watermark cleared only once per sync", 1, watermark.clears)
-    assertEquals("pull restarts from the beginning", listOf<Long?>(null), api.pulledSinces)
-    assertEquals("watermark re-advanced by the full pull", 700L, watermark.value)
+    assertEquals("stale must not clear the watermark", 0, watermark.clears)
+    assertEquals("pull stays incremental", listOf<Long?>(500L), api.pulledSinces)
+    assertEquals("watermark kept", 500L, watermark.value)
     assertEquals("server version applied", "MARIA", dao.data.first { it.id == "1" }.nome)
+    assertEquals("server version applied", "JOAO", dao.data.first { it.id == "2" }.nome)
   }
 
   @Test
@@ -997,7 +1145,7 @@ class SyncCoordinatorTest {
       )
     val photoStore = FakePhotoStore().apply { stage("file:/f1.jpg", "aGk=") }
     val pushState = FakePhotoPushState().apply { hashes["1"] = mapOf("f1" to PhotoHashes.sha256(byteArrayOf(0x68, 0x69))) }
-    val api = FakeSyncApi()
+    val api = FakeSyncApi().apply { serverPhotos += "f1" }
     val c = coord(clienteDao = dao, fotoDao = fotoDao, api = api, photoStore = photoStore, photoPushState = pushState)
 
     c.sync()
@@ -1074,6 +1222,7 @@ class SyncCoordinatorTest {
     val state = FakePhotoPushState()
     val api =
       FakeSyncApi().apply {
+        failUpload = java.io.IOException("upload failed")
         pushResult = { records ->
           records.map { PushResultDto(it.client.id, "accepted", missingPhotos = listOf("p1")) }
         }
@@ -1084,7 +1233,7 @@ class SyncCoordinatorTest {
     c.sync()
 
     assertEquals(
-      "photo the server never stored must be uploaded again",
+      "a failed upload must not be recorded as stored",
       emptyMap<String, String>(),
       state.getHashes("1"),
     )
@@ -1093,7 +1242,7 @@ class SyncCoordinatorTest {
 
     // The next sync retries the upload; once the server stores it, the client
     // is acknowledged and the hash is recorded.
-    api.pushResult = { records -> records.map { PushResultDto(it.client.id, "accepted") } }
+    api.failUpload = null
     api.pullResponse = pullResponseOf(serverItem(id = "1", nome = "C1", updatedAt = 100))
 
     c.sync()
@@ -1230,4 +1379,211 @@ class SyncCoordinatorTest {
     assertEquals("watermark moves past the stuck record", 200L, watermark.value)
     assertTrue("the pending record is kept", dao.data.any { it.id == "1" && it.pending })
   }
+
+  @Test
+  fun `push splits more records than one batch`() = runBlocking {
+    val dao = FakeClienteDao((1..201).map { cliente("$it", pending = true, nome = "C$it") })
+    val api = FakeSyncApi().apply {
+      maxPushRecords = 100
+      latestUpdatedAt = 0
+    }
+    val c = coord(clienteDao = dao, api = api)
+
+    c.sync()
+
+    assertEquals(listOf(100, 100, 1), api.pushed.map { it.size })
+    assertTrue("every record acknowledged across batches", dao.data.none { it.pending })
+  }
+
+  @Test
+  fun `a rejected batch is reduced until the bad record is isolated`() = runBlocking {
+    val dao = FakeClienteDao((1..3).map { cliente("$it", pending = true, nome = "C$it") })
+    val api = FakeSyncApi().apply {
+      maxAcceptedBatch = 2
+      latestUpdatedAt = 0
+    }
+    val c = coord(clienteDao = dao, api = api)
+
+    c.sync()
+
+    assertEquals("the oversized batch is split down to single records", listOf(1, 1, 1), api.pushed.map { it.size })
+    assertTrue("all valid records accepted", dao.data.none { it.pending })
+  }
+
+  @Test
+  fun `a client above the photo limit is skipped before any upload`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, nome = "Ana")))
+    val fotoDao = FakeFotoDao((1..501).map { Foto(id = "f$it", clienteId = "1", uriLocal = "file:/f$it.jpg") })
+    val api = FakeSyncApi().apply { latestUpdatedAt = 0 }
+    var warning: String? = null
+    val c = coord(clienteDao = dao, fotoDao = fotoDao, api = api, onWarning = { warning = it })
+
+    c.sync()
+
+    assertEquals("no push is attempted for the oversized client", 0, api.pushCalls)
+    assertTrue("no photo upload is attempted", api.uploaded.isEmpty())
+    assertTrue("client remains pending", dao.data.single { it.id == "1" }.pending)
+    assertTrue("actionable warning surfaced", warning?.contains("501") == true)
+  }
+
+  @Test
+  fun `a rejected push does not upload its photos`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, nome = "Ana")))
+    val fotoDao = FakeFotoDao(listOf(Foto(id = "f1", clienteId = "1", uriLocal = "file:/f1.jpg")))
+    val photoStore = FakePhotoStore().apply { stage("file:/f1.jpg", "aGk=") }
+    val api = FakeSyncApi().apply {
+      maxAcceptedBatch = 0
+      latestUpdatedAt = 0
+    }
+    val c = coord(clienteDao = dao, fotoDao = fotoDao, api = api, photoStore = photoStore)
+
+    c.sync()
+
+    assertEquals("no upload before a push is accepted", 0, api.uploaded.size)
+    assertTrue("client remains pending", dao.data.single { it.id == "1" }.pending)
+  }
+
+  @Test
+  fun `an incomplete full pull preserves local records`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("local", pending = false, nome = "Local")))
+    val api = FakeSyncApi().apply {
+      pullResponse = PullResponseDto(nextSince = 100, nextSinceId = null)
+    }
+    val c = coord(clienteDao = dao, api = api)
+
+    c.sync()
+
+    assertTrue("local record preserved after an incomplete pull", dao.data.any { it.id == "local" })
+    assertFalse("incomplete pull does not mark the record local-only", dao.data.single { it.id == "local" }.localOnly)
+  }
+
+  @Test
+  fun `a completed empty pull preserves local records as local-only`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("local", pending = false, nome = "Local")))
+    val api = FakeSyncApi().apply {
+      latestUpdatedAt = 0
+      pullResponse = PullResponseDto()
+    }
+    val c = coord(clienteDao = dao, api = api)
+
+    c.sync()
+
+    val local = dao.data.singleOrNull { it.id == "local" }
+    assertTrue("record preserved", local != null)
+    assertTrue("record exposed as local-only", local!!.localOnly)
+  }
+
+  @Test
+  fun `explicit replacement snapshots before deleting local-only records`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("local", pending = false, nome = "Local")))
+    val api = FakeSyncApi().apply {
+      latestUpdatedAt = 0
+      pullResponse = PullResponseDto()
+    }
+    val c = coord(clienteDao = dao, api = api)
+    var snapshotTaken = false
+
+    val outcome = c.replaceLocalWithServer { snapshotTaken = true }
+
+    assertEquals(SyncOutcome.Success, outcome)
+    assertTrue("snapshot runs before deletion", snapshotTaken)
+    assertTrue("local-only record removed only on explicit replacement", dao.data.none { it.id == "local" })
+  }
+
+  @Test
+  fun `a failed snapshot aborts destructive replacement`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("local", pending = false, nome = "Local")))
+    val api = FakeSyncApi().apply { pullResponse = PullResponseDto() }
+    val c = coord(clienteDao = dao, api = api)
+
+    val outcome = c.replaceLocalWithServer { throw java.io.IOException("no space") }
+
+    assertEquals(SyncOutcome.TransientError, outcome)
+    assertTrue("local data survives a failed snapshot", dao.data.any { it.id == "local" })
+  }
+
+  @Test
+  fun `server identity change is reported and does not delete local data`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("local", pending = false, nome = "Local")))
+    val identity = FakeServerIdentityStore()
+    val api = FakeSyncApi().apply {
+      instanceId = "server-a"
+      latestUpdatedAt = 0
+      pullResponse = PullResponseDto()
+    }
+    val c = coord(clienteDao = dao, api = api, serverIdentityStore = identity)
+
+    c.sync()
+    assertEquals("server-a", identity.value)
+
+    api.instanceId = "server-b"
+    val outcome = c.sync()
+
+    assertTrue("identity change is reported", outcome is SyncOutcome.SuccessReport && outcome.identityChanged)
+    assertEquals("new identity stored", "server-b", identity.value)
+    assertTrue("local data preserved across an identity change", dao.data.any { it.id == "local" })
+  }
+
+
+  @Test
+  fun `batch size never exceeds a server limit below the client default`() = runBlocking {
+    val dao = FakeClienteDao((1..5).map { cliente("$it", pending = true, nome = "C$it") })
+    val api = FakeSyncApi().apply {
+      maxPushRecords = 2
+      latestUpdatedAt = 0
+    }
+    val c = coord(clienteDao = dao, api = api)
+
+    c.sync()
+
+    assertEquals(listOf(2, 2, 1), api.pushed.map { it.size })
+  }
+
+  @Test
+  fun `a failed batch does not prevent later batches`() = runBlocking {
+    val dao = FakeClienteDao((1..201).map { cliente("$it", pending = true, nome = "C$it") })
+    val api = FakeSyncApi().apply {
+      maxPushRecords = 100
+      failPushOnce = true
+      latestUpdatedAt = 0
+    }
+    val c = coord(clienteDao = dao, api = api)
+
+    c.sync()
+
+    assertEquals("the first batch failed and the rest were sent", 2, api.pushed.size)
+    assertEquals(100, api.pushed[0].size)
+    assertEquals(1, api.pushed[1].size)
+    assertEquals("only the failed batch stays pending", 100, dao.data.count { it.pending })
+  }
+
+
+  @Test
+  fun `a client exactly at the photo limit is still pushed`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, nome = "Ana")))
+    val fotoDao = FakeFotoDao(
+      listOf(
+        Foto(id = "f1", clienteId = "1", uriLocal = "file:/f1.jpg", mime = "image/jpeg", ordem = 0),
+        Foto(id = "f2", clienteId = "1", uriLocal = "file:/f2.jpg", mime = "image/jpeg", ordem = 1),
+      )
+    )
+    val photoStore = FakePhotoStore().apply {
+      stage("file:/f1.jpg", "aGk=")
+      stage("file:/f2.jpg", "aGk=")
+    }
+    val api = FakeSyncApi().apply { latestUpdatedAt = 0 }
+    val c = coord(
+      clienteDao = dao,
+      fotoDao = fotoDao,
+      api = api,
+      photoStore = photoStore,
+      maxPhotosPerClient = 2,
+    )
+
+    c.sync()
+
+    assertEquals("the at-limit client is not rejected", 1, api.pushCalls)
+    assertTrue("client acknowledged", !dao.data.single { it.id == "1" }.pending)
+  }
+
 }

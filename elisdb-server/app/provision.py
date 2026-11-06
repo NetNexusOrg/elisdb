@@ -9,9 +9,30 @@ Provisioning is idempotent: users that already have a key are skipped.
 
 import os
 import sys
+from urllib.parse import urlparse
 
 from .database import Database
-from .keys import issue_and_register
+from .keys import issue_and_register, safe_config_path
+
+
+def validate_server_url(server_url: str) -> None:
+    """Reject a missing, placeholder, or non-HTTP server URL.
+
+    Provisioning would otherwise issue keys pointing at an address the phones
+    cannot reach (or an operator forgot to edit), and the failure would only
+    appear later on the device.
+    """
+    if not server_url:
+        raise ValueError("ELISDB_SERVER_URL is required to provision users")
+    if "<" in server_url or ">" in server_url:
+        raise ValueError(
+            "ELISDB_SERVER_URL still contains a placeholder; set the real URL"
+        )
+    parsed = urlparse(server_url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise ValueError(
+            "ELISDB_SERVER_URL must be an absolute http:// or https:// URL"
+        )
 
 
 def provision_users(
@@ -39,10 +60,14 @@ def provision_users(
         user = user.strip()
         if not user:
             continue
+        try:
+            output = safe_config_path(configs_dir, user)
+        except ValueError as exc:
+            print(f"error: skipping user {user!r}: {exc}", file=sys.stderr)
+            continue
         desired.add(user)
         if user in existing:
             continue
-        output = os.path.join(configs_dir, f"{user}.config.json")
         issue_and_register(db, user, server_url, output=output, provisioned=True)
         provisioned.append(user)
 
@@ -53,11 +78,19 @@ def provision_users(
         if comment in desired:
             continue
         db.remove_key(key["id"])
-        config_path = os.path.join(configs_dir, f"{comment}.config.json")
         try:
-            os.remove(config_path)
-        except FileNotFoundError:
-            pass
+            config_path = safe_config_path(configs_dir, comment)
+        except ValueError as exc:
+            print(
+                f"warning: not deleting config for {comment!r}: {exc}",
+                file=sys.stderr,
+            )
+            config_path = None
+        if config_path is not None:
+            try:
+                os.remove(config_path)
+            except FileNotFoundError:
+                pass
         revoked.append(comment)
 
     return provisioned, revoked
@@ -66,9 +99,12 @@ def provision_users(
 def main() -> int:
     users = [u for u in os.environ.get("ELISDB_USERS", "").split(",") if u.strip()]
     server_url = os.environ.get("ELISDB_SERVER_URL", "").strip()
-    if users and not server_url:
-        print("error: ELISDB_SERVER_URL is required to provision users", file=sys.stderr)
-        return 2
+    if users:
+        try:
+            validate_server_url(server_url)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
 
     db_dir = os.path.dirname(os.path.abspath(os.environ.get("ELISDB_DB", "elisdb.db")))
     configs_dir = os.environ.get("ELISDB_CONFIGS_DIR") or os.path.join(db_dir, "configs")

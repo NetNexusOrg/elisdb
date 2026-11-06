@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.Sync
@@ -42,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -88,6 +90,7 @@ fun ConfigScreen(
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
   var showClearConfigDialog by remember { mutableStateOf(false) }
+  var showReplaceLocalDialog by remember { mutableStateOf(false) }
   val importConfigLauncher =
     rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
       if (uri != null) {
@@ -167,7 +170,7 @@ fun ConfigScreen(
             horizontalArrangement = Arrangement.Center,
           ) {
             Icon(
-              if (inSync) Icons.Default.CheckCircle else Icons.Default.CompareArrows,
+              if (inSync) Icons.Default.CheckCircle else Icons.AutoMirrored.Filled.CompareArrows,
               contentDescription = null,
               tint =
                 if (inSync) MaterialTheme.colorScheme.primary
@@ -211,6 +214,36 @@ fun ConfigScreen(
             centered = true,
           )
           state.syncNotice?.let { notice -> NoticeBanner(notice) }
+          if (state.serverIdentityChanged) {
+            NoticeBanner(
+              "O servidor mudou ou foi restaurado. Os dados locais foram preservados; " +
+                "confirma abaixo se queres substituí-los pelos do servidor."
+            )
+          }
+          if (state.localOnlyCount > 0) {
+            NoticeBanner(
+              "${state.localOnlyCount} registo(s) apenas neste dispositivo: o servidor não os tem. " +
+                "Foram preservados e não serão apagados automaticamente."
+            )
+          }
+          if (state.localOnlyCount > 0 || state.serverIdentityChanged) {
+            OutlinedButton(
+              onClick = { showReplaceLocalDialog = true },
+              enabled = !syncing && !state.replacingLocal,
+              modifier = Modifier.fillMaxWidth(),
+            ) {
+              Icon(
+                Icons.AutoMirrored.Filled.CompareArrows,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+              )
+              Spacer(Modifier.width(8.dp))
+              Text(
+                if (state.replacingLocal) "A substituir…"
+                else "Substituir dados locais pelos do servidor"
+              )
+            }
+          }
           Text(
             lastSync,
             style = MaterialTheme.typography.bodySmall,
@@ -234,6 +267,26 @@ fun ConfigScreen(
             }
             Spacer(Modifier.width(8.dp))
             Text(if (syncing) "A sincronizar…" else "Sincronizar")
+          }
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                "Sincronização automática",
+                style = MaterialTheme.typography.titleSmall,
+              )
+              Text(
+                "A cada 15 min, quando há rede.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
+            Switch(
+              checked = state.periodicSyncEnabled,
+              onCheckedChange = syncViewModel::setPeriodicSync,
+            )
           }
           ClockWarning(
             skewSeconds = state.clockSkewSeconds,
@@ -293,6 +346,41 @@ fun ConfigScreen(
         }
       }
     }
+  }
+
+  if (showReplaceLocalDialog) {
+    AlertDialog(
+      onDismissRequest = { showReplaceLocalDialog = false },
+      title = {
+        Text(
+          "Substituir dados locais?",
+          textAlign = TextAlign.Center,
+          modifier = Modifier.fillMaxWidth(),
+        )
+      },
+      text = {
+        Text(
+          "A app vai criar primeiro uma cópia de segurança local da base de dados e das fotos. " +
+            "Depois, os registos que o servidor não tem (incluindo os marcados como apenas locais) " +
+            "serão apagados deste dispositivo. Esta ação não pode ser desfeita sem restaurar a cópia.",
+          textAlign = TextAlign.Center,
+          modifier = Modifier.fillMaxWidth(),
+        )
+      },
+      confirmButton = {
+        TextButton(
+          onClick = {
+            showReplaceLocalDialog = false
+            syncViewModel.replaceLocalWithServer()
+          }
+        ) {
+          Text("Substituir")
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { showReplaceLocalDialog = false }) { Text("Cancelar") }
+      },
+    )
   }
 
   if (showClearConfigDialog) {

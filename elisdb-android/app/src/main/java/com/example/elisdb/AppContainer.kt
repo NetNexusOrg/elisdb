@@ -16,10 +16,12 @@ import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_7_8
 import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_8_9
 import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_9_10
 import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_10_11
+import com.example.elisdb.data.local.AppDatabase.Companion.MIGRATION_11_12
 import com.example.elisdb.data.local.RoomPullWatermark
 import com.example.elisdb.location.LocationService
 import com.example.elisdb.remote.ApiClient
 import com.example.elisdb.remote.ApiClientProvider
+import com.example.elisdb.remote.ClientHolder
 import com.example.elisdb.settings.PrefsSettingsStore
 import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.ui.cliente.ClientViewPreferences
@@ -28,35 +30,63 @@ import com.example.elisdb.sync.ClockOffsetStore
 import com.example.elisdb.sync.ClockSync
 import com.example.elisdb.sync.FilePhotoStore
 import com.example.elisdb.sync.LastSyncStore
+import com.example.elisdb.sync.PeriodicSyncScheduler
+import com.example.elisdb.sync.PeriodicSyncSettings
 import com.example.elisdb.sync.PhotoPushState
+import com.example.elisdb.sync.PhotoStoreGuard
 import com.example.elisdb.sync.PhotoSweeper
 import com.example.elisdb.sync.PrefsClockOffsetStore
 import com.example.elisdb.sync.PrefsLastSyncStore
+import com.example.elisdb.sync.PrefsPeriodicSyncSettings
+import com.example.elisdb.sync.LocalSnapshotStore
 import com.example.elisdb.sync.PrefsPhotoPushState
+import com.example.elisdb.sync.PrefsServerIdentityStore
+import com.example.elisdb.sync.PrefsStagedPhotoRegistry
+import com.example.elisdb.sync.ServerIdentityStore
+import com.example.elisdb.sync.StagedPhotoRegistry
 import com.example.elisdb.sync.SyncCoordinator
 import com.example.elisdb.sync.SyncCoordinatorProvider
 import com.example.elisdb.sync.SyncManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.sync.withLock
 
 class AppContainer(context: Context) {
   val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
   val database: AppDatabase =
     Room.databaseBuilder(context, AppDatabase::class.java, "elisdb.db")
-      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
       .build()
 
   val locationService: LocationService = LocationService(context)
 
   val settingsStore: SettingsStore = PrefsSettingsStore(context)
 
+  /** Opt-in background sync preference (disabled by default). */
+  val periodicSyncSettings: PeriodicSyncSettings = PrefsPeriodicSyncSettings(context)
+
+  /** Schedules the periodic sync and one-off transient retries. */
+  val periodicSyncScheduler: PeriodicSyncScheduler =
+    PeriodicSyncScheduler(
+      context,
+      periodicSyncSettings,
+      isConfigured = {
+        val settings = settingsStore.settings()
+        settings.baseUrl.isNotBlank() && settings.signingKey.isNotBlank()
+      },
+    )
+
   val clientViewPreferences: ClientViewPreferences = PrefsClientViewPreferences(context)
 
   val photoStore: FilePhotoStore = FilePhotoStore(context)
 
+  /** Photos staged in the form but not saved yet, protected from the sweeper. */
+  val stagedPhotoRegistry: StagedPhotoRegistry = PrefsStagedPhotoRegistry(context)
+
   /** Reclaims files no photo row references; run post-pull and on app start. */
-  val photoSweeper: PhotoSweeper = PhotoSweeper(database.fotoDao(), photoStore)
+  val photoSweeper: PhotoSweeper =
+    PhotoSweeper(database.fotoDao(), photoStore, stagedPhotoRegistry)
 
   /** High-water mark of server `updated_at` seen on pulls, used for incremental pulls (R7). */
   val watermark = RoomPullWatermark(database.syncMetaDao())
@@ -85,65 +115,92 @@ class AppContainer(context: Context) {
    * an unconfigured app or an offline device simply keeps the previous offset.
    */
   suspend fun refreshClock() {
-    val api = runCatching { createApiClient() }.getOrNull() ?: return
-    runCatching { clockSync.observeServerTime(api.fetchServerTime()) }
+    runCatching {
+      withApiClient { api -> clockSync.observeServerTime(api.fetchServerTime()) }
+    }
   }
 
   /** Photo content hashes at last successful push, for incremental photo push. */
   val photoPushState: PhotoPushState = PrefsPhotoPushState(context)
 
-  /** Returns the API client built from the current runtime settings. */
-  fun createApiClient(): ApiClient = apiClient
+  /** Identity of the server database this app is configured against. */
+  val serverIdentityStore: ServerIdentityStore = PrefsServerIdentityStore(context)
+
+  /** Recoverable local snapshot used before an explicit destructive replacement. */
+  val snapshotStore: LocalSnapshotStore = LocalSnapshotStore(context)
+
+  private val apiClients =
+    ClientHolder(
+      currentSignature = {
+        val settings = settingsStore.settings()
+        "${settings.baseUrl}|${settings.signingKey}"
+      },
+      factory = { ApiClientProvider.create(settingsStore, clockSync) },
+      close = { it.close() },
+    )
 
   /**
-   * A single long-lived [ApiClient] (and its underlying HTTP connection pool)
-   * shared by every request for the process lifetime, so syncs and history
-   * fetches do not leak a new client per call. The client is rebuilt only when
-   * the effective server settings (base URL or signing key) change; the
-   * previous client is closed first.
+   * Runs [block] with the API client for the current settings. The lease keeps
+   * the client open until the request finishes, even if the settings change
+   * concurrently; a replaced client closes only after its last request.
    */
-  val apiClient: ApiClient
-    get() {
-      val settings = settingsStore.settings()
-      val signature = "${settings.baseUrl}|${settings.signingKey}"
-      if (cachedApiClient == null || cachedApiSignature != signature) {
-        cachedApiClient?.close()
-        cachedApiClient = ApiClientProvider.create(settingsStore, clockSync)
-        cachedApiSignature = signature
-      }
-      return cachedApiClient!!
+  suspend fun <T> withApiClient(block: suspend (ApiClient) -> T): T {
+    val lease = apiClients.acquire()
+    return try {
+      block(lease.client)
+    } finally {
+      lease.release()
     }
+  }
 
-  private var cachedApiClient: ApiClient? = null
-  private var cachedApiSignature: String? = null
+  /** Builds a coordinator bound to the current settings and local stores. */
+  private fun buildSyncCoordinator(): SyncCoordinator {
+    val lease = apiClients.acquire()
+    return try {
+      buildSyncCoordinator(lease.client, onFinished = { lease.release() })
+    } catch (e: Exception) {
+      lease.release()
+      throw e
+    }
+  }
+
+  private fun buildSyncCoordinator(api: ApiClient, onFinished: () -> Unit): SyncCoordinator =
+    SyncCoordinator(
+      api = api,
+      clienteDao = database.clienteDao(),
+      fotoDao = database.fotoDao(),
+      photoStore = photoStore,
+      transaction = { block -> database.withTransaction { block() } },
+      pullWatermark = watermark,
+      photoSweeper = photoSweeper,
+      clockOffsetStore = clockOffsetStore,
+      photoPushState = photoPushState,
+      serverIdentityStore = serverIdentityStore,
+      onWarning = { msg -> Log.w("ElisdbSync", msg) },
+      onError = { e -> Log.w("ElisdbSync", "sync run failed", e) },
+      onFinished = onFinished,
+    )
 
   val syncManager: SyncManager =
     SyncManager(
-      SyncCoordinatorProvider {
-        SyncCoordinator(
-          api = createApiClient(),
-          clienteDao = database.clienteDao(),
-          fotoDao = database.fotoDao(),
-          photoStore = photoStore,
-          transaction = { block -> database.withTransaction { block() } },
-          pullWatermark = watermark,
-          photoSweeper = photoSweeper,
-          clockOffsetStore = clockOffsetStore,
-          photoPushState = photoPushState,
-          onWarning = { msg -> Log.w("ElisdbSync", msg) },
-          onError = { e -> Log.w("ElisdbSync", "sync run failed", e) },
-        )
-      },
+      SyncCoordinatorProvider { buildSyncCoordinator() },
       clienteDao = database.clienteDao(),
       pullWatermark = watermark,
       fetchServerInfo = {
         try {
-          createApiClient().fetchServerInfo(timestamp = normalizedEpochSeconds())
+          withApiClient { api -> api.fetchServerInfo(timestamp = normalizedEpochSeconds()) }
         } catch (e: Exception) {
           null
         }
       },
       lastSyncStore = lastSyncStore,
+      replaceLocal = {
+        buildSyncCoordinator().replaceLocalWithServer {
+          // Keep the snapshot consistent with the photo sweep/materialization
+          // that may be running on the app-start path.
+          PhotoStoreGuard.mutex.withLock { snapshotStore.create() }
+        }
+      },
     )
 
   val repository: ClienteRepositoryImpl =
@@ -154,6 +211,7 @@ class AppContainer(context: Context) {
       database.fotoDao(),
       syncManager,
       clockOffsetStore,
+      stagedPhotoRegistry,
     )
 
   /**
@@ -164,10 +222,15 @@ class AppContainer(context: Context) {
    * that follows reconciles them.
    */
   suspend fun resetSyncState() {
+    // Stop and await the old run before clearing persisted state, so it cannot
+    // write a stale watermark/hash after the reset.
+    syncManager.resetState()
     watermark.clear()
     photoPushState.clearAll()
     clockOffsetStore.clear()
     lastSyncStore.clear()
-    syncManager.resetState()
+    serverIdentityStore.clear()
+    // Re-evaluate the background schedule against the new (or removed) server.
+    periodicSyncScheduler.scheduleIfEnabled()
   }
 }

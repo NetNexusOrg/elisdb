@@ -8,7 +8,10 @@ import com.example.elisdb.remote.AuthCause
 import com.example.elisdb.remote.AuthException
 import com.example.elisdb.remote.ClienteComFotosDto
 import com.example.elisdb.remote.ConfigException
+import com.example.elisdb.remote.RecordDto
+import com.example.elisdb.remote.ServerException
 import com.example.elisdb.remote.TombstoneDto
+import java.security.MessageDigest
 import java.util.Locale
 import kotlinx.coroutines.sync.withLock
 
@@ -32,12 +35,16 @@ class SyncCoordinator(
   private val photoSweeper: PhotoSweeper? = null,
   private val clockOffsetStore: ClockOffsetStore? = null,
   private val photoPushState: PhotoPushState? = null,
+  private val serverIdentityStore: ServerIdentityStore? = null,
+  private val maxPhotosPerClient: Int = 500,
   private val onWarning: (String) -> Unit = {},
   /**
    * Receives the unexpected exception that aborts a run. The UI only shows a
    * generic network message, so this keeps the real cause diagnosable.
    */
   private val onError: (Throwable) -> Unit = {},
+  /** Releases the API client lease after a run, when one was supplied. */
+  private val onFinished: () -> Unit = {},
 ) {
   /** Device clock (epoch seconds) shifted by the last-known server offset, when available. */
   private fun normalizedEpochSeconds(): Long =
@@ -46,13 +53,20 @@ class SyncCoordinator(
   suspend fun sync(): SyncOutcome =
     try {
       refreshClockOffset()
-      val (staleNames, mergedNome) = pushEdits()
+      val push = pushEdits()
       pushDeletions()
-      pull()
+      val pull = pull()
       when {
-        mergedNome != null -> SyncOutcome.DuplicateMerged(mergedNome)
-        staleNames.isNotEmpty() ->
-          SyncOutcome.SuccessWithStatuses(accepted = 0, stale = staleNames)
+        push.mergedNome != null && push.warnings.isEmpty() && !pull.identityChanged ->
+          SyncOutcome.DuplicateMerged(push.mergedNome)
+        push.staleNames.isNotEmpty() && push.warnings.isEmpty() && !pull.identityChanged ->
+          SyncOutcome.SuccessWithStatuses(accepted = 0, stale = push.staleNames)
+        push.warnings.isNotEmpty() || pull.identityChanged ->
+          SyncOutcome.SuccessReport(
+            warnings = push.warnings,
+            identityChanged = pull.identityChanged,
+            stale = push.staleNames,
+          )
         else -> SyncOutcome.Success
       }
     } catch (e: ConfigException) {
@@ -65,6 +79,33 @@ class SyncCoordinator(
     } catch (e: Exception) {
       onError(e)
       SyncOutcome.TransientError
+    } finally {
+      onFinished()
+    }
+
+  /**
+   * Explicit, user-confirmed replacement of local data by a complete server
+   * dataset. A snapshot callback MUST succeed before anything is removed; the
+   * caller is responsible for obtaining confirmation first.
+   */
+  suspend fun replaceLocalWithServer(snapshot: suspend () -> Unit): SyncOutcome =
+    try {
+      snapshot()
+      refreshClockOffset()
+      pull(destructive = true, forceFull = true)
+      SyncOutcome.Success
+    } catch (e: ConfigException) {
+      SyncOutcome.ConfigFault
+    } catch (e: AuthException) {
+      if (e.kind == AuthCause.STALE_CLOCK) SyncOutcome.ClockFailure
+      else SyncOutcome.AuthFailure
+    } catch (e: kotlinx.coroutines.CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      onError(e)
+      SyncOutcome.TransientError
+    } finally {
+      onFinished()
     }
 
   /**
@@ -103,118 +144,311 @@ class SyncCoordinator(
     transaction(block)
   }
 
-  /** Returns (stale names, merged name) after pushing pending edits. */
-  private suspend fun pushEdits(): Pair<List<String>, String?> {
-    val pending = clienteDao.getPending().filter { !it.deletePending }
-    if (pending.isEmpty()) return Pair(emptyList(), null)
+  private data class PushRecord(
+    val cliente: Cliente,
+    val record: RecordDto,
+    val hashes: Map<String, String>,
+    val fotos: List<Foto>,
+  )
 
-    val records = mutableListOf<com.example.elisdb.remote.RecordDto>()
-    val hashesByCliente = mutableMapOf<String, Map<String, String>>()
+  private data class PushReport(
+    val staleNames: List<String> = emptyList(),
+    val mergedNome: String? = null,
+    val warnings: List<String> = emptyList(),
+  )
+
+  /**
+   * Sends pending edits in bounded batches.
+   *
+   * Photos are referenced by metadata first; the server answers with
+   * `missing_photos`, and only those bytes are uploaded afterwards. A rejected
+   * batch therefore never leaves uploaded files orphaned, and one bad record
+   * cannot block every later batch: a 422 is retried with a smaller batch and
+   * eventually isolated to the single offending record.
+   */
+  private suspend fun pushEdits(): PushReport {
+    val pending = clienteDao.getPending().filter { !it.deletePending }
+    if (pending.isEmpty()) return PushReport()
+
+    val warnings = mutableListOf<String>()
+    val batchRecords = mutableListOf<PushRecord>()
     for (cliente in pending) {
       val fotos = fotoDao.getByCliente(cliente.id).filter { !it.deletePending }
-      val available = mutableListOf<Foto>()
-      val hashesById = mutableMapOf<String, String>()
-      val bytesById = mutableListOf<Pair<Foto, ByteArray>>()
+      if (fotos.size > maxPhotosPerClient) {
+        val message =
+          "O cliente «${cliente.nome}» tem ${fotos.size} fotos; o máximo por cliente é " +
+            "$maxPhotosPerClient. Remove fotos antes de sincronizar."
+        warnings += message
+        onWarning(message)
+        continue
+      }
+
+      val hashes = mutableMapOf<String, String>()
       var missing: Foto? = null
       for (foto in fotos) {
+        // Read one photo at a time: never keep the whole client's photos in
+        // memory (a client may legitimately have hundreds).
         val bytes = photoStore.readBytes(foto.uriLocal)
         if (bytes == null) {
           missing = foto
           break
         }
-        bytesById.add(foto to bytes)
+        hashes[foto.id] = PhotoHashes.sha256(bytes)
       }
       if (missing != null) {
         // Never push a record that silently omits a photo: the server would
         // treat the omission as a removal and every device would delete its
         // copy. Keep the client pending and retry on a later sync.
-        onWarning(
+        val message =
           "Foto ${missing.id} (cliente ${cliente.id}) sem ficheiro; sincronização do cliente adiada"
-        )
+        warnings += message
+        onWarning(message)
         continue
       }
-      val knownHashes = photoPushState?.getHashes(cliente.id).orEmpty()
-      for ((foto, bytes) in bytesById) {
-        val hash = PhotoHashes.sha256(bytes)
-        if (knownHashes[foto.id] != hash) {
-          api.uploadPhoto(foto.id, bytes, timestamp = normalizedEpochSeconds())
-        }
-        hashesById[foto.id] = hash
-        available.add(foto)
-      }
-      hashesByCliente[cliente.id] = hashesById
-      records.add(SyncMapper.toRecord(cliente, available))
+      batchRecords += PushRecord(cliente, SyncMapper.toRecord(cliente, fotos), hashes, fotos)
     }
-    if (records.isEmpty()) return emptyList<String>() to null
+    if (batchRecords.isEmpty()) return PushReport(warnings = warnings)
 
-    val results = api.push(records, timestamp = normalizedEpochSeconds())
-    val byId = results.associateBy { it.id }
-
-    var mergedNome: String? = null
+    var batchSize = effectivePushBatchSize()
+    var index = 0
+    val staleIds = mutableListOf<String>()
     val staleNames = mutableListOf<String>()
+    var mergedNome: String? = null
     val filesToDelete = mutableSetOf<String>()
-    // One clear per sync is enough: the pull that follows re-fetches the server
-    // state, so further stale acks in the same run do not need another reset.
-    var clearWatermarkAfterPush = false
-    runInTransaction {
-      pending.forEach { cliente ->
-        val result = byId[cliente.id]
-        val status = result?.status
-        if (status == "duplicate" && result.existingId != null) {
-          // The server already has a record with the same normalized name. Adopt
-          // the canonical id but keep the user's local edits pending so they
-          // re-push and the server stores the merged values (LWW by updated_at).
-          filesToDelete += mergeDuplicate(cliente, result)
-          mergedNome = cliente.nome
-        } else if (status == "stale") {
-          // The server has a newer version, so the edit that was sent loses.
-          // Clear pending only while the row still holds exactly that edit: a
-          // save made while the push was in flight must stay pending and be sent
-          // on the next sync instead of being silently dropped.
-          if (clienteDao.markSynced(cliente.id, cliente.revision) == 1) {
-            staleNames += cliente.nome
-            // The local edit lost to a newer server version. Forget the pull
-            // watermark so the pull below re-fetches the server version instead
-            // of leaving the two sides permanently divergent.
-            clearWatermarkAfterPush = true
-          } else {
-            onWarning(
-              "O cliente ${cliente.nome} mudou durante a sincronização; a alteração será reenviada"
-            )
+
+    while (index < batchRecords.size) {
+      val chunk = batchRecords.subList(index, minOf(index + batchSize, batchRecords.size)).toList()
+      val results =
+        try {
+          api.push(
+            chunk.map { it.record },
+            timestamp = normalizedEpochSeconds(),
+            idempotencyKey = pushIdempotencyKey(chunk),
+          )
+        } catch (e: AuthException) {
+          throw e
+        } catch (e: ConfigException) {
+          throw e
+        } catch (e: ServerException) {
+          if (e.status == 422 && chunk.size > 1) {
+            // The server may enforce a lower limit than it advertised (or reject
+            // one malformed record). Halve the batch until the bad record is
+            // isolated instead of leaving every record stuck.
+            batchSize = maxOf(1, chunk.size / 2)
+            val message = "O servidor rejeitou um lote de ${chunk.size} registos; a reduzir para $batchSize"
+            warnings += message
+            onWarning(message)
+            continue
           }
-        } else if (status == "error") {
-          // The server rejected this record (e.g. blank name, future timestamp).
-          // Keep it pending so the user's data is not lost, and surface a warning.
-          onWarning("Servidor rejeitou o registo ${cliente.id}; mantido pendente")
-        } else if (status != null) {
-          // Any other server response (accepted) is an ack: the server owns
-          // conflict resolution, so clear pending and let pull reconcile. Only
-          // clear it while the row is still the version that was sent; an edit
-          // made during the push stays pending for the next sync.
-          val missing = result.missingPhotos.toSet()
-          if (missing.isNotEmpty()) {
-            // The server kept a placeholder row but has no bytes. Keep the
-            // client pending so the next sync retries the upload, and do not
-            // record the missing photos as already uploaded.
-            recordPushedHashes(
-              cliente.id,
-              hashesByCliente[cliente.id].orEmpty().filterKeys { it !in missing },
-            )
-            onWarning(
-              "O servidor não tem as fotos ${missing.joinToString()} do cliente ${cliente.id}; serão reenviadas"
-            )
-          } else if (clienteDao.markSynced(cliente.id, cliente.revision) == 1) {
-            recordPushedHashes(cliente.id, hashesByCliente[cliente.id].orEmpty())
+          val message = "Lote de ${chunk.size} registos rejeitado pelo servidor (${e.status}); ficam pendentes"
+          warnings += message
+          onWarning(message)
+          index += chunk.size
+          continue
+        } catch (e: Exception) {
+          val message = "Falha ao enviar um lote de ${chunk.size} registos; ficam pendentes"
+          warnings += message
+          onWarning(message)
+          index += chunk.size
+          continue
+        }
+
+      val byId = results.associateBy { it.id }
+      runInTransaction {
+        chunk.forEach { item ->
+          val result = byId[item.cliente.id]
+          when {
+            result == null -> {
+              val message = "Servidor não devolveu resultado para ${item.cliente.id}; mantido pendente"
+              warnings += message
+              onWarning(message)
+            }
+            result.status == "duplicate" && result.existingId != null -> {
+              // The server already has a record with the same normalized name.
+              // Adopt the canonical id but keep the user's local edits pending so
+              // they re-push and the server stores the merged values (LWW).
+              filesToDelete += mergeDuplicate(item.cliente, result)
+              mergedNome = item.cliente.nome
+            }
+            result.status == "stale" -> {
+              // The server has a newer version. Do NOT clear the watermark here:
+              // the follow-up refresh below reads the server version directly.
+              if (clienteDao.markSynced(item.cliente.id, item.cliente.revision) == 1) {
+                staleIds += item.cliente.id
+                staleNames += item.cliente.nome
+              } else {
+                val message =
+                  "O cliente ${item.cliente.nome} mudou durante a sincronização; a alteração será reenviada"
+                warnings += message
+                onWarning(message)
+              }
+            }
+            result.status == "error" -> {
+              val message = "Servidor rejeitou o registo ${item.cliente.id}; mantido pendente"
+              warnings += message
+              onWarning(message)
+            }
+            else -> {
+              val missing = result.missingPhotos.toSet()
+              if (missing.isEmpty()) {
+                if (clienteDao.markSynced(item.cliente.id, item.cliente.revision) == 1) {
+                  recordPushedHashes(item.cliente.id, item.hashes)
+                }
+              } else {
+                // The metadata was accepted, but the server still needs bytes.
+                // Upload them after this transaction commits.
+                // (handled below, outside the transaction)
+              }
+            }
           }
         }
       }
+
+      // Upload only the photos the server reported as missing, after the
+      // metadata was accepted. A rejected batch never reaches this point.
+      chunk.forEach { item ->
+        val result = byId[item.cliente.id] ?: return@forEach
+        if (result.status != "accepted" && result.status != "stale" && result.status != "duplicate") {
+          return@forEach
+        }
+        val missing = result.missingPhotos.toSet()
+        if (missing.isEmpty()) return@forEach
+        val toUpload = item.fotos.filter { it.id in missing }
+        var uploadedAll = true
+        val uploadedHashes = mutableMapOf<String, String>()
+        for (foto in toUpload) {
+          val bytes = photoStore.readBytes(foto.uriLocal)
+          if (bytes == null) {
+            val message = "Foto ${foto.id} desapareceu antes do upload; cliente ${item.cliente.id} mantido pendente"
+            warnings += message
+            onWarning(message)
+            uploadedAll = false
+            continue
+          }
+          try {
+            api.uploadPhoto(foto.id, bytes, timestamp = normalizedEpochSeconds())
+            uploadedHashes[foto.id] = item.hashes[foto.id] ?: PhotoHashes.sha256(bytes)
+          } catch (e: AuthException) {
+            throw e
+          } catch (e: ConfigException) {
+            throw e
+          } catch (e: Exception) {
+            val message = "Falha ao enviar a foto ${foto.id}; cliente ${item.cliente.id} mantido pendente"
+            warnings += message
+            onWarning(message)
+            uploadedAll = false
+          }
+        }
+        val hasAllMissing = missing.all { it in item.hashes }
+        if (uploadedAll && hasAllMissing) {
+          runInTransaction {
+            if (clienteDao.markSynced(item.cliente.id, item.cliente.revision) == 1) {
+              recordPushedHashes(item.cliente.id, item.hashes)
+            }
+          }
+        } else {
+          // Record what did reach the server so a retry only uploads the rest;
+          // the client remains pending until every referenced photo is stored.
+          if (uploadedHashes.isNotEmpty()) recordPushedHashes(item.cliente.id, uploadedHashes)
+        }
+      }
+
+      index += chunk.size
     }
-    // Superseded photo files are removed only after the push transaction has
-    // committed, so a later failure in the loop cannot leave Foto rows pointing
-    // at deleted files.
+
+    // Superseded photo files are removed only after the push transactions have
+    // committed, so a later failure cannot leave rows pointing at deleted files.
     filesToDelete.forEach { photoStore.delete(it) }
-    if (clearWatermarkAfterPush) pullWatermark?.clear()
-    return staleNames to mergedNome
+
+    if (staleIds.isNotEmpty()) refreshStaleClients(staleIds, warnings)
+    return PushReport(staleNames = staleNames, mergedNome = mergedNome, warnings = warnings)
+  }
+
+  /**
+   * Stable key for one push batch: identical content reuses the key across
+   * retries, while any edit to a record or its photo metadata changes it.
+   */
+  private fun pushIdempotencyKey(chunk: List<PushRecord>): String {
+    val canonical = buildString {
+      chunk.forEach { item ->
+        append(item.record.client.id).append('\u001f')
+        append(item.record.client.updatedAt).append('\u001f')
+        item.record.fotos.forEach { foto ->
+          append(foto.id).append('\u001e')
+          append(foto.mime).append('\u001e')
+          append(foto.ordem).append('\u001d')
+        }
+        append('\u001c')
+      }
+    }
+    val digest = MessageDigest.getInstance("SHA-256")
+      .digest(canonical.toByteArray(Charsets.UTF_8))
+    return digest.joinToString("") { "%02x".format(it) }
+  }
+
+  /**
+   * The effective batch size: the conservative client default, capped by the
+   * server's advertised limit when available. Old servers do not advertise it;
+   * 100 is below their default 200, so the first push still fits.
+   */
+  private suspend fun effectivePushBatchSize(): Int {
+    val info = runCatching { api.fetchServerInfo(timestamp = normalizedEpochSeconds()) }.getOrNull()
+    val serverMax = info?.maxPushRecords
+    return if (serverMax != null) minOf(DEFAULT_PUSH_BATCH_SIZE, serverMax).coerceAtLeast(1)
+    else DEFAULT_PUSH_BATCH_SIZE
+  }
+
+  /**
+   * Refreshes records the server rejected as stale from `/api/clients`, so the
+   * user sees the winning server version without clearing the pull watermark
+   * (which used to trigger a full, formerly destructive, pull).
+   */
+  private suspend fun refreshStaleClients(ids: List<String>, warnings: MutableList<String>) {
+    val serverClients =
+      try {
+        api.fetchClients(timestamp = normalizedEpochSeconds())
+      } catch (e: AuthException) {
+        throw e
+      } catch (e: ConfigException) {
+        throw e
+      } catch (e: Exception) {
+        val message = "Não foi possível atualizar os registos rejeitados como antigos; serão atualizados no próximo pull"
+        warnings += message
+        onWarning(message)
+        return
+      }
+    val byId = serverClients.associateBy { it.id }
+    runInTransaction {
+      ids.forEach { id ->
+        val local = clienteDao.getById(id) ?: return@forEach
+        if (local.pending || local.deletePending) return@forEach
+        val server = byId[id]
+        if (server == null) {
+          // The server no longer has this record. Keep it visibly local-only
+          // instead of deleting it; the user decides what to do.
+          if (!local.localOnly) clienteDao.update(local.copy(localOnly = true))
+          return@forEach
+        }
+        val createdAt = server.createdAt ?: local.createdAt
+        clienteDao.update(
+          local.copy(
+            nome = server.nome.uppercase(Locale.ROOT),
+            contrato = server.contrato,
+            tag = server.tag,
+            latitude = server.latitude,
+            longitude = server.longitude,
+            notas = server.notas,
+            ativo = server.ativo,
+            dataCriacao = createdAt,
+            updatedAt = server.updatedAt,
+            createdAt = createdAt,
+            pending = false,
+            deletePending = false,
+            localOnly = false,
+          )
+        )
+      }
+    }
   }
 
   /** Records the current photo content hashes after a successful push ack. */
@@ -277,6 +511,7 @@ class SyncCoordinator(
           updatedAt = maxOf(cliente.updatedAt, now),
           pending = true,
           deletePending = false,
+          localOnly = false,
         )
       )
       canonicalUpserts.forEach { fotoDao.insert(it) }
@@ -332,37 +567,65 @@ class SyncCoordinator(
     return filesToDelete
   }
 
-  private suspend fun pull() {
+  private data class PullReport(val identityChanged: Boolean = false)
+
+  private suspend fun pull(destructive: Boolean = false, forceFull: Boolean = false): PullReport {
     PhotoStoreGuard.mutex.withLock {
-      var watermark = if (incrementalPullEnabled) pullWatermark?.get() else null
-      // A server restored from an older backup can report a latest timestamp
-      // below the local cursor; a delta pull would then never return the
-      // restored records. Detect it and fall back to a full pull. Best effort:
-      // if the status call fails, keep the current incremental behaviour.
-      if (watermark != null) {
-        val latest =
-          try {
-            api.fetchServerInfo(timestamp = normalizedEpochSeconds()).latestUpdatedAt
-          } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-          } catch (_: Exception) {
-            null
+      var watermark = if (incrementalPullEnabled && !forceFull) pullWatermark?.get() else null
+      var identityChanged = false
+
+      // Always ask for the server status: it carries the stable instance id and
+      // the batch limit. Best effort, so an old server that does not expose
+      // these fields keeps working.
+      val info =
+        try {
+          api.fetchServerInfo(timestamp = normalizedEpochSeconds())
+        } catch (e: kotlinx.coroutines.CancellationException) {
+          throw e
+        } catch (_: Exception) {
+          null
+        }
+
+      val currentIdentity = info?.instanceId
+      if (currentIdentity != null) {
+        val storedIdentity = serverIdentityStore?.get()
+        when {
+          storedIdentity == null -> serverIdentityStore?.set(currentIdentity)
+          storedIdentity != currentIdentity -> {
+            identityChanged = true
+            serverIdentityStore.set(currentIdentity)
+            // The cursor belongs to the previous server and is meaningless now.
+            // A full pull follows, but it is non-destructive: local records not
+            // on the new server are preserved as local-only.
+            pullWatermark?.clear()
+            watermark = null
+            onWarning(
+              "O servidor mudou (ou foi restaurado). Os dados locais serão preservados; confirma no ecrã de configuração se quiseres substituí-los pelos do servidor."
+            )
           }
-        if (latest != null && latest < watermark) {
-          pullWatermark?.clear()
-          watermark = null
-          onWarning(
-            "O servidor parece ter sido restaurado de uma cópia mais antiga; a sincronizar tudo de novo"
-          )
         }
       }
+
+      // A server restored from an older backup can report a latest timestamp
+      // below the local cursor; a delta pull would then never return the
+      // restored records. Detect it and fall back to a (non-destructive) full pull.
+      val latest = info?.latestUpdatedAt
+      if (watermark != null && latest != null && latest < watermark) {
+        pullWatermark?.clear()
+        watermark = null
+        onWarning(
+          "O servidor parece ter sido restaurado de uma cópia mais antiga; os dados locais serão preservados e sincronizados de novo"
+        )
+      }
+
       val isFullPull = watermark == null
       // Follow the server's pagination cursor to the last page before applying,
-      // so a paginated pull never drops local records based on a partial page.
+      // so a paginated pull never reconciles based on a partial page.
       var since = watermark
       var sinceId: String? = null
       val allServerClients = mutableListOf<ClienteComFotosDto>()
       val allTombstones = mutableListOf<TombstoneDto>()
+      var paginationComplete = true
       do {
         val response =
           api.pull(
@@ -378,7 +641,8 @@ class SyncCoordinator(
         // A well-behaved server advances the cursor past the last record on every
         // page; guard against one that keeps returning the same cursor forever.
         if (nextSince != null && nextSince == since && nextSinceId == sinceId) {
-          onWarning("Cursor de paginação não avançou; a interromper o pull")
+          paginationComplete = false
+          onWarning("Cursor de paginação não avançou; o pull foi interrompido sem remover dados locais")
           break
         }
         since = nextSince
@@ -405,48 +669,80 @@ class SyncCoordinator(
 
       val filesToDelete = mutableSetOf<String>()
       runInTransaction {
-        // Tombstoned records are deleted locally unless they have pending edits,
-        // so a delete made on another device propagates even on delta pulls.
+        // Tombstoned records are deleted locally unless they have pending edits
+        // or a newer local edit, so a delete made on another device propagates
+        // even on delta pulls without discarding newer work.
         allTombstones.forEach { tombstone ->
           val local = clienteDao.getById(tombstone.id)
-          if (local != null && !local.pending && !local.deletePending) {
-            filesToDelete += finalizeDeletion(tombstone.id)
-          } else if (local != null && holdsWatermark(local)) {
-            // Skipped: the pending local edit still has to be pushed, and the
-            // deletion has to come back on the next pull.
-            skippedDelivery += deliveryOf(tombstone)
+          when {
+            local == null -> Unit
+            local.deletePending -> {
+              // The local deletion is already queued; let the delete push
+              // finish it instead of finalizing from a remote marker.
+            }
+            local.pending -> {
+              if (holdsWatermark(local)) skippedDelivery += deliveryOf(tombstone)
+            }
+            local.updatedAt > tombstone.deletedAt -> {
+              // The local edit is newer than the deletion. Keep it, mark it for
+              // re-push, and hold the cursor so the delete is evaluated again
+              // after the push (which resurrects the record on the server).
+              clienteDao.update(
+                local.copy(
+                  pending = true,
+                  localOnly = false,
+                  revision = local.revision + 1,
+                )
+              )
+              skippedDelivery += deliveryOf(tombstone)
+            }
+            else -> filesToDelete += finalizeDeletion(tombstone.id)
           }
         }
 
-        // Drop local records the server no longer has, unless they are pending.
-        // Only safe on a full pull (after the complete page set is received):
-        // deletes are otherwise removed via the delete endpoint, and a delta
-        // pull simply omits older records.
+        // Reconcile local records that the server does not have. This is only
+        // safe after a completed full pull. By default the records are kept and
+        // marked local-only; only an explicit user-confirmed replacement may
+        // delete them.
         if (isFullPull) {
-          val serverIds = allServerClients.mapTo(mutableSetOf()) { it.client.id }
-          clienteDao.getAll().forEach { local ->
-            if (local.id !in serverIds && !local.pending && !local.deletePending) {
-              filesToDelete += finalizeDeletion(local.id)
+          if (paginationComplete) {
+            val serverIds = allServerClients.mapTo(mutableSetOf()) { it.client.id }
+            clienteDao.getAll().forEach { local ->
+              val shouldBeLocalOnly =
+                local.id !in serverIds && !local.pending && !local.deletePending
+              if (local.localOnly != shouldBeLocalOnly) {
+                clienteDao.update(local.copy(localOnly = shouldBeLocalOnly))
+              }
+              if (destructive && shouldBeLocalOnly) {
+                filesToDelete += finalizeDeletion(local.id)
+              }
             }
+          } else {
+            onWarning(
+              "Pull incompleto: os registos locais ausentes do servidor foram preservados"
+            )
           }
         }
 
         // Advance the watermark to the largest delivery timestamp seen on this
         // pull (the server's cursor, not the device clocks), holding it below the
-        // oldest record that was skipped because of a pending local edit.
-        var maxDelivery =
-          maxOf(
-            allServerClients.maxOfOrNull { deliveryOf(it) } ?: 0L,
-            allTombstones.maxOfOrNull { deliveryOf(it) } ?: 0L,
-          )
-        val oldestSkipped = skippedDelivery.minOrNull()
-        if (oldestSkipped != null && maxDelivery >= oldestSkipped) {
-          maxDelivery = oldestSkipped - 1
-        }
-        if (maxDelivery > 0 && pullWatermark != null) {
-          val previous = pullWatermark.get()
-          if (previous == null || maxDelivery > previous) {
-            pullWatermark.set(maxDelivery)
+        // oldest record that was skipped because of a pending local edit. An
+        // incomplete pull never advances the cursor, or it could skip records.
+        if (paginationComplete) {
+          var maxDelivery =
+            maxOf(
+              allServerClients.maxOfOrNull { deliveryOf(it) } ?: 0L,
+              allTombstones.maxOfOrNull { deliveryOf(it) } ?: 0L,
+            )
+          val oldestSkipped = skippedDelivery.minOrNull()
+          if (oldestSkipped != null && maxDelivery >= oldestSkipped) {
+            maxDelivery = oldestSkipped - 1
+          }
+          if (maxDelivery > 0 && pullWatermark != null) {
+            val previous = pullWatermark.get()
+            if (previous == null || maxDelivery > previous) {
+              pullWatermark.set(maxDelivery)
+            }
           }
         }
       }
@@ -458,6 +754,7 @@ class SyncCoordinator(
       // Reclaim files left over after a successful pull, inside the same guard
       // that serializes materialization vs. any app-start sweep (R8).
       photoSweeper?.sweep()
+      return PullReport(identityChanged = identityChanged)
     }
   }
 
@@ -499,6 +796,7 @@ class SyncCoordinator(
         createdAt = createdAt,
         pending = false,
         deletePending = false,
+        localOnly = false,
       )
 
     val materializer = PhotoMaterializer(photoStore)
@@ -612,6 +910,12 @@ class SyncCoordinator(
   private companion object {
     /** Records requested per pull page (the server accepts up to 1000). */
     const val PULL_PAGE_SIZE = 200
+
+    /**
+     * Conservative push batch size when the server does not advertise one.
+     * The server default is 200, so this still fits an older server.
+     */
+    const val DEFAULT_PUSH_BATCH_SIZE = 100
 
     /** Pause before retrying a failed photo download. */
     const val PHOTO_RETRY_DELAY_MS = 500L

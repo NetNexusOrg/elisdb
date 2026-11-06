@@ -42,6 +42,13 @@ preenchidos em simultâneo e a sincronização arranca logo.
 o utilizador associado, em modo só de leitura; a credencial entra sempre pela
 importação do ficheiro. Ver [Configuração](configuracao.md).)
 
+O URL é validado **antes** de ser guardado. `https://` é aceite para qualquer
+host; `http://` só é aceite para `localhost`, endereços de loopback, redes
+privadas (`10/8`, `172.16/12`, `192.168/16`), link-local (`169.254/16`),
+CGNAT (`100.64/10`) e IPv6 privado/link-local. Um URL público em HTTP ou um
+esquema diferente é rejeitado com uma mensagem e a configuração anterior fica
+intacta — não há limpeza de watermark, hashes nem sincronização.
+
 ### 1.3 Primeira sincronização
 
 Na app: menu (⋮) → **Configuração** → carrega no botão **Sincronizar**. O
@@ -55,10 +62,18 @@ resultado aparece nesse mesmo ecrã:
 A app trabalha **offline-first**: podes criar e editar clientes, tirar e remover
 fotos, e marcar a localização no mapa mesmo sem servidor. A sincronização é
 acionada no ecrã **Configuração** (menu ⋮ → **Configuração**), automaticamente
-**sempre que guardas um cliente** e **ao abrir a app** (uma vez por arranque,
-quando há servidor configurado) — o envio segue em segundo
-plano, sem bloquear o ecrã. O estado aparece no ecrã
+**sempre que guardas um cliente**, **quando apagas um cliente** e **ao abrir a
+app** (uma vez por arranque, quando há servidor configurado) — o envio segue em
+segundo plano, sem bloquear o ecrã. O estado aparece no ecrã
 **Configuração** e na lista — ícone + mensagem curta.
+
+Opcionalmente, podes ligar **Sincronização automática** no ecrã **Configuração**:
+a app tenta sincronizar a cada 15 minutos, apenas quando há rede e sem duplicar
+uma sincronização já em curso. Se a rede falhar, o sistema aplica um atraso
+exponencial com jitter (a partir de 30 segundos, até cerca de 5 horas); erros de
+autenticação, relógio ou configuração não são repetidos automaticamente. O botão
+**Sincronizar** continua a tentar imediatamente e ignora o atraso. A
+sincronização automática está desligada por omissão para não gastar bateria.
 
 Se o relógio do dispositivo estiver mais de 2 minutos diferente do servidor,
 o ecrã **Configuração** mostra um aviso a dizer quanto está atrasado ou
@@ -108,7 +123,8 @@ Fluxos principais:
   editar, apagar ou abrir o **Log**, uma página com o histórico de alterações
   agrupado por dia: quem alterou, a que horas, que campos mudaram (valor antigo
   e novo), quando o cliente foi ativado ou desativado, e que fotos foram
-  adicionadas, removidas ou reordenadas. As
+  adicionadas, removidas ou reordenadas. O histórico carrega por páginas e o
+  botão **Carregar mais** acrescenta as entradas seguintes. As
   miniaturas das fotos adicionadas aparecem quando ainda existem neste
   dispositivo.
 - **Configuração** — o ecrã único de sincronização e servidor: estado com etiqueta, última sincronização, resumo do que falta sincronizar, totais de clientes na app e no servidor e o botão **Sincronizar** (envia e recebe os dados); o cartão **Sincronização** inclui também o URL, a chave mascarada e o utilizador associado. Sem credencial, mostra **Importar credencial do utilizador** como ação principal; depois de configurado, mostra **Remover credencial**.
@@ -129,13 +145,64 @@ As versões são publicadas pelo administrador do servidor (ver
 Durante uma sincronização, as fotos que já existem no servidor **sem mudanças**
 não são reescritas, e um ficheiro novo só é gravado antes da sua linha na base
 de dados — se a sincronização falhar a meio, as fotos anteriores ficam intactas.
+Ao descarregar uma foto, a app confirma os *magic bytes* contra o MIME declarado
+(só JPEG, PNG e WebP). Se não corresponder, mantém a cópia anterior e volta a
+tentar em vez de guardar conteúdo inválido. As fotos capturadas ou escolhidas
+aplicam as oito orientações EXIF, incluindo as variantes espelhadas
+(`TRANSPOSE`/`TRANSVERSE`), antes de serem convertidas para WebP.
+
+Os registos pendentes são enviados em lotes (até 100, ou o limite que o servidor
+anunciar em `/api/latest`). Uma falha num lote não bloqueia os restantes: os
+registos desse lote ficam pendentes e são tentados novamente. As fotos só são
+enviadas depois de o servidor aceitar os metadados e indicar quais faltam, pelo
+que um lote rejeitado não deixa ficheiros órfãos. Cada lote leva uma chave de
+idempotência estável: um reenvio após timeout devolve a resposta anterior sem
+duplicar registos nem auditoria; se o conteúdo do lote mudar, a chave muda. Se
+um cliente tiver mais de 500 fotos, a sincronização desse cliente é adiada com
+uma mensagem — não fica num ciclo de erro 422.
 
 Duas garantias que evitam surpresas:
 
 - Uma alteração feita **enquanto** a sincronização está a decorrer não é
   substituída: fica pendente e é enviada na sincronização seguinte.
 - Um cliente eliminado noutro telemóvel desaparece também aqui, mesmo que o
-  relógio desse telemóvel estivesse atrasado.
+  relógio desse telemóvel estivesse atrasado. Se a cópia local tiver uma edição
+  **mais recente** do que a eliminação, é preservada e reenviada; o servidor
+  aceita-a como re-criação.
+- Uma foto escolhida ou capturada no formulário fica registada como **staged**
+  até ser guardada ou descartada. O varrimento de órfãos ignora esses ficheiros
+  e só remove ficheiros sem linha na base de dados com mais de uma hora, pelo
+  que não apaga uma foto que ainda estás a preparar.
+- Ao limpar ou importar uma nova configuração, a sincronização em curso é
+  cancelada e aguardada antes de o watermark, hashes de fotos e relógio serem
+  limpos. O sync antigo não pode voltar a publicar estado nem escrever um
+  watermark do servidor anterior.
+- O cliente HTTP é partilhado e contado por referências: uma troca de
+  configuração só fecha o cliente antigo depois de terminar o último pedido que
+  o estava a usar; pedidos novos recebem sempre o cliente da configuração atual.
+
+### Dados apenas locais e servidor substituído
+
+Um full pull **nunca apaga** clientes locais que o servidor não tenha. Esses
+registos ficam marcados como **apenas locais** e o ecrã **Configuração** mostra
+quantos são, com a opção **Substituir dados locais pelos do servidor**.
+
+O servidor tem uma identidade estável (`instance_id`). Se ela mudar — servidor
+novo, volume recriado ou backup restaurado — a app avisa e preserva os dados
+locais; não faz reconciliação destrutiva sozinha. A substituição só acontece
+depois de confirmares, e antes disso é criada uma cópia local recuperável da
+base de dados (`VACUUM INTO`) e das fotos em `files/snapshots/` (mantêm-se as
+três mais recentes).
+
+### Recuperar uma cópia local
+
+As cópias ficam em `files/snapshots/<timestamp>/` dentro do armazenamento
+privado da app, com `elisdb.db` (e, quando existirem, `elisdb.db-wal` e
+`elisdb.db-shm`) e a pasta `photos/`. Para restaurar, fecha a app, substitui a
+base de dados e a pasta `photos/` pelas da cópia (por exemplo com `adb
+backup`/`adb pull` num dispositivo de testes) e volta a abrir. A app mantém
+apenas as três cópias mais recentes; as mais antigas são removidas na criação de
+uma nova.
 
 > **Registo duplicado:** se criares um cliente com um nome que já exista no
 > servidor (comparação por nome normalizado), o servidor responde `duplicate` e

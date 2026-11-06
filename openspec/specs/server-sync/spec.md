@@ -271,11 +271,11 @@ The server SHALL record an audit entry each time a client change is accepted, ca
 
 ### Requirement: Per-client edit history endpoint
 
-The server SHALL expose an authenticated endpoint returning the audit history of a client, ordered from oldest to newest, so the app can show who created and edited the client, when, and what changed. Each entry SHALL carry the actor user name when present, the key id, the timestamp, the create/edit marker, and the recorded change details, or a null details value for entries recorded before details existed.
+The server SHALL expose an authenticated endpoint returning the audit history of a client, ordered from oldest to newest, so the app can show who created and edited the client, when, and what changed. Each entry SHALL carry the actor user name when present, the key id, the timestamp, the action marker (`create`, `edit`, or `delete`), and the recorded change details, or a null details value for entries recorded before details existed. The endpoint SHALL accept an optional `limit` (1 to 200) and an optional `after_id` cursor. When a limit is supplied, the response SHALL return at most that many entries whose id is greater than `after_id`, plus a `next_after_id` value when more entries exist. Without pagination parameters, the endpoint SHALL return the full history for backward compatibility.
 
 #### Scenario: History returned for a client
 - **WHEN** the app requests the edit history of a stored client
-- **THEN** the server SHALL return the client's audit entries (actor user name when present, key id, timestamp, create/edit marker), ordered by timestamp
+- **THEN** the server SHALL return the client's audit entries (actor user name when present, key id, timestamp, create/edit/delete marker), ordered by timestamp
 
 #### Scenario: Unknown client returns empty history
 - **WHEN** the app requests the edit history of a client that does not exist
@@ -285,6 +285,29 @@ The server SHALL expose an authenticated endpoint returning the audit history of
 - **WHEN** a client's history contains an entry recorded with change details
 - **THEN** the response SHALL include those details (changed fields and photo changes) for that entry
 - **AND** entries recorded before details existed SHALL return a null details value
+
+#### Scenario: Paginated history returns one page
+- **WHEN** the app requests a client's history with a `limit`
+- **THEN** the server SHALL return at most `limit` entries in ascending id order
+- **AND** SHALL include `next_after_id` when further entries exist
+
+#### Scenario: Next page continues after the cursor
+- **WHEN** the app requests the next page using `next_after_id`
+- **THEN** the server SHALL return only entries with an id greater than that cursor
+- **AND** SHALL NOT repeat entries from the previous page
+
+#### Scenario: Last history page has no cursor
+- **WHEN** no entries remain after the requested page
+- **THEN** the response SHALL carry no `next_after_id`
+- **AND** the app SHALL treat the history as fully loaded
+
+#### Scenario: Invalid history limit is rejected
+- **WHEN** the app requests a history limit below 1 or above the maximum
+- **THEN** the server SHALL reject the request with a client-error response
+
+#### Scenario: History without pagination stays complete
+- **WHEN** the app requests a client's history without `limit` or `after_id`
+- **THEN** the server SHALL return the full history as before
 
 ### Requirement: Server reports its latest data timestamp
 
@@ -433,3 +456,116 @@ The field SHALL be additive so older clients keep working.
 #### Scenario: Older clients are unaffected
 - **WHEN** a client that does not know `api_version` reads either response
 - **THEN** it SHALL continue to work because the field is additive
+
+### Requirement: Push batch size is bounded
+
+The server SHALL enforce a configured maximum number of client records per push and SHALL reject an oversized batch before persisting any of its records, returning a client-error response that states the limit. A batch within the limit SHALL be processed with the existing per-record semantics.
+
+#### Scenario: Oversized batch is rejected atomically
+- **WHEN** a client pushes more records than the configured maximum
+- **THEN** the server SHALL reject the whole request with a client-error response
+- **AND** SHALL NOT persist any record from that batch
+- **AND** the response SHALL identify the maximum accepted batch size
+
+#### Scenario: Batch within the limit is accepted
+- **WHEN** a client pushes a batch at or below the configured maximum
+- **THEN** the server SHALL process it record by record as before
+- **AND** SHALL return a per-record status for every record
+
+#### Scenario: Limit is configurable
+- **WHEN** an operator configures the push batch limit
+- **THEN** the server SHALL use that value for subsequent pushes
+- **AND** the default SHALL remain bounded
+
+#### Scenario: Limit is discoverable by clients
+- **WHEN** a client requests the authenticated latest-data response
+- **THEN** the response SHALL include the effective maximum push batch size
+- **AND** the value SHALL match the limit enforced by the push endpoint
+
+### Requirement: Deletion respects last-write-wins
+
+A delete SHALL compete in last-write-wins with edits. The server SHALL reject a deletion whose `deleted_at` is not newer than the stored record's `updated_at`, returning a stale response, and SHALL NOT remove the record or create a tombstone in that case.
+
+#### Scenario: Older delete loses to a newer edit
+- **WHEN** a client deletes a record with a `deleted_at` older than or equal to the stored `updated_at`
+- **THEN** the server SHALL reject the deletion as stale
+- **AND** the record SHALL remain stored
+- **AND** no tombstone SHALL be created
+
+#### Scenario: Newer delete removes the record
+- **WHEN** a client deletes a record with a `deleted_at` newer than the stored `updated_at`
+- **THEN** the server SHALL delete the record and its photos
+- **AND** SHALL create a tombstone as before
+
+### Requirement: Deletion timestamps are plausible
+
+The server SHALL reject deletion timestamps that are not plausible Unix epoch seconds, including negative values and values beyond the existing future-skew allowance, instead of accepting them into the tombstone.
+
+#### Scenario: Negative deletion timestamp is rejected
+- **WHEN** a delete supplies a negative `deleted_at`
+- **THEN** the server SHALL reject the request with a client-error response
+- **AND** SHALL NOT create a tombstone
+
+#### Scenario: Far-future deletion timestamp is rejected
+- **WHEN** a delete supplies a `deleted_at` beyond the allowed future skew
+- **THEN** the server SHALL reject the request as before
+- **AND** SHALL NOT delete the record
+
+### Requirement: Pull pages use bounded database work
+
+A pull page SHALL be read with a bounded number of database connections and queries, independent of the number of records in the page. The server SHALL NOT open a separate connection per returned record, and photo metadata for a page SHALL be loaded in a bounded batch.
+
+#### Scenario: Large page does not open one connection per record
+- **WHEN** a client pulls a page near the maximum size
+- **THEN** the server SHALL use a bounded number of connections
+- **AND** the number of connections SHALL NOT grow linearly with the record count
+
+#### Scenario: Photos for a page are loaded in batch
+- **WHEN** a pull page contains clients with photos
+- **THEN** the server SHALL load the photo metadata without a per-record query
+- **AND** SHALL return the same data as before
+
+### Requirement: Deletions are recorded in the client history
+
+The server SHALL record an audit entry when a client deletion is accepted, capturing the actor's user name (from the authenticated key's allowlist comment), the actor's key id, the timestamp, the action `delete`, and the deleted client's identifying details. A deletion rejected as stale or invalid SHALL NOT create an entry.
+
+#### Scenario: Delete records the actor
+- **WHEN** a client is deleted by an authenticated key whose allowlist entry has a user name
+- **THEN** the server SHALL store a delete audit entry with the actor's user name, the key id, and the deletion timestamp
+
+#### Scenario: Unnamed key records no user name
+- **WHEN** a client is deleted by a key with no user name
+- **THEN** the delete audit entry SHALL record the key id and timestamp
+- **AND** SHALL carry no user name
+
+#### Scenario: Delete appears in the history
+- **WHEN** the app requests the history of a client that was deleted
+- **THEN** the response SHALL include the delete entry with its action marker and details
+
+#### Scenario: Rejected delete is not audited
+- **WHEN** a deletion is rejected as stale or invalid
+- **THEN** the server SHALL NOT record a delete audit entry
+
+### Requirement: Push requests are idempotent by key
+
+The server SHALL accept an optional idempotency key on push. When a request carries a key already used with the same payload, the server SHALL return the stored prior response without re-persisting records, photos, or audit entries. When the same key is reused with a different payload, the server SHALL reject the request with a conflict response. Requests without a key SHALL keep the existing per-record idempotency behavior.
+
+#### Scenario: Same key and payload return the prior result
+- **WHEN** a client retries a push with the same idempotency key and the same payload
+- **THEN** the server SHALL return the result stored for the first request
+- **AND** SHALL NOT persist the records or audit entries again
+- **AND** SHALL NOT require photos already accepted to be uploaded again
+
+#### Scenario: Same key with a different payload is rejected
+- **WHEN** a client reuses an idempotency key with a different payload
+- **THEN** the server SHALL reject the request with a conflict response
+- **AND** SHALL NOT apply the new payload
+
+#### Scenario: Requests without a key still work
+- **WHEN** a client pushes without an idempotency key
+- **THEN** the server SHALL process the records normally
+- **AND** SHALL keep the existing per-record duplicate detection
+
+#### Scenario: Retry does not duplicate audit entries
+- **WHEN** a push is retried with the same key and payload
+- **THEN** no duplicate create or edit audit entry SHALL be recorded

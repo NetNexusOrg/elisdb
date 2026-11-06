@@ -4,9 +4,11 @@ import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.sync.SyncManager.Companion.mapOutcome
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -361,4 +363,64 @@ class SyncManagerTest {
     assertEquals("timestamp persisted", manager.lastSuccessAt.value, lastSyncStore.value)
     assertEquals("a new sync can start afterwards", SyncStatus.SUCCESS, manager.syncNow())
   }
+
+  @Test
+  fun `success report surfaces warnings and identity changes`() {
+    val warned = mapOutcome(SyncOutcome.SuccessReport(warnings = listOf("Cliente demasiado grande")))
+    assertEquals(SyncStatus.SUCCESS, warned.status)
+    assertTrue(warned.lastResult?.contains("demasiado grande") == true)
+
+    val changed = mapOutcome(SyncOutcome.SuccessReport(identityChanged = true))
+    assertEquals(SyncStatus.SUCCESS, changed.status)
+    assertTrue(changed.lastResult?.contains("servidor mudou") == true)
+  }
+
+  @Test
+  fun `local only count is observed from the dao`() = runBlocking {
+    val record =
+      Cliente(
+        id = "1",
+        nome = "A",
+        latitude = 0.0,
+        longitude = 0.0,
+        dataCriacao = 0,
+        updatedAt = 0,
+        localOnly = true,
+      )
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider { SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore()) },
+        clienteDao = FakeClienteDao(listOf(record)),
+      )
+    delay(50)
+    assertEquals(1, manager.localOnlyCount.value)
+  }
+
+  @Test
+  fun `reset cancels and awaits an in-flight run and the old generation cannot publish`() = runBlocking {
+    val started = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+    val manager =
+      SyncManager(
+        SyncCoordinatorProvider {
+          started.complete(Unit)
+          val coordinator = SyncCoordinator(FakeSyncApi(), FakeClienteDao(), FakeFotoDao(), FakePhotoStore())
+          // Keep the run in flight until reset has started, then let it finish.
+          withContext(NonCancellable) { release.await() }
+          coordinator
+        }
+      )
+
+    val run = launch { runCatching { manager.sync() } }
+    started.await()
+    val reset = launch { manager.resetState() }
+    delay(20)
+    release.complete(Unit)
+    reset.join()
+    run.join()
+
+    assertEquals("reset wins over the old run", SyncStatus.IDLE, manager.status.value)
+    assertNull("an old run cannot record success after reset", manager.lastSuccessAt.value)
+  }
+
 }

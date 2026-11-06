@@ -65,7 +65,7 @@ class PhotoEncoder(private val context: Context) {
     val decoded =
       openStream(resolver, source)?.use { BitmapFactory.decodeStream(it, null, options) }
         ?: return null
-    return downscale(rotate(decoded, exifRotationDegrees(source)))
+    return downscale(applyOrientation(decoded, exifOrientation(source)))
   }
 
   private fun openStream(resolver: android.content.ContentResolver, source: Uri): java.io.InputStream? =
@@ -83,27 +83,39 @@ class PhotoEncoder(private val context: Context) {
     return sample
   }
 
-  private fun exifRotationDegrees(source: Uri): Float {
-    val orientation =
-      runCatching {
-        context.contentResolver.openInputStream(source)?.use {
-          ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-        }
-      }.getOrNull() ?: ExifInterface.ORIENTATION_NORMAL
-    return when (orientation) {
-      ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-      ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-      ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-      else -> 0f
-    }
+  private fun exifOrientation(source: Uri): Int {
+    return runCatching {
+      context.contentResolver.openInputStream(source)?.use {
+        ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+      }
+    }.getOrNull() ?: ExifInterface.ORIENTATION_NORMAL
   }
 
-  private fun rotate(bitmap: Bitmap, degrees: Float): Bitmap {
-    if (degrees == 0f) return bitmap
-    val matrix = Matrix().apply { postRotate(degrees) }
-    val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-    if (rotated != bitmap) bitmap.recycle()
-    return rotated
+  /**
+   * Applies all eight EXIF orientations, including the mirrored transpose and
+   * transverse variants that a rotation-only transform would leave flipped.
+   */
+  private fun applyOrientation(bitmap: Bitmap, orientation: Int): Bitmap {
+    val matrix = Matrix()
+    when (orientation) {
+      ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
+      ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
+      ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.setScale(1f, -1f)
+      ExifInterface.ORIENTATION_TRANSPOSE -> {
+        matrix.setRotate(90f)
+        matrix.postScale(-1f, 1f)
+      }
+      ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
+      ExifInterface.ORIENTATION_TRANSVERSE -> {
+        matrix.setRotate(-90f)
+        matrix.postScale(-1f, 1f)
+      }
+      ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(-90f)
+      else -> return bitmap
+    }
+    val transformed = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    if (transformed != bitmap) bitmap.recycle()
+    return transformed
   }
 
   private fun downscale(bitmap: Bitmap): Bitmap {

@@ -29,6 +29,14 @@ data class SyncUiState(
   val clockSkewSeconds: Long? = null,
   /** True while the user-requested clock correction is running. */
   val clockCorrecting: Boolean = false,
+  /** Records preserved because a completed full pull did not find them on the server. */
+  val localOnlyCount: Int = 0,
+  /** True when the configured server database identity changed. */
+  val serverIdentityChanged: Boolean = false,
+  /** True while the explicit replace-local action is running. */
+  val replacingLocal: Boolean = false,
+  /** Opt-in background sync; disabled by default. */
+  val periodicSyncEnabled: Boolean = false,
 )
 
 class SyncViewModel(
@@ -36,8 +44,10 @@ class SyncViewModel(
   clienteCount: Flow<Int>,
   clockSkewSeconds: Flow<Long?> = flowOf(null),
   private val onCorrectClock: suspend () -> Unit = {},
+  periodicSyncEnabled: Boolean = false,
+  private val onPeriodicSyncChanged: (Boolean) -> Unit = {},
 ) : ViewModel() {
-  private val _uiState = MutableStateFlow(SyncUiState())
+  private val _uiState = MutableStateFlow(SyncUiState(periodicSyncEnabled = periodicSyncEnabled))
   val uiState: StateFlow<SyncUiState> = _uiState.asStateFlow()
 
   private var syncJob: Job? = null
@@ -81,6 +91,14 @@ class SyncViewModel(
     viewModelScope.launch {
       clockSkewSeconds.collect { skew -> _uiState.update { it.copy(clockSkewSeconds = skew) } }
     }
+    viewModelScope.launch {
+      syncManager.localOnlyCount.collect { count -> _uiState.update { it.copy(localOnlyCount = count) } }
+    }
+    viewModelScope.launch {
+      syncManager.serverIdentityChanged.collect { changed ->
+        _uiState.update { it.copy(serverIdentityChanged = changed) }
+      }
+    }
     refreshPendingState()
   }
 
@@ -109,5 +127,28 @@ class SyncViewModel(
     if (_uiState.value.syncStatus == SyncStatus.IN_PROGRESS) return
     if (syncJob?.isActive == true) return
     syncJob = viewModelScope.launch { syncManager.syncNow() }
+  }
+
+  /** Enables or disables the opt-in periodic background sync. */
+  fun setPeriodicSync(enabled: Boolean) {
+    if (_uiState.value.periodicSyncEnabled == enabled) return
+    _uiState.update { it.copy(periodicSyncEnabled = enabled) }
+    onPeriodicSyncChanged(enabled)
+  }
+
+  /**
+   * Explicit user-confirmed replacement of local data by the server dataset.
+   * The sync manager creates a local snapshot before deleting anything.
+   */
+  fun replaceLocalWithServer() {
+    if (_uiState.value.replacingLocal) return
+    _uiState.update { it.copy(replacingLocal = true) }
+    viewModelScope.launch {
+      try {
+        syncManager.replaceLocalWithServer()
+      } finally {
+        _uiState.update { it.copy(replacingLocal = false) }
+      }
+    }
   }
 }

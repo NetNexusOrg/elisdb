@@ -21,6 +21,13 @@ data class Cliente(
   val pending: Boolean = false,
   val deletePending: Boolean = false,
   /**
+   * True when a completed full pull did not find this record on the server.
+   * The record is kept (never deleted automatically) and surfaced in the UI as
+   * "local only"; the user decides whether to replace local data with the
+   * server dataset.
+   */
+  val localOnly: Boolean = false,
+  /**
    * Monotonic local revision, bumped on every local write. The push
    * acknowledgement compares it instead of [updatedAt], which only has
    * one-second resolution: an edit made in the same second as the pushed

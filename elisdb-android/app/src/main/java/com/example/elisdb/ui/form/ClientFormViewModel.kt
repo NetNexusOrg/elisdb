@@ -16,7 +16,6 @@ import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -190,7 +189,9 @@ class ClientFormViewModel(
         .onFailure { _uiState.update { it.copy(showCamera = false, message = "Não foi possível guardar a imagem.") } }
       // stagePhoto re-encodes to a new .webp; the original capture file is no
       // longer referenced, so remove it instead of leaving an orphan on disk.
-      runCatching { withContext(Dispatchers.IO) { file.delete() } }
+      runCatching {
+        repository.deletePhotoFile(Foto(id = "", clienteId = "", uriLocal = file.absolutePath))
+      }
     }
   }
 
@@ -258,9 +259,11 @@ class ClientFormViewModel(
 
   override fun onCleared() {
     if (wasSaved) return
-    val orphanFiles = _uiState.value.fotos.filter { it.id.isEmpty() }.map { File(it.uriLocal) }
-    if (orphanFiles.isNotEmpty()) {
-      CoroutineScope(Dispatchers.IO).launch { orphanFiles.forEach { runCatching { it.delete() } } }
+    val orphanPhotos = _uiState.value.fotos.filter { it.id.isEmpty() }
+    if (orphanPhotos.isNotEmpty()) {
+      CoroutineScope(Dispatchers.IO).launch {
+        orphanPhotos.forEach { runCatching { repository.deletePhotoFile(it) } }
+      }
     }
   }
 }

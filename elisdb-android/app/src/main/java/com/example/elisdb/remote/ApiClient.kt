@@ -1,5 +1,6 @@
 package com.example.elisdb.remote
 
+import com.example.elisdb.settings.validateServerUrl
 import com.example.elisdb.util.AuthHeaders
 import com.example.elisdb.util.Signer
 import com.example.elisdb.sync.ClockSync
@@ -8,7 +9,9 @@ import com.example.elisdb.sync.SyncApi
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.android.Android
+import io.ktor.client.plugins.HttpSend
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.plugin
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.delete
@@ -67,6 +70,16 @@ class ApiClient(
   /** Keeps signed timestamps aligned with the server clock; null in tests. */
   private val clock: ClockSync? = null,
 ) : SyncApi {
+  init {
+    // Validate every outbound request, including requests made through a client
+    // supplied directly to this class in tests. Redirects are disabled in
+    // create() so a 3xx cannot bounce to a host outside the policy.
+    client.plugin(HttpSend).intercept { request ->
+      val urlError = validateServerUrl(request.url.toString())
+      if (urlError != null) throw ConfigException("URL de servidor não permitida: $urlError")
+      this.execute(request)
+    }
+  }
   companion object {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -90,6 +103,10 @@ class ApiClient(
         install(ContentNegotiation) { json(json) }
         // 401 and other statuses are surfaced to the caller, never auto-retried.
         expectSuccess = false
+        // Redirects are never followed: a server must not bounce the client to a
+        // host outside the URL policy (defaultRequest validates every URL; a 3xx
+        // is surfaced as an error).
+        followRedirects = false
         // Bound every request so a stalled connection fails fast instead of
         // leaving the sync stuck in "in progress" indefinitely.
         install(HttpTimeout) {
@@ -101,6 +118,8 @@ class ApiClient(
         // host) requires a hostname-aware trust check. The Android engine passes the
         // hostname; CIO does not and would throw CertificateException on HTTPS.
         defaultRequest {
+          val urlError = validateServerUrl(url.toString())
+          if (urlError != null) throw ConfigException("URL de servidor não permitida: $urlError")
           // Short-circuit the server's allowlist scan by sending our public key,
           // so the server verifies only against this key instead of every one.
           header(AuthHeaders.KEY, signer.publicKeyB64)
@@ -111,9 +130,13 @@ class ApiClient(
   }
 
   /** Sends local records to the server; returns a per-record status. */
+  suspend fun push(records: List<RecordDto>, timestamp: Long): List<PushResultDto> =
+    push(records, timestamp, null)
+
   override suspend fun push(
     records: List<RecordDto>,
     timestamp: Long,
+    idempotencyKey: String?,
   ): List<PushResultDto> {
     val body = ApiClient.json.encodeToString(PushRequestDto.serializer(), PushRequestDto(records))
     val bodyBytes = body.toByteArray(Charsets.UTF_8)
@@ -123,6 +146,7 @@ class ApiClient(
         contentType(ContentType.Application.Json)
         header(AuthHeaders.TIMESTAMP, ts.toString())
         header(AuthHeaders.SIGNATURE, signer.signRequest("POST", path, bodyBytes, ts))
+        idempotencyKey?.let { header("Idempotency-Key", it) }
         setBody(bodyBytes)
       }
     }
@@ -207,6 +231,8 @@ class ApiClient(
       latestUpdatedAt = dto.latest_updated_at,
       clientCount = dto.client_count,
       apiVersion = dto.api_version,
+      instanceId = dto.instance_id,
+      maxPushRecords = dto.max_push_records,
     )
   }
 
@@ -217,7 +243,26 @@ class ApiClient(
     // a placeholder instead of a misleading 0.
     val client_count: Int? = null,
     @SerialName("api_version") val api_version: Int? = null,
+    /** Stable server database identity; absent on older servers. */
+    @SerialName("instance_id") val instance_id: String? = null,
+    /** Effective push batch limit; absent on older servers. */
+    @SerialName("max_push_records") val max_push_records: Int? = null,
   )
+
+  /** Fetches the current client records (metadata only, no photo bytes). */
+  override suspend fun fetchClients(timestamp: Long): List<ClienteOutDto> {
+    val path = "/api/clients"
+    val response = execute(timestamp) { ts ->
+      client.get("$baseUrl$path") {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
+      }
+    }
+    if (response.status != HttpStatusCode.OK) {
+      throw ServerException("clients fetch failed HTTP ${response.status}", response.status.value)
+    }
+    return response.body()
+  }
 
   /** Fetches a client's edit history (who created/edited it and when). */
   override suspend fun fetchClientHistory(id: String, timestamp: Long): List<AuditEntryDto> {
@@ -230,6 +275,33 @@ class ApiClient(
     }
     if (response.status != HttpStatusCode.OK) {
       throw ServerException("history fetch failed HTTP ${response.status}", response.status.value)
+    }
+    return response.body()
+  }
+
+  /** Fetches a page of a client's edit history plus the next cursor. */
+  override suspend fun fetchClientHistoryPage(
+    id: String,
+    limit: Int,
+    afterId: Int?,
+    timestamp: Long,
+  ): HistoryPageDto {
+    val query = buildString {
+      append("?limit=").append(limit)
+      if (afterId != null) append("&after_id=").append(afterId)
+    }
+    val path = "/api/clients/$id/history$query"
+    val response = execute(timestamp) { ts ->
+      client.get("$baseUrl$path") {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
+      }
+    }
+    if (response.status != HttpStatusCode.OK) {
+      throw ServerException(
+        "history page fetch failed HTTP ${response.status}",
+        response.status.value,
+      )
     }
     return response.body()
   }

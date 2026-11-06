@@ -53,7 +53,10 @@ class ClientDetailViewModel(
     _uiState.update { it.copy(showDeleteConfirmation = false) }
     viewModelScope.launch {
       runCatching { repository.deleteCliente(cliente.cliente.id) }
-        .onSuccess { _deleted.emit(Unit) }
+        .onSuccess {
+          _deleted.emit(Unit)
+          viewModelScope.launch { runCatching { repository.syncNow() } }
+        }
         .onFailure {
           _uiState.update { it.copy(message = "Não foi possível apagar o cliente.") }
         }

@@ -21,15 +21,31 @@ interface SettingsStore {
   /** Currently effective values: runtime override when saved, else build-time default. */
   fun settings(): ServerSettings
 
-  /** Persists runtime overrides. Blank values are stored verbatim. */
+  /**
+   * Persists runtime overrides. Blank values are stored verbatim.
+   *
+   * @throws SecureStorageUnavailable when the encrypted store cannot be opened or
+   *   a write cannot be verified. The app never falls back to writing the
+   *   signing key in plain text.
+   */
   fun save(baseUrl: String, signingKey: String, userName: String = "")
 }
+
+/** Raised when a signing-key write cannot be completed securely. */
+class SecureStorageUnavailable(message: String, cause: Throwable? = null) :
+  IllegalStateException(message, cause)
 
 /**
  * Stores the runtime server connection overrides (base URL + signing key seed)
  * encrypted at rest via [EncryptedSharedPreferences] (master key in the Android
  * Keystore). Values saved by older plain-text versions are migrated on first use
- * and the plain-text file is cleared, so existing configurations keep working.
+ * and the plain-text file is cleared only after the encrypted copy has been read
+ * back successfully.
+ *
+ * Reads remain fail-open for legacy plain-text data so an upgraded app still
+ * starts when the Keystore is temporarily unavailable. Writes are fail-closed:
+ * [save] throws [SecureStorageUnavailable] instead of storing the key in plain
+ * text.
  *
  * Absent a saved value, [settings] reflects the build-time defaults from
  * `BuildConfig`, so existing builds keep working unchanged.
@@ -40,24 +56,115 @@ class PrefsSettingsStore(
   openEncrypted: (Context) -> SharedPreferences = ::createEncryptedStore,
 ) : SettingsStore {
   private val appContext = context.applicationContext
-  private val prefs: SharedPreferences = openSettings(appContext, openEncrypted)
+  private val plain: SharedPreferences =
+    appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+  private var encrypted: SharedPreferences? = null
+  private var encryptedUnavailable = false
+  private var encryptedError: Throwable? = null
 
-  override fun settings(): ServerSettings =
-    ServerSettings(
-      baseUrl = prefs.getString(KEY_BASE_URL, null) ?: BuildConfig.SERVER_BASE_URL,
+  init {
+    migrateLegacy(openEncrypted)
+  }
+
+  override fun settings(): ServerSettings {
+    val store = encryptedOrNull() ?: plain
+    return ServerSettings(
+      baseUrl = store.getString(KEY_BASE_URL, null) ?: BuildConfig.SERVER_BASE_URL,
       // The signing key is never taken from a build-time constant: it must come
       // from a per-device import, so a key baked into the APK can never be used
       // to authenticate. When no key has been imported, this is blank and the
       // sync layer reports a configuration fault instead of signing with a seed.
-      signingKey = prefs.getString(KEY_SIGNING_KEY, null) ?: "",
-      userName = prefs.getString(KEY_USER_NAME, null) ?: "",
+      signingKey = store.getString(KEY_SIGNING_KEY, null) ?: "",
+      userName = store.getString(KEY_USER_NAME, null) ?: "",
     )
+  }
 
   override fun save(baseUrl: String, signingKey: String, userName: String) {
-    prefs.edit {
+    val store =
+      encryptedOrNull()
+        ?: throw SecureStorageUnavailable(
+          "O armazenamento seguro não está disponível; a chave não foi guardada.",
+          encryptedError,
+        )
+    store.edit(commit = true) {
       putString(KEY_BASE_URL, baseUrl)
       putString(KEY_SIGNING_KEY, signingKey)
       putString(KEY_USER_NAME, userName)
+    }
+    val verified =
+      store.getString(KEY_BASE_URL, null) == baseUrl &&
+        store.getString(KEY_SIGNING_KEY, null) == signingKey &&
+        store.getString(KEY_USER_NAME, null) == userName
+    if (!verified) {
+      throw SecureStorageUnavailable(
+        "Não foi possível confirmar a gravação segura da chave.",
+        encryptedError,
+      )
+    }
+  }
+
+  private fun encryptedOrNull(): SharedPreferences? {
+    encrypted?.let { return it }
+    if (encryptedUnavailable) return null
+    return runCatching {
+        migrateLegacy(::createEncryptedStore)
+        checkNotNull(encrypted) { "encrypted settings are unavailable" }
+      }
+      .getOrElse { error ->
+        encryptedUnavailable = true
+        encryptedError = error
+        Log.w(TAG, "Encrypted settings unavailable; refusing to write secrets in plain text", error)
+        null
+      }
+  }
+
+  private fun migrateLegacy(openEncrypted: (Context) -> SharedPreferences) {
+    val legacyBaseUrl = plain.getString(KEY_BASE_URL, null)
+    val legacySigningKey = plain.getString(KEY_SIGNING_KEY, null)
+    val legacyUserName = plain.getString(KEY_USER_NAME, null)
+    val hasLegacy = legacyBaseUrl != null || legacySigningKey != null || legacyUserName != null
+
+    val opened =
+      try {
+        openEncrypted(appContext)
+      } catch (error: Exception) {
+        encryptedUnavailable = true
+        encryptedError = error
+        Log.w(TAG, "Encrypted settings unavailable; using legacy read-only values", error)
+        return
+      }
+
+    if (!hasLegacy) {
+      encrypted = opened
+      return
+    }
+
+    // The encrypted store and the legacy one share a file, so migrate the
+    // values and prove they can be read back before clearing the plaintext.
+    try {
+      opened.edit(commit = true) {
+        putString(KEY_BASE_URL, legacyBaseUrl ?: "")
+        putString(KEY_SIGNING_KEY, legacySigningKey ?: "")
+        putString(KEY_USER_NAME, legacyUserName ?: "")
+      }
+      val migrated =
+        opened.getString(KEY_BASE_URL, null) == (legacyBaseUrl ?: "") &&
+          opened.getString(KEY_SIGNING_KEY, null) == (legacySigningKey ?: "") &&
+          opened.getString(KEY_USER_NAME, null) == (legacyUserName ?: "")
+      if (!migrated) error("encrypted settings could not be read back")
+      // The encrypted store and the legacy one share a file, so remove only
+      // the plaintext keys after the encrypted copy is verified. Clearing the
+      // whole file would also delete the encrypted entries just written.
+      plain.edit(commit = true) {
+        remove(KEY_BASE_URL)
+        remove(KEY_SIGNING_KEY)
+        remove(KEY_USER_NAME)
+      }
+      encrypted = opened
+    } catch (error: Exception) {
+      encryptedUnavailable = true
+      encryptedError = error
+      Log.w(TAG, "Settings migration failed; keeping legacy values read-only", error)
     }
   }
 
@@ -67,64 +174,6 @@ class PrefsSettingsStore(
     const val KEY_BASE_URL = "server_base_url_override"
     const val KEY_SIGNING_KEY = "signing_key_override"
     const val KEY_USER_NAME = "user_name_override"
-
-    /**
-     * Opens the effective settings store, migrating any values written in plain
-     * text by older versions of the app.
-     *
-     * The migration is fail-safe: the legacy values are copied out first, the
-     * encrypted store is written and read back to prove the master key works,
-     * and only then is the plain-text file cleared. If anything fails — a
-     * Keystore that cannot be opened, a write that does not persist — the plain
-     * values are restored and the plain store is used, so a broken Keystore
-     * keeps the app working instead of losing the signing key or crashing
-     * `Application.onCreate`.
-     */
-    fun openSettings(
-      context: Context,
-      openEncrypted: (Context) -> SharedPreferences,
-    ): SharedPreferences {
-      val plain = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-      val legacyBaseUrl = plain.getString(KEY_BASE_URL, null)
-      val legacySigningKey = plain.getString(KEY_SIGNING_KEY, null)
-      val legacyUserName = plain.getString(KEY_USER_NAME, null)
-      val hasLegacy = legacyBaseUrl != null || legacySigningKey != null || legacyUserName != null
-      if (!hasLegacy) {
-        return runCatching { openEncrypted(context) }.getOrElse { error ->
-          Log.w(TAG, "Encrypted settings unavailable; using the plain-text store", error)
-          plain
-        }
-      }
-
-      // The encrypted store and the legacy one share a file, so the plaintext
-      // entries have to go before EncryptedSharedPreferences opens it. The
-      // values above are restored if the migration does not complete.
-      plain.edit(commit = true) { clear() }
-      return try {
-        val encrypted = openEncrypted(context)
-        // Commit synchronously so the migrated secrets are persisted before the
-        // read-back verification.
-        encrypted.edit(commit = true) {
-          putString(KEY_BASE_URL, legacyBaseUrl ?: "")
-          putString(KEY_SIGNING_KEY, legacySigningKey ?: "")
-          putString(KEY_USER_NAME, legacyUserName ?: "")
-        }
-        val migrated =
-          encrypted.getString(KEY_BASE_URL, null) == (legacyBaseUrl ?: "") &&
-            encrypted.getString(KEY_SIGNING_KEY, null) == (legacySigningKey ?: "") &&
-            encrypted.getString(KEY_USER_NAME, null) == (legacyUserName ?: "")
-        if (!migrated) error("encrypted settings could not be read back")
-        encrypted
-      } catch (e: Exception) {
-        Log.w(TAG, "Settings migration failed; keeping the plain-text values", e)
-        plain.edit(commit = true) {
-          legacyBaseUrl?.let { putString(KEY_BASE_URL, it) }
-          legacySigningKey?.let { putString(KEY_SIGNING_KEY, it) }
-          legacyUserName?.let { putString(KEY_USER_NAME, it) }
-        }
-        plain
-      }
-    }
 
     /**
      * Creates the encrypted preferences. `EncryptedSharedPreferences`/`MasterKey`

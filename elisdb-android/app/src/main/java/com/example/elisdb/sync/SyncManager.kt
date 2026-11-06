@@ -1,12 +1,16 @@
 package com.example.elisdb.sync
 
 import com.example.elisdb.data.local.ClienteDao
+import com.example.elisdb.remote.AuthException
 import com.example.elisdb.remote.ConfigException
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,6 +36,8 @@ class SyncManager(
   private val pullWatermark: PullWatermark? = null,
   private val fetchServerInfo: suspend () -> ServerInfo? = { null },
   private val lastSyncStore: LastSyncStore? = null,
+  /** Explicit, user-confirmed replacement of local data by a complete pull. */
+  private val replaceLocal: suspend () -> SyncOutcome = { SyncOutcome.TransientError },
 ) {
   private val _status = MutableStateFlow(SyncStatus.IDLE)
   val status: StateFlow<SyncStatus> = _status.asStateFlow()
@@ -63,7 +69,23 @@ class SyncManager(
   /** Epoch seconds of the last successful sync, or null when never completed. */
   val lastSuccessAt: StateFlow<Long?> = _lastSuccessAt.asStateFlow()
 
+  private val _localOnlyCount = MutableStateFlow(0)
+
+  /** Number of records preserved as local-only after a completed full pull. */
+  val localOnlyCount: StateFlow<Int> = _localOnlyCount.asStateFlow()
+
+  private val _serverIdentityChanged = MutableStateFlow(false)
+
+  /** True when the server database identity changed and needs user confirmation. */
+  val serverIdentityChanged: StateFlow<Boolean> = _serverIdentityChanged.asStateFlow()
+
   private val mutex = Mutex()
+
+  /** Serializes starting a new run against a configuration reset. */
+  private val resetMutex = Mutex()
+
+  /** Increments on every reset; a run from an older generation must not publish. */
+  private val generation = AtomicLong(0)
 
   /** The in-flight run, if any; concurrent triggers join it instead of starting a second run. */
   private var inFlight: Deferred<SyncOutcome>? = null
@@ -79,6 +101,9 @@ class SyncManager(
           _pendingUploadCount.value = pending
           _hasPendingUploads.value = pending > 0
         }
+      }
+      runScope.launch {
+        dao.observeLocalOnlyCount().collect { _localOnlyCount.value = it }
       }
     }
   }
@@ -106,18 +131,25 @@ class SyncManager(
   }
 
   /**
-   * Forgets the observations tied to the previous server: the last status,
-   * fault, result and last-success time. The stored settings are not touched
-   * here; the caller also clears the persisted watermark, photo hashes and
-   * clock offset.
+   * Stops the run tied to the previous server and forgets its observations.
+   * The old run is cancelled and awaited before the observable state is cleared,
+   * and its generation is invalidated so it cannot publish a result or write a
+   * stale watermark afterwards. The stored settings are not touched here; the
+   * caller also clears the persisted watermark, photo hashes and clock offset.
    */
-  fun resetState() {
-    _status.value = SyncStatus.IDLE
-    _fault.value = null
-    _lastResult.value = null
-    _lastSuccessAt.value = null
-    _serverClienteCount.value = null
-    _hasPendingDownloads.value = false
+  suspend fun resetState() {
+    generation.incrementAndGet()
+    resetMutex.withLock {
+      val running = mutex.withLock { inFlight?.also { inFlight = null } }
+      running?.cancelAndJoin()
+      _status.value = SyncStatus.IDLE
+      _fault.value = null
+      _lastResult.value = null
+      _lastSuccessAt.value = null
+      _serverClienteCount.value = null
+      _hasPendingDownloads.value = false
+      _serverIdentityChanged.value = false
+    }
   }
 
   /**
@@ -135,15 +167,17 @@ class SyncManager(
     // IN_PROGRESS. Cancellation still takes effect at run.await() below.
     val run =
       withContext(NonCancellable) {
-        _status.value = SyncStatus.IN_PROGRESS
-        _fault.value = null
-        _lastResult.value = null
-        mutex.withLock {
-          val existing = inFlight
-          if (existing != null && existing.isActive) {
-            existing
-          } else {
-            startRun().also { inFlight = it }
+        resetMutex.withLock {
+          _status.value = SyncStatus.IN_PROGRESS
+          _fault.value = null
+          _lastResult.value = null
+          mutex.withLock {
+            val existing = inFlight
+            if (existing != null && existing.isActive) {
+              existing
+            } else {
+              startRun().also { inFlight = it }
+            }
           }
         }
       }
@@ -173,8 +207,9 @@ class SyncManager(
    * be cancelled (navigation, scope teardown) while the transfer keeps running,
    * and the observable status must still reach a terminal state.
    */
-  private fun startRun(): Deferred<SyncOutcome> =
-    runScope.async {
+  private fun startRun(): Deferred<SyncOutcome> {
+    val runGeneration = generation.get()
+    return runScope.async {
       // Take the server snapshot before pushing/pulling. The pull writes rows
       // into Room, so without this the local count starts changing while the
       // server count is still unknown; this way both counts are available in
@@ -183,6 +218,8 @@ class SyncManager(
       val outcome =
         try {
           coordinatorProvider.coordinator().sync()
+        } catch (e: CancellationException) {
+          throw e
         } catch (e: ConfigException) {
           android.util.Log.w("ElisdbSync", "sync run aborted: configuration problem", e)
           SyncOutcome.ConfigFault
@@ -192,6 +229,9 @@ class SyncManager(
           android.util.Log.w("ElisdbSync", "sync run failed", e)
           SyncOutcome.TransientError
         }
+      // A reset after the run started owns the state now; an old run must not
+      // publish a result or record a success for the previous server.
+      if (runGeneration != generation.get()) return@async outcome
       publish(outcome)
       if (_status.value == SyncStatus.SUCCESS) {
         val now = System.currentTimeMillis() / 1000
@@ -201,12 +241,55 @@ class SyncManager(
       }
       outcome
     }
+  }
+
+  /**
+   * Explicit, user-confirmed replacement of local data by the server dataset.
+   * The caller must show a confirmation; the coordinator creates a local
+   * snapshot before removing anything. Waits for any in-flight sync first.
+   */
+  suspend fun replaceLocalWithServer(): SyncStatus {
+    val runGeneration = generation.get()
+    // Never replace local data while a push/pull is still writing the same DB.
+    val running = mutex.withLock { inFlight?.takeIf { it.isActive } }
+    running?.await()
+    _status.value = SyncStatus.IN_PROGRESS
+    _fault.value = null
+    _lastResult.value = null
+    val outcome =
+      try {
+        mutex.withLock { replaceLocal() }
+      } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+      } catch (e: ConfigException) {
+        SyncOutcome.ConfigFault
+      } catch (e: AuthException) {
+        if (e.kind == com.example.elisdb.remote.AuthCause.STALE_CLOCK) SyncOutcome.ClockFailure
+        else SyncOutcome.AuthFailure
+      } catch (e: Exception) {
+        android.util.Log.w("ElisdbSync", "replace-local run failed", e)
+        SyncOutcome.TransientError
+      }
+    if (runGeneration != generation.get()) return _status.value
+    publish(outcome)
+    if (_status.value == SyncStatus.SUCCESS) {
+      _serverIdentityChanged.value = false
+      val now = System.currentTimeMillis() / 1000
+      _lastSuccessAt.value = now
+      lastSyncStore?.setLastSuccessAt(now)
+      refreshPendingDownloads()
+    }
+    return _status.value
+  }
 
   private fun publish(outcome: SyncOutcome) {
     val display = mapOutcome(outcome)
     display.fault?.let { _fault.value = it }
     display.lastResult?.let { _lastResult.value = it }
     _status.value = display.status
+    if (outcome is SyncOutcome.SuccessReport) {
+      _serverIdentityChanged.value = outcome.identityChanged
+    }
   }
 
   /** Maps a sync outcome to a status + optional diagnostic, so it is unit-testable. */
@@ -233,6 +316,18 @@ class SyncManager(
             )
         is SyncOutcome.DuplicateMerged ->
           OutcomeDisplay(SyncStatus.SUCCESS, lastResult = "Registo «${outcome.nome}» foi fundido com um registo existente.")
+        is SyncOutcome.SuccessReport -> {
+          val message =
+            when {
+              outcome.warnings.isNotEmpty() -> outcome.warnings.joinToString(" ")
+              outcome.identityChanged ->
+                "O servidor mudou. Os dados locais foram preservados; confirma nas definições se queres substituí-los pelos do servidor."
+              outcome.stale.isNotEmpty() ->
+                "As tuas edições de «${outcome.stale.joinToString("», «")}» foram substituídas por versões mais recentes no servidor."
+              else -> null
+            }
+          OutcomeDisplay(SyncStatus.SUCCESS, lastResult = message)
+        }
         SyncOutcome.AuthFailure -> OutcomeDisplay(SyncStatus.ERROR, SyncFault.AUTH)
         SyncOutcome.ClockFailure -> OutcomeDisplay(SyncStatus.ERROR, SyncFault.CLOCK)
         SyncOutcome.TransientError -> OutcomeDisplay(SyncStatus.ERROR, SyncFault.NETWORK)

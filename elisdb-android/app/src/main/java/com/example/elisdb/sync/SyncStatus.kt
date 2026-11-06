@@ -24,6 +24,18 @@ enum class SyncFault {
 sealed class SyncOutcome {
   data object Success : SyncOutcome()
   data class SuccessWithStatuses(val accepted: Int, val stale: List<String>) : SyncOutcome()
+
+  /**
+   * A successful sync that needs to tell the user something: local-only
+   * records preserved, a changed server identity, or records skipped with an
+   * actionable warning. It is still a success; the data was not lost.
+   */
+  data class SuccessReport(
+    val warnings: List<String> = emptyList(),
+    val identityChanged: Boolean = false,
+    val stale: List<String> = emptyList(),
+  ) : SyncOutcome()
+
   data class DuplicateMerged(val nome: String) : SyncOutcome()
   data object AuthFailure : SyncOutcome()
   data object ClockFailure : SyncOutcome()

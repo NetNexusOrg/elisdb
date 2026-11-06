@@ -7,6 +7,7 @@ import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.remote.AuditEntryDto
+import com.example.elisdb.remote.HistoryPageDto
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncStatus
 import java.io.File
@@ -75,6 +76,31 @@ class ClientLogViewModelTest {
     assertEquals("Maria", state.clienteNome)
     assertEquals("129020", state.contrato)
     assertFalse(state.hasPending)
+  }
+
+  @Test
+  fun carregaMaisPaginasEAcrescentaAoHistorico() = runTest(dispatcher) {
+    val first = AuditEntryDto(action = "create", username = "Maria", keyId = "k1", ts = 100L)
+    val second = AuditEntryDto(action = "edit", username = "Joao", keyId = "k2", ts = 200L)
+    val viewModel =
+      ClientLogViewModel(
+        FakeLogRepository(ClienteComFotos(cliente = cliente(), fotos = emptyList())),
+        "5",
+        fetchHistoryPage = { _, _, afterId ->
+          if (afterId == null) HistoryPageDto(listOf(first), nextAfterId = 10)
+          else HistoryPageDto(listOf(second), nextAfterId = null)
+        },
+      )
+
+    dispatcher.scheduler.advanceUntilIdle()
+    assertTrue(viewModel.uiState.value.hasMore)
+    assertEquals(1, viewModel.uiState.value.entries.size)
+
+    viewModel.loadMore()
+    dispatcher.scheduler.advanceUntilIdle()
+
+    assertEquals(2, viewModel.uiState.value.entries.size)
+    assertFalse(viewModel.uiState.value.hasMore)
   }
 
   @Test

@@ -10,6 +10,7 @@ import com.example.elisdb.data.local.ClienteDao
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.data.local.FotoDao
 import com.example.elisdb.data.local.joinTags
+import com.example.elisdb.sync.StagedPhotoRegistry
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncManager
 import com.example.elisdb.sync.SyncStatus
@@ -40,6 +41,7 @@ class ClienteRepositoryImpl(
   private val fotoDao: FotoDao,
   private val syncManager: SyncManager? = null,
   private val clockOffsetStore: com.example.elisdb.sync.ClockOffsetStore? = null,
+  private val stagedPhotoRegistry: StagedPhotoRegistry? = null,
 ) : ClienteRepository {
 
   /** Device clock (epoch seconds) shifted by the last-known server offset, when available. */
@@ -68,16 +70,22 @@ class ClienteRepositoryImpl(
     clienteDao.getClienteComFotos(id)?.withOrderedPhotos()
 
   override suspend fun stagePhoto(source: Uri): Foto = withContext(Dispatchers.IO) {
+    // The staged registry plus the sweeper's age grace protect the new file,
+    // without holding the pull/materialization guard during encoding.
     val dest = photoEncoder.encodeToWebp(source, photosDir)
+    stagedPhotoRegistry?.add(dest.absolutePath)
     Foto(id = "", clienteId = "", uriLocal = dest.absolutePath)
   }
 
   override fun createPhotoFile(): File {
     photosDir.mkdirs()
-    return File(photosDir, "foto_${UUID.randomUUID()}.jpg")
+    val file = File(photosDir, "foto_${UUID.randomUUID()}.jpg")
+    stagedPhotoRegistry?.add(file.absolutePath)
+    return file
   }
 
   override suspend fun deletePhotoFile(foto: Foto) {
+    stagedPhotoRegistry?.remove(foto.uriLocal)
     withContext(Dispatchers.IO) { runCatching { File(foto.uriLocal).delete() } }
   }
 
@@ -122,6 +130,7 @@ class ClienteRepositoryImpl(
                 ativo = draft.ativo,
                 updatedAt = now,
                 pending = true,
+                localOnly = false,
                 revision = existing.revision + 1,
               )
             )
@@ -145,8 +154,11 @@ class ClienteRepositoryImpl(
           }
         clienteId
       }
-    // Removed photo files are deleted only after the transaction commits, so a
-    // rollback cannot leave rows pointing at deleted files.
+    // The photos in the draft now have rows, so a sweep may reclaim them if the
+    // client is later removed. Removed files are deleted only after the
+    // transaction commits, so a rollback cannot leave rows pointing at deleted
+    // files.
+    draft.fotos.forEach { stagedPhotoRegistry?.remove(it.uriLocal) }
     removedFiles.forEach { deleteFile(it) }
     return clienteId
   }
@@ -161,6 +173,7 @@ class ClienteRepositoryImpl(
     syncManager?.syncNow() ?: SyncStatus.IDLE
 
   private fun deleteFile(foto: Foto) {
+    stagedPhotoRegistry?.remove(foto.uriLocal)
     runCatching { File(foto.uriLocal).delete() }
   }
 

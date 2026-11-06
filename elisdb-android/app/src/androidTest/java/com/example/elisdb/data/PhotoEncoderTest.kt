@@ -86,6 +86,62 @@ class PhotoEncoderTest {
     assertEquals(100 to 200, decodeDims(dest))
   }
 
+  private fun writeTwoColorJpeg(width: Int = 200, height: Int = 100): File {
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    for (y in 0 until height) {
+      for (x in 0 until width) {
+        bitmap.setPixel(x, y, if (x < width / 2) Color.RED else Color.BLUE)
+      }
+    }
+    val file = File(outDir, "two_${width}x$height.jpg")
+    FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+    bitmap.recycle()
+    return file
+  }
+
+  private fun firstPixel(file: File): Int {
+    val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+    val pixel = bitmap.getPixel(0, 0)
+    bitmap.recycle()
+    return pixel
+  }
+
+  @Test
+  fun allEightExifOrientations_areApplied() {
+    val expectedDims =
+      mapOf(
+        ExifInterface.ORIENTATION_NORMAL to (200 to 100),
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL to (200 to 100),
+        ExifInterface.ORIENTATION_ROTATE_180 to (200 to 100),
+        ExifInterface.ORIENTATION_FLIP_VERTICAL to (200 to 100),
+        ExifInterface.ORIENTATION_TRANSPOSE to (100 to 200),
+        ExifInterface.ORIENTATION_ROTATE_90 to (100 to 200),
+        ExifInterface.ORIENTATION_TRANSVERSE to (100 to 200),
+        ExifInterface.ORIENTATION_ROTATE_270 to (100 to 200),
+      )
+    expectedDims.forEach { (orientation, dims) ->
+      val source = writeTwoColorJpeg()
+      ExifInterface(source.absolutePath).apply {
+        setAttribute(ExifInterface.TAG_ORIENTATION, orientation.toString())
+        saveAttributes()
+      }
+      val dest = encoder.encodeToWebp(Uri.fromFile(source), outDir)
+      assertEquals("orientation $orientation dimensions", dims, decodeDims(dest))
+    }
+
+    val flipped = writeTwoColorJpeg()
+    ExifInterface(flipped.absolutePath).apply {
+      setAttribute(
+        ExifInterface.TAG_ORIENTATION,
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL.toString(),
+      )
+      saveAttributes()
+    }
+    val flippedOut = encoder.encodeToWebp(Uri.fromFile(flipped), outDir)
+    val pixel = firstPixel(flippedOut)
+    assertTrue("flip horizontal moves blue to the left", Color.blue(pixel) > Color.red(pixel))
+  }
+
   @Test
   fun missingSource_throwsAndLeavesNoBrokenFile() {
     val missing = File(outDir, "nao-existe.jpg")

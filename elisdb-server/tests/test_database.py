@@ -3,10 +3,18 @@ migrations, photo hygiene and the timestamp-unit normalization)."""
 
 import hashlib
 import os
+import sqlite3
 
 import pytest
 
-from app.database import Database, _apply_schema, connect
+from app.database import (
+    Database,
+    PhotoQuotaExceeded,
+    StaleDeleteError,
+    _apply_schema,
+    _migrate_fotos_upload_metadata,
+    connect,
+)
 from app.models import ClienteIn, FotoIn, normalize_nome
 
 
@@ -575,7 +583,7 @@ def test_retention_is_disabled_by_default(tmp_path):
     db = _db(tmp_path)
     actor = {"id": "key-1", "comment": "Joao"}
     db.save_client(_cliente(id="a", updated_at=1000), [], actor)
-    db.delete_client("a", deleted_at=1000)
+    db.delete_client("a", deleted_at=1001)
 
     # Both windows default to 0: history must survive an unconfigured server.
     assert db.prune_old_records() == (0, 0)
@@ -593,12 +601,12 @@ def test_retention_prunes_only_rows_older_than_the_window(tmp_path):
 
     # Ancient client + audit entry + tombstone.
     db.save_client(_cliente(id="old", updated_at=1000), [], actor)
-    db.delete_client("old", deleted_at=1000)
+    db.delete_client("old", deleted_at=1001)
     # Recent client + audit entry + tombstone (one day old).
     db.save_client(
         _cliente(id="recent", nome="Recent", updated_at=now - day), [], actor
     )
-    db.delete_client("recent", deleted_at=now - day)
+    db.delete_client("recent", deleted_at=now - day + 1)
 
     assert db.prune_old_records(30, 30, now=now) == (1, 1)
 
@@ -618,7 +626,7 @@ def test_tombstone_retention_uses_the_server_delivery_clock(tmp_path):
     # A newer record pushes the delivery watermark forward; the deletion of "a"
     # carries a lagging deleted_at but a recent delivery_ts.
     db.save_client(_cliente(id="b", nome="B", updated_at=now - 100), [])
-    db.delete_client("a", deleted_at=1000)
+    db.delete_client("a", deleted_at=1001)
 
     # Using deleted_at would expire it immediately; delivery_ts keeps it.
     assert db.prune_old_records(tombstone_retention_days=30, now=now) == (0, 0)
@@ -661,6 +669,105 @@ def test_write_photo_removes_the_temporary_file_when_replace_fails(tmp_path, mon
     assert not [name for name in os.listdir(db.fotos_dir) if name.endswith(".tmp")]
 
 
+def test_fotos_upload_metadata_migration_backfills_existing_files(tmp_path):
+    photos = tmp_path / "legacy-photos"
+    photos.mkdir()
+    payload = b"\xff\xd8\xff\xe0legacy"
+    path = photos / "p1.jpg"
+    path.write_bytes(payload)
+    db_path = tmp_path / "legacy.db"
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        "CREATE TABLE fotos ("
+        "id TEXT PRIMARY KEY, cliente_id TEXT, mime TEXT, caminho TEXT, "
+        "ordem INTEGER, hash TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO fotos (id, cliente_id, mime, caminho, ordem, hash) "
+        "VALUES ('p1', '1', 'image/jpeg', ?, 0, NULL)",
+        (str(path),),
+    )
+    conn.commit()
+
+    _migrate_fotos_upload_metadata(conn)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(fotos)")}
+    assert {"uploaded_by_key", "size_bytes"} <= columns
+    row = conn.execute(
+        "SELECT uploaded_by_key, size_bytes FROM fotos WHERE id = 'p1'"
+    ).fetchone()
+    assert tuple(row) == (None, len(payload))
+    conn.close()
+
+
+def test_photo_quota_rejects_before_writing_and_keeps_the_old_file(tmp_path):
+    db = _db(tmp_path)
+    db.save_client(
+        _cliente(id="1"),
+        [
+            FotoIn(id="p1", mime="image/jpeg"),
+            FotoIn(id="p2", mime="image/jpeg"),
+        ],
+    )
+    db.write_photo("p1", b"12345", uploaded_by_key="k1", max_total_bytes=10)
+
+    with pytest.raises(PhotoQuotaExceeded):
+        db.write_photo("p2", b"123456", uploaded_by_key="k1", max_total_bytes=10)
+
+    assert os.path.exists(db._foto("p1"))
+    assert not os.path.exists(db._foto("p2"))
+
+
+def test_photo_quota_is_tracked_per_uploading_key(tmp_path):
+    db = _db(tmp_path)
+    db.save_client(
+        _cliente(id="1"),
+        [
+            FotoIn(id="p1", mime="image/jpeg"),
+            FotoIn(id="p2", mime="image/jpeg"),
+        ],
+    )
+    db.write_photo("p1", b"12345", uploaded_by_key="k1", max_key_bytes=5)
+
+    with pytest.raises(PhotoQuotaExceeded):
+        db.write_photo("p2", b"1", uploaded_by_key="k1", max_key_bytes=5)
+
+    db.write_photo("p2", b"1", uploaded_by_key="k2", max_key_bytes=5)
+    assert os.path.exists(db._foto("p2"))
+
+
+def test_photo_quota_replace_subtracts_the_old_size(tmp_path):
+    db = _db(tmp_path)
+    db.save_client(_cliente(id="1"), [FotoIn(id="p1", mime="image/jpeg")])
+    db.write_photo("p1", b"12345", uploaded_by_key="k1", max_total_bytes=5)
+
+    db.write_photo("p1", b"1234", uploaded_by_key="k1", max_total_bytes=5)
+
+    with open(db._foto("p1"), "rb") as fh:
+        assert fh.read() == b"1234"
+
+
+def test_delete_older_than_the_stored_edit_is_rejected_and_keeps_the_row(tmp_path):
+    db = _db(tmp_path)
+    db.save_client(_cliente(id="1", updated_at=2000), [])
+
+    with pytest.raises(StaleDeleteError):
+        db.delete_client("1", deleted_at=500)
+
+    assert db.get_client_with_photos("1")["client"]["id"] == "1"
+    conn = connect(db.db_path)
+    assert conn.execute("SELECT COUNT(*) FROM tombstones").fetchone()[0] == 0
+    conn.close()
+
+
+def test_delete_newer_than_the_stored_edit_is_accepted(tmp_path):
+    db = _db(tmp_path)
+    db.save_client(_cliente(id="1", updated_at=1000), [])
+
+    assert db.delete_client("1", deleted_at=1001) is True
+    assert db.get_client_with_photos("1") is None
+
+
 def test_gc_orphan_photos_can_skip_recent_uploads(tmp_path):
     db = _db(tmp_path)
     db.write_photo("just-uploaded", b"data")
@@ -671,3 +778,85 @@ def test_gc_orphan_photos_can_skip_recent_uploads(tmp_path):
 
     assert db.gc_orphan_photos(min_age_seconds=0) == 1
     assert not os.path.exists(db._foto("just-uploaded"))
+
+
+def test_pull_persists_a_missing_photo_hash_and_reuses_it(tmp_path, monkeypatch):
+    db = _db(tmp_path)
+    payload = b"\xff\xd8\xff\xe0computed-on-pull"
+    db.save_client(_cliente(id="a", updated_at=1000), [FotoIn(id="p1", mime="image/jpeg")])
+    db.write_photo("p1", payload)
+    conn = connect(db.db_path)
+    conn.execute("UPDATE fotos SET hash = NULL WHERE id = 'p1'")
+    conn.commit()
+    conn.close()
+
+    calls = 0
+    original = db._hash_file
+
+    def counting_hash(path):
+        nonlocal calls
+        calls += 1
+        return original(path)
+
+    monkeypatch.setattr(db, "_hash_file", counting_hash)
+
+    first = db.pull_all(limit=10)
+    second = db.pull_all(limit=10)
+
+    assert first[0][0]["fotos"][0]["hash"] == hashlib.sha256(payload).hexdigest()
+    assert second[0][0]["fotos"][0]["hash"] == hashlib.sha256(payload).hexdigest()
+    assert calls == 1, "the hash must be committed on the first pull and reused"
+
+    conn = connect(db.db_path)
+    stored = conn.execute("SELECT hash FROM fotos WHERE id = 'p1'").fetchone()
+    conn.close()
+    assert stored["hash"] == hashlib.sha256(payload).hexdigest()
+
+
+def test_pull_reads_a_page_with_one_connection(tmp_path, monkeypatch):
+    db = _db(tmp_path)
+    for i in range(3):
+        db.save_client(_cliente(id=str(i), nome=f"C{i}", updated_at=1000 + i), [])
+
+    calls = 0
+    original = db._conn
+
+    def counting_conn():
+        nonlocal calls
+        calls += 1
+        return original()
+
+    monkeypatch.setattr(db, "_conn", counting_conn)
+
+    records, _tombstones, _since, _since_id = db.pull_all(limit=100)
+
+    assert [record["client"]["id"] for record in records] == ["0", "1", "2"]
+    assert calls == 1, "pull must not open one connection per record"
+
+
+def test_pull_batches_a_thousand_records_and_their_photos(tmp_path):
+    db = _db(tmp_path)
+    conn = connect(db.db_path)
+    conn.executemany(
+        "INSERT INTO clientes(id, nome, updated_at, created_at, delivery_ts) "
+        "VALUES (?, ?, ?, ?, ?)",
+        [(f"c{i}", f"C{i}", 1000 + i, 1000 + i, 1000 + i) for i in range(1000)],
+    )
+    conn.executemany(
+        "INSERT INTO fotos(id, cliente_id, mime, caminho, ordem) VALUES (?, ?, ?, ?, ?)",
+        [
+            (f"p{i}", f"c{i}", "image/jpeg", db._foto(f"p{i}"), 0)
+            for i in range(0, 1000, 100)
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    records, _tombstones, next_since, _next_id = db.pull_all(limit=1000)
+
+    assert len(records) == 1000
+    assert next_since is None
+    assert records[0]["client"]["id"] == "c0"
+    assert records[-1]["client"]["id"] == "c999"
+    assert records[0]["fotos"][0]["available"] is False
+    assert records[0]["fotos"][0]["hash"] is None

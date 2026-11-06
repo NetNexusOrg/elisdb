@@ -1,12 +1,13 @@
 """Manage server-issued authentication keys.
 
 Usage:
-    python -m app.keys issue USER_NAME [--server-url URL] [--output PATH]
+    python -m app.keys issue USER_NAME [--server-url URL] [--output PATH] [--print-seed]
 
 ``issue`` generates an ed25519 keypair; ``issue_and_register`` (the CLI flow)
 registers the public key in the allowlist with the user name as comment and
 writes a configuration file (JSON) with the server URL, the user name and the
-private seed for import into the app.
+private seed for import into the app. The private seed is not printed unless
+``--print-seed`` is passed explicitly.
 The server URL is required and comes from ``--server-url`` or the
 ``ELISDB_SERVER_URL`` environment variable.
 
@@ -17,6 +18,7 @@ list and remove trusted authentications, driven by numbered options.
 import base64
 import json
 import os
+import re
 import sys
 import time
 import uuid
@@ -34,6 +36,30 @@ from .database import Database
 
 def _database() -> Database:
     return Database(os.environ.get("ELISDB_DB", "elisdb.db"))
+
+
+_SAFE_CONFIG_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def safe_config_path(configs_dir: str, name: str) -> str:
+    """Return a confined configuration path for ``name``.
+
+    Configuration file names are derived from operator-supplied user names and
+    key comments. A value containing a path separator, ``..`` or characters
+    outside the allowlist could escape the configs directory, so it is rejected
+    here and the resolved path is checked again against the directory root.
+    """
+    if not name or name in {".", ".."} or not _SAFE_CONFIG_NAME.fullmatch(name):
+        raise ValueError(f"invalid configuration name: {name!r}")
+    root = os.path.realpath(configs_dir)
+    candidate = os.path.realpath(os.path.join(root, f"{name}.config.json"))
+    try:
+        confined = os.path.commonpath([root, candidate]) == root
+    except ValueError:
+        confined = False
+    if not confined:
+        raise ValueError(f"configuration path escapes configs directory: {name!r}")
+    return candidate
 
 
 def generate() -> tuple[str, str]:
@@ -68,17 +94,28 @@ def issue(user_name: str) -> tuple[str, str, str]:
 def _usage() -> None:
     print(
         "usage: python -m app.keys issue <user-name> "
-        "[--server-url <url>] [--output <path>]",
+        "[--server-url <url>] [--output <path>] [--print-seed]",
         file=sys.stderr,
     )
 
 
 def issue_and_register(
-    db: Database, user: str, server_url: str, output: str | None, provisioned: bool = False
+    db: Database,
+    user: str,
+    server_url: str,
+    output: str | None,
+    provisioned: bool = False,
+    print_seed: bool = False,
 ) -> int:
-    """Run the server-issue flow (shared by the argument and interactive modes)."""
+    """Run the server-issue flow (shared by the argument and interactive modes).
+
+    The private seed is written only to the owner-only configuration file. It is
+    printed only when ``print_seed`` is explicitly true (the ``--print-seed``
+    CLI flag or an interactive confirmation), because provisioning runs at
+    container startup and its stdout ends up in container logs.
+    """
     seed_b64, public_b64, key_id = issue(user)
-    output_path = output or f"{user}.config.json"
+    output_path = output or safe_config_path(os.getcwd(), user)
     config = {"server_url": server_url, "private_seed": seed_b64, "user_name": user}
     # The config carries the private seed, so write it owner-only (0600) and
     # re-chmod in case the file already existed with looser permissions.
@@ -90,8 +127,9 @@ def issue_and_register(
     db.add_key(key_id, public_b64, comment=user, provisioned=provisioned)
     print(f"issued key for '{user}' (id {key_id})")
     print(f"configuration written to: {output_path}")
-    print("private seed (import into app): " + seed_b64)
-    print("registered public key:          " + public_b64)
+    if print_seed:
+        print("private seed (import into app): " + seed_b64)
+        print("registered public key:          " + public_b64)
     return 0
 
 
@@ -107,6 +145,7 @@ def _run_args(args: list[str], db: Database) -> int:
 
     server_url = None
     output = None
+    print_seed = False
     user_args: list[str] = []
     i = 1
     while i < len(args):
@@ -123,6 +162,8 @@ def _run_args(args: list[str], db: Database) -> int:
                 return 2
             i += 1
             output = args[i].strip()
+        elif arg == "--print-seed":
+            print_seed = True
         elif arg.startswith("--"):
             print(f"unknown option: {arg}", file=sys.stderr)
             return 2
@@ -147,7 +188,13 @@ def _run_args(args: list[str], db: Database) -> int:
         )
         return 2
 
-    return issue_and_register(db, user, server_url, output)
+    try:
+        return issue_and_register(
+            db, user, server_url, output, print_seed=print_seed
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +241,19 @@ def _create_interactive(db: Database) -> int:
     if not user:
         print("error: a user name is required to issue a key", file=sys.stderr)
         return 2
-    return issue_and_register(db, user, server_url, output=None)
+    show_seed = _prompt("Mostrar a seed privada no terminal? (s/N)").lower() in (
+        "s",
+        "sim",
+        "y",
+        "yes",
+    )
+    try:
+        return issue_and_register(
+            db, user, server_url, output=None, print_seed=show_seed
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
 
 def _remove_interactive(db: Database) -> int:

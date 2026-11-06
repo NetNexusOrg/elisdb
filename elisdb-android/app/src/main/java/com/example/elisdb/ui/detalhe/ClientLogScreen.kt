@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.outlined.CloudOff
@@ -109,6 +110,9 @@ fun ClientLogScreen(
         clienteNome = state.clienteNome,
         entries = state.entries,
         photoUris = state.photoUris,
+        hasMore = state.hasMore,
+        isLoadingMore = state.isLoadingMore,
+        onLoadMore = viewModel::loadMore,
         modifier = Modifier.fillMaxSize().padding(innerPadding),
       )
     }
@@ -120,6 +124,9 @@ private fun LogTimeline(
   clienteNome: String?,
   entries: List<AuditEntryDto>,
   photoUris: Map<String, String>,
+  hasMore: Boolean,
+  isLoadingMore: Boolean,
+  onLoadMore: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val dayFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
@@ -151,6 +158,15 @@ private fun LogTimeline(
       }
       items(dayEntries) { entry ->
         LogEntryCard(entry = entry, timeFormat = timeFormat, photoUris = photoUris)
+      }
+    }
+    if (hasMore || isLoadingMore) {
+      item(key = "load-more") {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+          OutlinedButton(onClick = onLoadMore, enabled = !isLoadingMore) {
+            Text(if (isLoadingMore) "A carregar…" else "Carregar mais")
+          }
+        }
       }
     }
   }
@@ -391,6 +407,7 @@ private fun actionIcon(action: String): ImageVector =
   when (action) {
     "create" -> Icons.Filled.Add
     "update", "edit" -> Icons.Filled.Edit
+    "delete" -> Icons.Filled.Delete
     else -> Icons.Filled.History
   }
 
@@ -398,5 +415,6 @@ private fun actionLabel(action: String): String =
   when (action) {
     "create" -> "Criou o cliente"
     "update", "edit" -> "Editou o cliente"
+    "delete" -> "Apagou o cliente"
     else -> action
   }

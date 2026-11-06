@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
   entities = [Cliente::class, Foto::class, SyncMeta::class],
-  version = 11,
+  version = 12,
   exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -208,6 +208,16 @@ abstract class AppDatabase : RoomDatabase() {
           // Optional free-text tag. Existing clients have no tag, which is the
           // same as an empty one.
           db.execSQL("ALTER TABLE clientes ADD COLUMN tag TEXT")
+        }
+      }
+
+    val MIGRATION_11_12: Migration =
+      object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+          // Records preserved by a full pull because the server did not have
+          // them. Existing rows stay false; the next completed pull marks any
+          // record the server still does not have.
+          db.execSQL("ALTER TABLE clientes ADD COLUMN localOnly INTEGER NOT NULL DEFAULT 0")
         }
       }
   }

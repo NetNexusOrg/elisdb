@@ -1,7 +1,6 @@
 package com.example.elisdb.settings
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ServerConfigDtoTest {
@@ -17,8 +16,8 @@ class ServerConfigDtoTest {
   }
 
   @Test
-  fun http_publico_rejeitado() {
-    assertNull(parseServerConfig(config("http://db.example.com")))
+  fun http_publico_e_parseado_e_a_politica_e_aplicada_no_import() {
+    assertEquals("http://db.example.com", parseServerConfig(config("http://db.example.com"))?.serverUrl)
   }
 
   @Test
@@ -40,12 +39,12 @@ class ServerConfigDtoTest {
   }
 
   @Test
-  fun esquema_nao_suportado_rejeitado() {
-    assertNull(parseServerConfig(config("ftp://db.example.com")))
+  fun esquema_nao_suportado_e_parseado_e_rejeitado_no_import() {
+    assertEquals("ftp://db.example.com", parseServerConfig(config("ftp://db.example.com"))?.serverUrl)
   }
 
   @Test
-  fun url_sem_esquema_rejeitado() {
-    assertNull(parseServerConfig(config("db.example.com")))
+  fun url_sem_esquema_e_parseada_e_rejeitada_no_import() {
+    assertEquals("db.example.com", parseServerConfig(config("db.example.com"))?.serverUrl)
   }
 }

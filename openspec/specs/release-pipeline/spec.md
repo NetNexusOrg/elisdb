@@ -3,6 +3,7 @@
 Automates the production of signed, reproducible Android release artifacts and their publication as GitHub Releases, in a private repository, driven by version tags and without exposing signing secrets or user data.
 
 ## Requirements
+
 ### Requirement: Version-controlled repository
 
 The project SHALL be tracked in a single Git repository whose `.gitignore` excludes build artifacts, local machine configuration, and any file containing secrets or user data, while retaining everything needed to reproduce the build.
@@ -72,14 +73,9 @@ The Android workflow SHALL be displayed in GitHub Actions as `Android CI`.
 - **WHEN** a user opens the repository's Actions tab
 - **THEN** the Android workflow SHALL be listed as `Android CI`
 
-
 ### Requirement: CI workload separation
 
-The Android CI SHALL run unit tests, lint and a debug build on every relevant
-push and pull request, SHALL run the Room migration test as a blocking release
-gate, and SHALL run the full instrumented suite only on pull requests and manual
-dispatches. Tag releases SHALL require the fast checks and the Room migration
-gate.
+The Android CI SHALL run unit tests, lint and a debug build on every relevant push and pull request, SHALL run the Room migration test as a blocking release gate, SHALL run an automated sync smoke test as a blocking release gate, and SHALL run the full instrumented suite only on pull requests and manual dispatches. The sync smoke test SHALL exercise push, pull, and delete against a disposable server with a freshly provisioned key. Tag releases SHALL require the fast checks, the Room migration gate, and the sync smoke gate.
 
 #### Scenario: Pull request runs the full suite
 - **WHEN** a pull request targets main
@@ -93,6 +89,14 @@ gate.
 #### Scenario: Room migration failure blocks release
 - **WHEN** the Room migration test fails for a release tag
 - **THEN** the release job SHALL NOT run
+
+#### Scenario: Sync smoke failure blocks release
+- **WHEN** the push, pull, or delete smoke check fails for a release tag
+- **THEN** the release job SHALL NOT run
+
+#### Scenario: Sync smoke success allows release
+- **WHEN** the fast checks, Room migration gate, and sync smoke gate all pass for a release tag
+- **THEN** the release build and GitHub Release SHALL proceed
 
 ### Requirement: Superseded CI runs are cancelled
 

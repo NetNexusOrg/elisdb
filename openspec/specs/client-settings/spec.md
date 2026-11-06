@@ -91,7 +91,7 @@ The system SHALL remove the stored server configuration in one action. Removing 
 
 ### Requirement: Signing key encrypted at rest
 
-The system SHALL store the server signing key (and the server base URL) encrypted at rest, with the encryption key held in the platform keystore, so the secret is not readable from plain shared preferences.
+The system SHALL store the server signing key (and the server base URL) encrypted at rest, with the encryption key held in the platform keystore, so the secret is not readable from plain shared preferences. If the platform keystore or encrypted store is unavailable, the app SHALL fail the configuration operation with a visible, actionable error and SHALL NOT write the signing key to plain-text storage. Existing plain-text values SHALL be migrated only after the encrypted copy is written and verified; until that succeeds, the previous configuration SHALL remain readable so the app can start.
 
 #### Scenario: Key is not stored in plain text
 - **WHEN** the app persists the server connection
@@ -100,3 +100,29 @@ The system SHALL store the server signing key (and the server base URL) encrypte
 #### Scenario: Existing configuration keeps working after upgrade
 - **WHEN** the app is upgraded from a version that stored the key in plain text
 - **THEN** the previously stored values SHALL still be available (migrated), and the plain-text copy SHALL be removed
+
+#### Scenario: Keystore unavailable fails closed
+- **WHEN** the platform keystore or encrypted preferences cannot be created or opened
+- **THEN** the app SHALL report that secure storage is unavailable
+- **AND** SHALL NOT save the signing key in plain-text preferences
+- **AND** SHALL NOT silently degrade to an unencrypted store
+
+#### Scenario: Migration failure preserves the previous configuration
+- **WHEN** writing or verifying the encrypted copy fails during migration
+- **THEN** the previous configuration SHALL remain readable
+- **AND** the app SHALL still start
+- **AND** the plain-text copy SHALL NOT be removed before the encrypted copy is verified
+
+### Requirement: Invalid configuration changes do not clear sync state
+
+When an import or configuration change is rejected, the app SHALL preserve the current server configuration, watermark, photo hashes and pending records. Only a successful configuration change SHALL reset the server-scoped sync state.
+
+#### Scenario: Rejected import preserves the current server
+- **WHEN** an import fails validation
+- **THEN** the settings screen SHALL keep showing the current configuration
+- **AND** the sync state SHALL remain associated with the current server
+
+#### Scenario: Successful change resets only server-scoped state
+- **WHEN** a valid new configuration is applied
+- **THEN** the app SHALL reset the server-scoped watermark and photo hashes
+- **AND** SHALL keep local client records as before

@@ -42,3 +42,54 @@ def test_issued_config_file_is_owner_only(tmp_path):
     keys.issue_and_register(db, "maria", "https://db.example.com", str(output))
 
     assert os.stat(output).st_mode & 0o777 == 0o600
+
+
+def test_issue_does_not_print_the_private_seed_by_default(tmp_path, capsys):
+    db = _db(tmp_path)
+    output = tmp_path / "maria.config.json"
+
+    keys.issue_and_register(db, "maria", "https://db.example.com", str(output))
+
+    printed = capsys.readouterr()
+    seed = json.loads(output.read_text(encoding="utf-8"))["private_seed"]
+    assert seed not in printed.out
+    assert seed not in printed.err
+    assert "private seed" not in printed.out
+
+
+def test_print_seed_flag_opts_in_to_showing_it(tmp_path, capsys):
+    db = _db(tmp_path)
+    output = tmp_path / "maria.config.json"
+
+    keys._run_args(
+        [
+            "issue",
+            "maria",
+            "--server-url",
+            "https://db.example.com",
+            "--output",
+            str(output),
+            "--print-seed",
+        ],
+        db,
+    )
+
+    printed = capsys.readouterr()
+    seed = json.loads(output.read_text(encoding="utf-8"))["private_seed"]
+    assert seed in printed.out
+    assert "registered public key" in printed.out
+
+
+def test_safe_config_path_rejects_traversal_and_separators(tmp_path):
+    for name in ("../escape", "sub/escape", "a\\b", "", ".", ".."):
+        try:
+            keys.safe_config_path(str(tmp_path), name)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"expected {name!r} to be rejected")
+
+
+def test_safe_config_path_accepts_a_plain_user_name(tmp_path):
+    path = keys.safe_config_path(str(tmp_path), "maria-01")
+    assert path == os.path.realpath(str(tmp_path / "maria-01.config.json"))

@@ -90,6 +90,10 @@ fun MainNavigation() {
                 clienteCount = container.database.clienteDao().observeCount(),
                 clockSkewSeconds = container.clockSync.skewSeconds,
                 onCorrectClock = { container.refreshClock() },
+                periodicSyncEnabled = container.periodicSyncSettings.isEnabled(),
+                onPeriodicSyncChanged = { enabled ->
+                  container.periodicSyncScheduler.setEnabled(enabled)
+                },
               )
             }
           val serverViewModel =
@@ -99,7 +103,9 @@ fun MainNavigation() {
                 syncManager = container.syncManager,
                 fetchKeyIdentity = {
                   try {
-                    container.createApiClient().fetchKeyIdentity(timestamp = container.normalizedEpochSeconds())
+                    container.withApiClient { api ->
+                      api.fetchKeyIdentity(timestamp = container.normalizedEpochSeconds())
+                    }
                   } catch (e: Exception) {
                     null
                   }
@@ -122,15 +128,19 @@ fun MainNavigation() {
                 installedVersionCode = BuildConfig.VERSION_CODE,
                 isConfigured = { container.settingsStore.settings().signingKey.isNotBlank() },
                 fetchRelease = {
-                  container.createApiClient().fetchLatestRelease(container.normalizedEpochSeconds())
+                  container.withApiClient { api ->
+                    api.fetchLatestRelease(container.normalizedEpochSeconds())
+                  }
                 },
                 downloadRelease = { release, onProgress ->
-                  container.createApiClient().downloadRelease(
-                    release = release,
-                    targetDir = File(context.cacheDir, "updates"),
-                    timestamp = container.normalizedEpochSeconds(),
-                    onProgress = onProgress,
-                  )
+                  container.withApiClient { api ->
+                    api.downloadRelease(
+                      release = release,
+                      targetDir = File(context.cacheDir, "updates"),
+                      timestamp = container.normalizedEpochSeconds(),
+                      onProgress = onProgress,
+                    )
+                  }
                 },
               )
             }
@@ -176,7 +186,19 @@ fun MainNavigation() {
                   repository = container.repository,
                   clienteId = key.clienteId,
                   fetchHistory = { id ->
-                    container.createApiClient().fetchClientHistory(id, timestamp = container.normalizedEpochSeconds())
+                    container.withApiClient { api ->
+                      api.fetchClientHistory(id, timestamp = container.normalizedEpochSeconds())
+                    }
+                  },
+                  fetchHistoryPage = { id, limit, afterId ->
+                    container.withApiClient { api ->
+                      api.fetchClientHistoryPage(
+                        id,
+                        limit,
+                        afterId,
+                        timestamp = container.normalizedEpochSeconds(),
+                      )
+                    }
                   },
                 )
               },

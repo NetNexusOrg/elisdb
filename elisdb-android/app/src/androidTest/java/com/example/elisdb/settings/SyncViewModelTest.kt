@@ -224,6 +224,31 @@ class SyncViewModelTest {
     assertFalse(vm.uiState.value.clockCorrecting)
   }
 
+  @Test
+  fun periodicSync_toggleUpdatesStateAndPersistsChoice() {
+    val changes = mutableListOf<Boolean>()
+    val vm =
+      SyncViewModel(
+        syncManager(),
+        kotlinx.coroutines.flow.flowOf(0),
+        periodicSyncEnabled = false,
+        onPeriodicSyncChanged = { changes.add(it) },
+      )
+
+    assertFalse(vm.uiState.value.periodicSyncEnabled)
+
+    vm.setPeriodicSync(true)
+    assertTrue(vm.uiState.value.periodicSyncEnabled)
+    assertEquals(listOf(true), changes)
+
+    vm.setPeriodicSync(true)
+    assertEquals("same value is ignored", listOf(true), changes)
+
+    vm.setPeriodicSync(false)
+    assertFalse(vm.uiState.value.periodicSyncEnabled)
+    assertEquals(listOf(true, false), changes)
+  }
+
   private fun pendingSyncManager(
     dao: FakeAndroidClienteDao = FakeAndroidClienteDao(),
     watermark: FakeAndroidPullWatermark = FakeAndroidPullWatermark(null),
@@ -251,6 +276,9 @@ private class FakeAndroidClienteDao : com.example.elisdb.data.local.ClienteDao {
 
   override fun observeCount(): kotlinx.coroutines.flow.Flow<Int> =
     clients.map { list -> list.count { !it.deletePending } }
+
+  override fun observeLocalOnlyCount(): kotlinx.coroutines.flow.Flow<Int> =
+    clients.map { list -> list.count { it.localOnly && !it.deletePending } }
 
   override fun observeAllComFotos(): kotlinx.coroutines.flow.Flow<List<com.example.elisdb.data.local.ClienteComFotos>> =
     kotlinx.coroutines.flow.flowOf(emptyList())

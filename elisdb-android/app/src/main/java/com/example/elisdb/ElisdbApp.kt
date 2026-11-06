@@ -3,6 +3,8 @@ package com.example.elisdb
 import android.app.Application
 import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.sync.PhotoStoreGuard
+import com.example.elisdb.sync.SyncFault
+import com.example.elisdb.sync.SyncStatus
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import org.maplibre.android.MapLibre
@@ -15,14 +17,26 @@ class ElisdbApp : Application() {
     super.onCreate()
     MapLibre.getInstance(this)
     container = AppContainer(this)
-    // No periodic sync: transfers are triggered by the app start, by saving a
-    // client and by the manual action. The Sync screen checks pending work on
-    // open; this launch only covers the first pull/push of the session.
+    // Background transfers are opt-in. The launch sync still covers the first
+    // pull/push of the session; saving a client and the manual action trigger
+    // their own runs. A transient failure schedules a one-off retry with
+    // exponential backoff even when periodic sync is disabled.
+    container.periodicSyncScheduler.scheduleIfEnabled()
     container.applicationScope.launch {
       initialSyncIfConfigured(
         settingsStore = container.settingsStore,
         syncNow = { container.syncManager.syncNow() },
       )
+    }
+    container.applicationScope.launch {
+      container.syncManager.fault.collect { fault ->
+        if (fault == SyncFault.NETWORK) container.periodicSyncScheduler.scheduleRetry()
+      }
+    }
+    container.applicationScope.launch {
+      container.syncManager.status.collect { status ->
+        if (status == SyncStatus.SUCCESS) container.periodicSyncScheduler.cancelRetry()
+      }
     }
     container.applicationScope.launch {
       PhotoStoreGuard.mutex.withLock { container.photoSweeper.sweep() }

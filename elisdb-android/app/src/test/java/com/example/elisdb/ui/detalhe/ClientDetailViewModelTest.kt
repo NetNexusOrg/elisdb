@@ -68,6 +68,7 @@ class ClientDetailViewModelTest {
     viewModel.deleteCliente()
     dispatcher.scheduler.advanceUntilIdle()
     assertTrue(repo.deletedId == "5")
+    assertTrue("delete triggers a background sync", repo.syncCalls == 1)
     assertTrue(deleted)
     assertFalse(viewModel.uiState.value.showDeleteConfirmation)
   }
@@ -111,6 +112,7 @@ private class FakeClientRepository(
   private val throwOnDelete: Boolean = false,
 ) : ClienteRepository {
   var deletedId: String? = null
+  var syncCalls: Int = 0
 
   override val clientes: Flow<List<Cliente>> = flowOf(emptyList())
 
@@ -137,5 +139,8 @@ private class FakeClientRepository(
 
   override val syncFault = flowOf<SyncFault?>(null)
 
-  override suspend fun syncNow(): SyncStatus = SyncStatus.IDLE
+  override suspend fun syncNow(): SyncStatus {
+    syncCalls++
+    return SyncStatus.IDLE
+  }
 }

@@ -112,12 +112,12 @@ def test_deletion_from_a_slow_device_is_delivered(tmp_path):
     db.save_client(_cliente(id="a", updated_at=1000), [])
     db.save_client(_cliente(id="b", nome="B", updated_at=9000), [])
 
-    assert db.delete_client("a", deleted_at=1000) is True
+    assert db.delete_client("a", deleted_at=1001) is True
 
     records, tombstones, _, _ = db.pull_all(since=9000)
     assert records == []
     assert [tombstone["id"] for tombstone in tombstones] == ["a"]
-    assert tombstones[0]["deleted_at"] == 1000
+    assert tombstones[0]["deleted_at"] == 1001
     assert tombstones[0]["delivery_ts"] > 9000
 
 

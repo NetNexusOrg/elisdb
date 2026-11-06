@@ -7,9 +7,11 @@ import com.example.elisdb.data.local.FotoDao
 import com.example.elisdb.remote.ClienteComFotosDto
 import com.example.elisdb.remote.ClienteOutDto
 import com.example.elisdb.remote.FotoOutDto
+import com.example.elisdb.remote.HistoryPageDto
 import com.example.elisdb.remote.PullResponseDto
 import com.example.elisdb.remote.PushResultDto
 import com.example.elisdb.remote.RecordDto
+import com.example.elisdb.remote.ServerException
 import com.example.elisdb.remote.TombstoneDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -20,6 +22,9 @@ class FakeClienteDao(initial: List<Cliente> = emptyList()) : ClienteDao {  val d
   override fun observeAll(): Flow<List<Cliente>> = flowOf(data.filter { !it.deletePending })
   override fun observeAllIncludingDeleted(): Flow<List<Cliente>> = flowOf(data.toList())
   override fun observeCount(): Flow<Int> = flowOf(data.count { !it.deletePending })
+
+  override fun observeLocalOnlyCount(): Flow<Int> =
+    flowOf(data.count { it.localOnly && !it.deletePending })
 
   override suspend fun getAll(): List<Cliente> = data.toList()
 
@@ -104,12 +109,24 @@ class FakePhotoStore : PhotoStore {
   /** Registers an existing file with its base64 content, mirroring the disk. */
   fun stage(uri: String, dataB64: String) {
     files.add(uri)
-    content[uri] = java.util.Base64.getDecoder().decode(dataB64)
+    content[uri] = decoded(dataB64)
   }
 
-  /** Base64 of the stored bytes at [uri], for assertions. */
-  fun contentB64(uri: String): String =
-    java.util.Base64.getEncoder().encodeToString(content[uri]!!)
+  /** Base64 of the stored bytes at [uri], excluding the test JPEG marker. */
+  fun contentB64(uri: String): String {
+    val bytes = content[uri]!!
+    val payload =
+      if (bytes.size >= 3 &&
+        bytes[0] == 0xFF.toByte() &&
+        bytes[1] == 0xD8.toByte() &&
+        bytes[2] == 0xFF.toByte()
+      ) {
+        bytes.copyOfRange(3, bytes.size)
+      } else {
+        bytes
+      }
+    return java.util.Base64.getEncoder().encodeToString(payload)
+  }
 
   override suspend fun readBytes(uriLocal: String): ByteArray? = content[uriLocal]
 
@@ -183,7 +200,19 @@ class FakePhotoPushState : PhotoPushState {
 
 /** Fake network transport controlled by the test. */
 class FakeSyncApi : SyncApi {
-  var pushResult: (List<RecordDto>) -> List<PushResultDto> = { it.map { r -> PushResultDto(r.client.id, "accepted") } }
+  var pushResult: (List<RecordDto>) -> List<PushResultDto> = { defaultPushResult(it) }
+
+  /** Photos the fake server already holds; uploads add to this set. */
+  val serverPhotos = mutableSetOf<String>()
+
+  private fun defaultPushResult(records: List<RecordDto>): List<PushResultDto> =
+    records.map { record ->
+      PushResultDto(
+        record.client.id,
+        "accepted",
+        missingPhotos = record.fotos.map { it.id }.filter { it !in serverPhotos },
+      )
+    }
   var pullResponse: PullResponseDto = PullResponseDto()
   /** Optional queue of pull responses consumed one per call (for pagination tests). */
   val pullQueue = ArrayDeque<PullResponseDto>()
@@ -198,13 +227,32 @@ class FakeSyncApi : SyncApi {
   var pullGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
   val pushed = mutableListOf<List<RecordDto>>()
+  val pushIdempotencyKeys = mutableListOf<String?>()
   val deleted = mutableListOf<String>()
   var pushCalls = 0
 
-  override suspend fun push(records: List<RecordDto>, timestamp: Long): List<PushResultDto> {
+  /** When set, pushes larger than this are rejected with HTTP 422. */
+  var maxAcceptedBatch: Int? = null
+
+  /** When true, the next push fails with a transient error. */
+  var failPushOnce: Boolean = false
+
+  override suspend fun push(
+    records: List<RecordDto>,
+    timestamp: Long,
+    idempotencyKey: String?,
+  ): List<PushResultDto> {
     failWith?.let { throw it }
+    maxAcceptedBatch?.let { max ->
+      if (records.size > max) throw ServerException("batch too large", 422)
+    }
+    if (failPushOnce) {
+      failPushOnce = false
+      throw java.io.IOException("transient push failure")
+    }
     pushCalls++
     pushed.add(records)
+    pushIdempotencyKeys.add(idempotencyKey)
     return pushResult(records)
   }
 
@@ -240,9 +288,28 @@ class FakeSyncApi : SyncApi {
   /** Client count returned by [fetchServerInfo]. */
   var clientCount: Int = 0
 
+  /** Stable server identity returned by [fetchServerInfo]; null for old servers. */
+  var instanceId: String? = null
+
+  /** Push batch limit returned by [fetchServerInfo]; null for old servers. */
+  var maxPushRecords: Int? = null
+
   override suspend fun fetchServerInfo(timestamp: Long): ServerInfo {
     failWith?.let { throw it }
-    return ServerInfo(latestUpdatedAt ?: throw java.io.IOException("no latest"), clientCount)
+    return ServerInfo(
+      latestUpdatedAt ?: throw java.io.IOException("no latest"),
+      clientCount,
+      instanceId = instanceId,
+      maxPushRecords = maxPushRecords,
+    )
+  }
+
+  /** Records returned by [fetchClients]. */
+  var clientsResponse: List<ClienteOutDto> = emptyList()
+
+  override suspend fun fetchClients(timestamp: Long): List<ClienteOutDto> {
+    failWith?.let { throw it }
+    return clientsResponse
   }
 
   /** Entries returned by [fetchClientHistory]; empty by default. */
@@ -253,6 +320,20 @@ class FakeSyncApi : SyncApi {
     return historyResponse(id)
   }
 
+  /** Page fetcher override; defaults to the full [historyResponse]. */
+  var historyPageResponse: ((String, Int, Int?) -> HistoryPageDto)? = null
+
+  override suspend fun fetchClientHistoryPage(
+    id: String,
+    limit: Int,
+    afterId: Int?,
+    timestamp: Long,
+  ): HistoryPageDto {
+    failWith?.let { throw it }
+    return historyPageResponse?.invoke(id, limit, afterId)
+      ?: HistoryPageDto(historyResponse(id), null)
+  }
+
   /** Server-side photo bytes keyed by id, served by [downloadPhoto]. */
   val photos = mutableMapOf<String, ByteArray>()
 
@@ -261,6 +342,9 @@ class FakeSyncApi : SyncApi {
 
   /** How many times [downloadPhoto] was called. */
   var photoDownloadCalls = 0
+
+  /** When set, the next photo upload throws this exception. */
+  var failUpload: Exception? = null
 
   /** Photos uploaded via [uploadPhoto], keyed by id. */
   val uploaded = mutableMapOf<String, ByteArray>()
@@ -277,7 +361,9 @@ class FakeSyncApi : SyncApi {
 
   override suspend fun uploadPhoto(id: String, bytes: ByteArray, timestamp: Long) {
     failWith?.let { throw it }
+    failUpload?.let { throw it }
     uploaded[id] = bytes
+    serverPhotos += id
   }
 }
 
@@ -311,7 +397,9 @@ fun serverItem(
     photosComplete = photosComplete,
   )
 /** Base64-decodes [dataB64] into bytes. */
-fun decoded(dataB64: String): ByteArray = java.util.Base64.getDecoder().decode(dataB64)
+fun decoded(dataB64: String): ByteArray =
+  byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte()) +
+    java.util.Base64.getDecoder().decode(dataB64)
 
 /** SHA-256 hex of the decoded [dataB64], matching the server's photo hash. */
 fun sha256Of(dataB64: String): String = PhotoHashes.sha256(decoded(dataB64))
@@ -327,4 +415,11 @@ class FakeLastSyncStore(var value: Long? = null) : LastSyncStore {
   override fun clear() {
     value = null
   }
+}
+
+/** In-memory [ServerIdentityStore]. */
+class FakeServerIdentityStore(var value: String? = null) : ServerIdentityStore {
+  override fun get(): String? = value
+  override fun set(instanceId: String) { value = instanceId }
+  override fun clear() { value = null }
 }

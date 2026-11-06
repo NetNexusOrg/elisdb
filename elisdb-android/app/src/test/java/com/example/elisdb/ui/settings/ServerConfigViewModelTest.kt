@@ -1,6 +1,7 @@
 package com.example.elisdb.ui.settings
 
 import com.example.elisdb.remote.KeyIdentityDto
+import com.example.elisdb.settings.SecureStorageUnavailable
 import com.example.elisdb.settings.ServerSettings
 import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.sync.FakeClienteDao
@@ -178,6 +179,104 @@ class ServerConfigViewModelTest {
   }
 
   @Test
+  fun `importar configuracao rejeita http publico sem guardar nem resetar`() = runTest(dispatcher) {
+    val store = FakeSettingsStore(ServerSettings("https://old", "old-seed", "maria"))
+    var resets = 0
+    val viewModel =
+      ServerConfigViewModel(
+        store,
+        syncManager(backgroundScope),
+        fetchKeyIdentity = { null },
+        resetSyncState = { resets++ },
+      )
+    viewModel.importKey(
+      """{"server_url":"http://example.com:8000","private_seed":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","user_name":"carlos"}""",
+    )
+    advanceUntilIdle()
+
+    assertEquals(ServerSettings("https://old", "old-seed", "maria"), store.current)
+    assertEquals("URL inválida não pode reiniciar o sync", 0, resets)
+    assertTrue("erro acionável mostrado", viewModel.uiState.value.signingKeyError?.contains("HTTP") == true)
+  }
+
+  @Test
+  fun `importar configuracao aceita http privado`() = runTest(dispatcher) {
+    val store = FakeSettingsStore(ServerSettings("", ""))
+    val viewModel = vm(store, backgroundScope)
+    viewModel.importKey(
+      """{"server_url":"http://192.168.1.10:8000","private_seed":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","user_name":"carlos"}""",
+    )
+    advanceUntilIdle()
+
+    assertEquals("http://192.168.1.10:8000", store.current.baseUrl)
+    assertEquals("carlos", store.current.userName)
+    assertNull(viewModel.uiState.value.signingKeyError)
+  }
+
+  @Test
+  fun `importar configuracao rejeita esquema nao suportado sem guardar`() = runTest(dispatcher) {
+    val store = FakeSettingsStore(ServerSettings("", ""))
+    val viewModel = vm(store, backgroundScope)
+    viewModel.importKey(
+      """{"server_url":"ftp://example.com","private_seed":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","user_name":"carlos"}""",
+    )
+    advanceUntilIdle()
+
+    assertEquals(ServerSettings("", ""), store.current)
+    assertTrue("erro de URL mostrado", viewModel.uiState.value.signingKeyError != null)
+  }
+
+  @Test
+  fun `importar configuracao falha de armazenamento seguro mantem a anterior`() = runTest(dispatcher) {
+    val store =
+      FakeSettingsStore(ServerSettings("https://old", "old-seed", "maria"), failSave = true)
+    var resets = 0
+    val viewModel =
+      ServerConfigViewModel(
+        store,
+        syncManager(backgroundScope),
+        fetchKeyIdentity = { null },
+        resetSyncState = { resets++ },
+      )
+    viewModel.importKey(
+      """{"server_url":"https://new","private_seed":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","user_name":"carlos"}""",
+    )
+    advanceUntilIdle()
+
+    assertEquals(ServerSettings("https://old", "old-seed", "maria"), store.current)
+    assertEquals("https://old", viewModel.uiState.value.baseUrl)
+    assertEquals("old-seed", viewModel.uiState.value.signingKey)
+    assertTrue(viewModel.uiState.value.hasKey)
+    assertEquals("falha de escrita não pode reiniciar o sync", 0, resets)
+    assertTrue(
+      "erro de armazenamento acionável",
+      viewModel.uiState.value.signingKeyError?.contains("segurança") == true,
+    )
+  }
+
+  @Test
+  fun `clearConfig falha de armazenamento seguro mantem a configuracao`() = runTest(dispatcher) {
+    val store =
+      FakeSettingsStore(ServerSettings("https://old", "old-seed", "maria"), failSave = true)
+    var resets = 0
+    val viewModel =
+      ServerConfigViewModel(
+        store,
+        syncManager(backgroundScope),
+        fetchKeyIdentity = { null },
+        resetSyncState = { resets++ },
+      )
+    viewModel.clearConfig()
+    advanceUntilIdle()
+
+    assertEquals(ServerSettings("https://old", "old-seed", "maria"), store.current)
+    assertEquals("https://old", viewModel.uiState.value.baseUrl)
+    assertTrue(viewModel.uiState.value.hasKey)
+    assertEquals("falha de escrita não pode reiniciar o sync", 0, resets)
+    assertTrue(viewModel.uiState.value.signingKeyError?.contains("segurança") == true)
+  }
+
+  @Test
   fun `clearConfig limpa url chave e utilizador`() = runTest(dispatcher) {
     val store = FakeSettingsStore(ServerSettings("https://s", "seed"))
     val viewModel =
@@ -262,10 +361,14 @@ class ServerConfigViewModelTest {
   }
 }
 
-private class FakeSettingsStore(var current: ServerSettings) : SettingsStore {
+private class FakeSettingsStore(
+  var current: ServerSettings,
+  private val failSave: Boolean = false,
+) : SettingsStore {
   override fun settings(): ServerSettings = current
 
   override fun save(baseUrl: String, signingKey: String, userName: String) {
+    if (failSave) throw SecureStorageUnavailable("no secure storage")
     current = ServerSettings(baseUrl, signingKey, userName)
   }
 }

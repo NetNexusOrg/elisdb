@@ -56,7 +56,9 @@ Criar a tag `v*` publica o APK no GitHub **e** copia-o para o servidor: o
 trabalho `release` do `android-release.yml` envia
 `elisdb-<versão>-<código>.apk` para a pasta de atualizações por `rsync` (só em
 tags, nunca em `main`). Não é preciso reiniciar o servidor — o ficheiro é
-descoberto no pedido seguinte.
+descoberto no pedido seguinte. Antes do release, o job **Sync smoke** corre um
+push/pull/delete real contra uma base de dados descartável; se falhar, o APK não
+é publicado.
 
 1. Sobe `app.versionCode` e `app.versionName` em `elisdb-android/gradle.properties`.
 2. Escreve a secção da versão em `elisdb-android/CHANGELOG.md` (`## [1.6.0]`, com

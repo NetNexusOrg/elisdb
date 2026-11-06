@@ -27,18 +27,44 @@ não por chave dentro do mesmo servidor.
 
 ## O que a auditoria faz (e não faz)
 
-O histórico (`client_audit`) regista, para cada criação ou edição aceite:
+O histórico (`client_audit`) regista, para cada criação, edição ou eliminação
+aceite:
 
 - a chave que fez o pedido (`key_id`);
 - o nome associado à chave (`username`);
-- a hora do registo (o `updated_at` do dispositivo, ou seja, o momento da
-  edição — não a hora a que o servidor recebeu o push) e o que mudou (campos e
-  fotos).
+- a hora do registo (o `updated_at`/`deleted_at` do dispositivo, ou seja, o
+  momento da alteração — não a hora a que o servidor recebeu o push) e o que
+  mudou (campos e fotos).
 
-Isto permite **atribuir** uma alteração a um ator, mas **não impede** que esse
-ator altere ou apague dados de outra pessoa. As eliminações deixam um tombstone
-(para propagar a remoção), não uma entrada de auditoria com o ator. A auditoria
-é um registo de responsabilidade, não um controlo de acesso.
+As eliminações ficam registadas na mesma transação do tombstone, com o ator e
+uma cópia dos dados do cliente eliminado (`details.deleted_client`). Isto
+permite **atribuir** uma alteração a um ator, mas **não impede** que esse ator
+altere ou apague dados de outra pessoa. A auditoria é um registo de
+responsabilidade, não um controlo de acesso.
+
+## Segredos e provisionamento
+
+A chave privada de cada telemóvel só existe no ficheiro `<nome>.config.json`,
+escrito com permissões `0600`. A emissão **não imprime a seed por omissão**,
+incluindo o provisionamento automático de `ELISDB_USERS`; usar `--print-seed` é
+uma escolha explícita para depuração local. Não copies seeds para logs, tickets
+ou capturas de ecrã.
+
+Para rodar uma chave comprometida, remove-a da allowlist (menu de `app.keys`,
+opção `3`), emite uma nova e importa o novo ficheiro no telemóvel. A chave antiga
+deixa de autenticar imediatamente. Nomes de utilizador são validados para evitar
+que um nome com `../` ou separadores escreva ou apague ficheiros fora da pasta
+de configurações.
+
+## Armazenamento de fotos
+
+O upload de uma foto exige que o id já tenha sido referenciado por um push; um
+id desconhecido responde `404`. Cada chave e o servidor como um todo têm quotas
+de armazenamento (`ELISDB_MAX_PHOTO_BYTES_PER_KEY` e
+`ELISDB_MAX_PHOTO_BYTES_TOTAL`), verificadas antes da escrita, e os ficheiros
+órfãos são limpos periodicamente mesmo sem pushes. Isto limita o impacto de uma
+chave comprometida, mas **não substitui** as quotas de disco do host nem a
+monitorização do volume.
 
 ## Recomendações
 

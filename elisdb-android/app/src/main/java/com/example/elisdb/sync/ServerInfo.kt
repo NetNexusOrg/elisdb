@@ -14,4 +14,8 @@ data class ServerInfo(
   val clientCount: Int? = null,
   /** Null when the server predates the API version field. */
   val apiVersion: Int? = null,
+  /** Stable identity of the server database; null on old servers. */
+  val instanceId: String? = null,
+  /** Effective maximum records per push, advertised for client batching. */
+  val maxPushRecords: Int? = null,
 )

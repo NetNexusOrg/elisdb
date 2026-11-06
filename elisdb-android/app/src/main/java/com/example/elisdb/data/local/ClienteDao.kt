@@ -21,6 +21,10 @@ interface ClienteDao {
   @Query("SELECT COUNT(*) FROM clientes WHERE deletePending = 0")
   fun observeCount(): Flow<Int>
 
+  /** Number of records preserved as local-only after a full pull. */
+  @Query("SELECT COUNT(*) FROM clientes WHERE localOnly = 1 AND deletePending = 0")
+  fun observeLocalOnlyCount(): Flow<Int>
+
   @Query("SELECT * FROM clientes")
   suspend fun getAll(): List<Cliente>
 

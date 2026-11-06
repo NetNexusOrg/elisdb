@@ -86,3 +86,36 @@ Requests that move large payloads SHALL use a timeout suited to their size inste
 #### Scenario: Downloading a release
 - **WHEN** the package download takes longer than the metadata timeout
 - **THEN** the download SHALL continue until it completes or fails on its own timeout
+
+### Requirement: Configuration change cancels the in-flight sync
+
+Clearing or replacing the server configuration SHALL cancel and await any in-flight synchronization before resetting the watermark, photo hashes, clock offset and sync status. A sync started under the previous configuration SHALL NOT publish success, advance the watermark, or restore state after the reset.
+
+#### Scenario: Config reset waits for the active sync
+- **WHEN** the user clears or imports a configuration while a sync is running
+- **THEN** the app SHALL cancel that sync and wait for it to finish
+- **AND** SHALL only then reset the sync state
+
+#### Scenario: Old sync cannot overwrite the new state
+- **WHEN** a sync from the previous configuration finishes after the reset
+- **THEN** it SHALL NOT write the watermark, photo hashes, clock offset or a success status
+- **AND** the next sync SHALL use the new configuration
+
+### Requirement: Transient failures retry with backoff
+
+The app SHALL retry transient network and server failures with exponential backoff and jitter, capped at a configured maximum. Authentication, configuration and validation failures SHALL NOT be retried automatically. A manual sync SHALL reset the backoff and attempt immediately.
+
+#### Scenario: Transient failure is retried later
+- **WHEN** a sync fails with a transient network or server error
+- **THEN** the app SHALL schedule a retry with exponential backoff and jitter
+- **AND** SHALL surface the last error while waiting
+
+#### Scenario: Auth or configuration failure is not retried
+- **WHEN** a sync fails because of an invalid key or invalid configuration
+- **THEN** the app SHALL NOT retry automatically
+- **AND** SHALL show an actionable configuration error
+
+#### Scenario: Manual sync overrides the wait
+- **WHEN** the user triggers a manual sync while a backoff is pending
+- **THEN** the app SHALL attempt immediately
+- **AND** SHALL reset the backoff on success

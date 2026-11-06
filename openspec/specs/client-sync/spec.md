@@ -224,11 +224,11 @@ The system SHALL NOT convert a history fetch failure into an empty result; a fai
 
 ### Requirement: Sync happens on launch, save and manual trigger
 
-The system SHALL NOT synchronize on a timer: transfers SHALL happen only when the app starts, when the user saves a client, or when the user triggers a sync manually.
+The system SHALL synchronize on app start, when the user saves a client, when the user deletes a client, and when the user triggers a sync manually. The app MAY also synchronize on a periodic background schedule when that schedule is enabled; the periodic schedule SHALL be opt-in, SHALL use the single-flight behavior, and SHALL use exponential backoff after transient failures.
 
 #### Scenario: No automatic sync runs
-- **WHEN** the app stays open or in the background without a launch, a save or a manual trigger
-- **THEN** the app SHALL NOT transfer data to or from the server on a timer
+- **WHEN** the app stays open or in the background without a launch, a save, a delete, a manual trigger, or an enabled periodic schedule
+- **THEN** the app SHALL NOT transfer data to or from the server
 
 #### Scenario: Initial sync on app start
 - **WHEN** the app process starts and a server configuration exists
@@ -249,6 +249,11 @@ The system SHALL NOT synchronize on a timer: transfers SHALL happen only when th
 - **THEN** the app SHALL start a synchronisation in the background
 - **AND** the app SHALL return to the previous screen without waiting for the synchronisation to finish
 
+#### Scenario: Deleting a client triggers a sync
+- **WHEN** the user confirms the deletion of a client
+- **THEN** the app SHALL mark it for deletion and start a synchronisation in the background
+- **AND** SHALL NOT require a manual sync to send the deletion
+
 #### Scenario: Saving while a sync is running joins it
 - **WHEN** the user saves a client while a synchronisation is already in progress
 - **THEN** the app SHALL NOT start a second concurrent synchronisation
@@ -257,6 +262,11 @@ The system SHALL NOT synchronize on a timer: transfers SHALL happen only when th
 #### Scenario: Opening settings does not transfer
 - **WHEN** the user opens the settings screen
 - **THEN** the app SHALL check pending uploads and downloads without transferring client/photo data
+
+#### Scenario: Enabled periodic sync runs in the background
+- **WHEN** the periodic schedule is enabled and its interval elapses
+- **THEN** the app SHALL run a single synchronisation through the same single-flight path
+- **AND** SHALL publish the same observable status as a manual sync
 
 ### Requirement: Pending sync state shown on the synchronization screen
 
@@ -489,3 +499,117 @@ When the configuration screen opens, the system SHALL refresh the pending-upload
 - **WHEN** the user opens the configuration screen
 - **THEN** the system SHALL query the server for the pending indicators and the server client total
 - **AND** the system SHALL NOT transfer client records while doing so
+
+### Requirement: Push is chunked and bounded
+
+The app SHALL send pending client records in bounded batches that never exceed the server's configured maximum, apply the per-record results of each batch before starting the next, and keep records pending until their own result is acknowledged. A batch failure SHALL NOT prevent later batches or unrelated records from being attempted, and the app SHALL validate the per-client photo limit before uploading so an oversized client produces an actionable error instead of blocking every sync.
+
+#### Scenario: More pending records than one batch
+- **WHEN** the app has more pending records than the server's maximum batch size
+- **THEN** the app SHALL split them into multiple push requests, each within the limit
+- **AND** every record SHALL be acknowledged across the batches
+- **AND** the sync SHALL NOT fail solely because the total number of pending records exceeds one batch
+
+#### Scenario: One batch fails
+- **WHEN** one push batch fails with a transient or invalid-record response
+- **THEN** the app SHALL keep that batch's records pending for a later retry
+- **AND** SHALL still attempt the remaining batches
+- **AND** SHALL report the failure without discarding acknowledged records
+
+#### Scenario: Client learns the server batch limit
+- **WHEN** the server advertises its maximum push batch size
+- **THEN** the app SHALL use a batch size that does not exceed it
+- **AND** when the server does not advertise a limit, the app SHALL fall back to a conservative size below the server default
+
+#### Scenario: Client exceeds the photo limit
+- **WHEN** a client to push has more photos than the server accepts per client
+- **THEN** the app SHALL reject the push for that client with an actionable message before uploading its photos
+- **AND** SHALL NOT leave the whole sync stuck on a repeated server error
+
+#### Scenario: Photos are not orphaned by a failed push
+- **WHEN** a push batch is not accepted after its photos were uploaded
+- **THEN** the app SHALL retry or clean up those uploads so they do not remain orphaned indefinitely
+
+### Requirement: Pull reconciliation requires a completed pull
+
+The app SHALL treat a pull as complete only when it has followed the pagination cursor to a response with no next cursor. A pull aborted by a repeated cursor, a partial page, or a network failure SHALL NOT be used to delete or drop local records that are absent from the received pages.
+
+#### Scenario: Cursor does not advance
+- **WHEN** the server returns a pagination cursor that does not advance
+- **THEN** the app SHALL stop the pull and report an error
+- **AND** SHALL NOT delete local records based on that partial result
+
+#### Scenario: Complete pull permits reconciliation
+- **WHEN** the pull reaches the final page with no next cursor
+- **THEN** the app SHALL be allowed to reconcile local records against the complete server set
+- **AND** records with pending local changes SHALL still be preserved
+
+### Requirement: Tombstones do not delete a newer local edit
+
+When applying a tombstone, the app SHALL compare the tombstone's deletion timestamp with the local record's `updatedAt`. If the local record is newer and is not pending deletion, the app SHALL preserve it and re-push it as a re-creation instead of deleting it. A record with a pending local edit SHALL never be deleted by a tombstone.
+
+#### Scenario: Tombstone is older than the local edit
+- **WHEN** a pull returns a tombstone whose `deleted_at` is older than the local record's `updatedAt`
+- **THEN** the app SHALL keep the local record and its photos
+- **AND** SHALL mark it for re-push so the server can resurrect it
+
+#### Scenario: Pending local edit survives a tombstone
+- **WHEN** a tombstone names a record that has pending local changes
+- **THEN** the app SHALL NOT delete the record
+- **AND** SHALL keep the local change pending
+
+#### Scenario: Tombstone newer than the local record deletes it
+- **WHEN** a tombstone is newer than the local record and the record has no pending local changes
+- **THEN** the app SHALL delete the local record and its photos as before
+
+### Requirement: Shared HTTP client is thread-safe
+
+The app SHALL create, reuse, and replace the shared HTTP client safely under concurrent callers. A configuration change SHALL NOT close a client that is still in use, and concurrent requests SHALL NOT create duplicate clients or leak connection pools.
+
+#### Scenario: Concurrent callers share one client
+- **WHEN** sync, identity and history requests start concurrently
+- **THEN** they SHALL observe the same client instance for the current configuration
+- **AND** no additional client SHALL be constructed
+
+#### Scenario: Configuration change does not close an in-use client
+- **WHEN** the configuration changes while a request is using the current client
+- **THEN** the app SHALL let that request finish or fail cleanly before closing the client
+- **AND** SHALL NOT hand a closed client to a new request
+
+### Requirement: Photo push streams one photo at a time
+
+The app SHALL read, hash, and upload photos one at a time during a push and SHALL NOT hold all photo bytes of a client in memory simultaneously. A missing photo SHALL be reported and skipped without preventing other photos or unrelated clients from being processed.
+
+#### Scenario: Large client is uploaded incrementally
+- **WHEN** a client has many photos to push
+- **THEN** the app SHALL process one photo at a time
+- **AND** SHALL release that photo's bytes before reading the next one
+
+#### Scenario: Missing photo does not abort the client
+- **WHEN** one of a client's photo files is missing during the push
+- **THEN** the app SHALL report that photo as missing
+- **AND** SHALL still process the client's remaining photos and records
+
+#### Scenario: Upload order is deterministic
+- **WHEN** a client's photos are pushed
+- **THEN** the app SHALL upload them in a stable order derived from the photo order and identifier
+- **AND** a retry of the same push SHALL use the same order
+
+### Requirement: Push retries are idempotent
+
+The app SHALL attach a stable idempotency key to each push batch and SHALL reuse that key when retrying the same batch after a timeout or transient failure. A new key SHALL be generated only when the batch content changes (for example after a new local edit or a different set of records), so the server can return the prior result without duplicating writes or requiring photos to be uploaded again.
+
+#### Scenario: Timeout retry reuses the key
+- **WHEN** a push request times out or fails transiently and the app retries the same batch
+- **THEN** the retry SHALL carry the same idempotency key
+- **AND** the server SHALL be able to return the original per-record result
+
+#### Scenario: Changed batch uses a new key
+- **WHEN** a record in the batch is edited or the batch membership changes after a failed attempt
+- **THEN** the next push SHALL use a new idempotency key
+- **AND** SHALL NOT reuse the result of the previous batch
+
+#### Scenario: Successful retry does not duplicate work
+- **WHEN** a push succeeds but its response is lost and the app retries with the same key
+- **THEN** the server SHALL NOT persist the records twice or create duplicate audit entries
+- **AND** the app SHALL treat the returned result as the acknowledgement

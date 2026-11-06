@@ -5,23 +5,33 @@ last-write-wins on updated_at, and clients/photos live in a single SQLite file.
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import threading
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 
 from . import auth, updates
-from .database import Database, MAX_FUTURE_SKEW_SECONDS
+from .database import (
+    Database,
+    IdempotencyConflict,
+    MAX_FUTURE_SKEW_SECONDS,
+    PhotoNotReferenced,
+    PhotoQuotaExceeded,
+    StaleDeleteError,
+)
 from .ratelimit import RateLimiter
 from .models import (
     AppReleaseOut,
     AuditEntryOut,
     ClienteComFotosOut,
     ClienteOut,
+    HistoryPageOut,
     PushRequest,
     PushResult,
     TombstoneOut,
@@ -273,6 +283,12 @@ def create_app(database: Database | None = None) -> FastAPI:
     max_push_records = _env_int("ELISDB_MAX_PUSH_RECORDS", 200)
     max_photos_per_client = _env_int("ELISDB_MAX_PHOTOS_PER_CLIENT", 500)
     photo_gc_interval = _env_int("ELISDB_PHOTO_GC_INTERVAL_SECONDS", PHOTO_GC_INTERVAL_SECONDS)
+    max_photo_bytes_total = _env_int(
+        "ELISDB_MAX_PHOTO_BYTES_TOTAL", 20 * 1024**3
+    )
+    max_photo_bytes_per_key = _env_int(
+        "ELISDB_MAX_PHOTO_BYTES_PER_KEY", 2 * 1024**3
+    )
 
     app.state.store = store
     auth_dep = Depends(require_auth)
@@ -341,6 +357,43 @@ def create_app(database: Database | None = None) -> FastAPI:
 
         threading.Thread(target=run, name="elisdb-photo-gc", daemon=True).start()
 
+    photo_gc_stop = threading.Event()
+
+    def _photo_gc_loop() -> None:
+        """Periodic orphan sweep, independent of pushes."""
+        while not photo_gc_stop.wait(photo_gc_interval):
+            if not gc_lock.acquire(blocking=False):
+                continue
+            try:
+                removed_files = store.gc_orphan_photos(
+                    min_age_seconds=ORPHAN_PHOTO_GRACE_SECONDS
+                )
+                if removed_files:
+                    logger.info(
+                        "periodic cleanup removed %d orphaned photo file(s)",
+                        removed_files,
+                    )
+                gc_state["last"] = time.monotonic()
+            except Exception:
+                logger.exception("periodic orphan photo cleanup failed")
+            finally:
+                gc_lock.release()
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        thread = threading.Thread(
+            target=_photo_gc_loop, name="elisdb-photo-gc", daemon=True
+        )
+        thread.start()
+        try:
+            yield
+        finally:
+            photo_gc_stop.set()
+            thread.join(timeout=5)
+
+    # Assigned after the helper definitions above; routes are added below.
+    app.router.lifespan_context = lifespan
+
     rate_limiter = RateLimiter(
         max_requests=_env_int("ELISDB_RATE_LIMIT_REQUESTS", 300),
         window_seconds=_env_int("ELISDB_RATE_LIMIT_WINDOW_SECONDS", 60),
@@ -402,7 +455,12 @@ def create_app(database: Database | None = None) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict:
-        return {"status": "ok", "version": version, "api_version": API_VERSION}
+        return {
+            "status": "ok",
+            "version": version,
+            "api_version": API_VERSION,
+            "instance_id": store.instance_id(),
+        }
 
     @app.get("/api/time")
     def time_now() -> dict:
@@ -418,6 +476,12 @@ def create_app(database: Database | None = None) -> FastAPI:
             # Additive too: an older client ignores it, a newer one warns when
             # the server predates a feature the app relies on.
             "api_version": API_VERSION,
+            # Stable identity for this database; lets a client distinguish the
+            # same server from a new or restored one before reconciling data.
+            "instance_id": store.instance_id(),
+            # The effective push limit, so clients can split large batches
+            # instead of discovering the limit through a 422 response.
+            "max_push_records": max_push_records,
         }
 
     @app.post("/api/push", response_model=list[PushResult], dependencies=[auth_dep])
@@ -443,33 +507,29 @@ def create_app(database: Database | None = None) -> FastAPI:
                 )
 
         actor = getattr(request.state, "authenticated_key", None)
-        results: list[PushResult] = []
-        for record in req.records:
-            try:
-                status, existing_id, canonical, missing = store.save_client(
-                    record.client, record.fotos, actor=actor
-                )
-            except ValueError as exc:
-                # One invalid record must not abort the whole batch: report it
-                # per-record and keep processing the rest.
-                logger.warning("push record %s rejected: %s", record.client.id, exc)
-                results.append(PushResult(id=record.client.id, status="error"))
-                continue
-            results.append(
-                PushResult(
-                    id=record.client.id,
-                    status=status,
-                    existing_id=existing_id,
-                    client=canonical["client"] if canonical is not None else None,
-                    fotos=canonical["fotos"] if canonical is not None else [],
-                    missing_photos=missing,
-                )
+        idempotency_key = request.headers.get("Idempotency-Key")
+        payload_hash = (
+            hashlib.sha256(req.model_dump_json().encode("utf-8")).hexdigest()
+            if idempotency_key
+            else None
+        )
+        try:
+            raw_results = store.push_batch(
+                req.records,
+                actor=actor,
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
             )
+        except IdempotencyConflict:
+            raise HTTPException(
+                status_code=409,
+                detail="idempotency key reused with a different payload",
+            ) from None
         # A successful push is a natural checkpoint: reclaim abandoned uploads
         # and expire history without adding work to every request.
         _maybe_prune()
         _maybe_gc_photos()
-        return results
+        return [PushResult.model_validate(result) for result in raw_results]
 
     @app.get("/api/pull", response_model=None, dependencies=[auth_dep])
     def pull(
@@ -520,25 +580,73 @@ def create_app(database: Database | None = None) -> FastAPI:
             raise HTTPException(status_code=413, detail="photo too large")
         if sniff_image_mime(data) is None:
             raise HTTPException(status_code=400, detail="unsupported image content")
-        store.write_photo(foto_id, data)
+        key = getattr(request.state, "authenticated_key", None)
+        key_id = key["id"] if key is not None else None
+        try:
+            store.write_photo(
+                foto_id,
+                data,
+                uploaded_by_key=key_id,
+                require_reference=True,
+                max_total_bytes=max_photo_bytes_total,
+                max_key_bytes=max_photo_bytes_per_key,
+            )
+        except PhotoNotReferenced:
+            raise HTTPException(
+                status_code=404,
+                detail="photo is not referenced by a client; push the record first",
+            ) from None
+        except PhotoQuotaExceeded as exc:
+            logger.warning("photo upload rejected for key %s: %s", key_id, exc)
+            raise HTTPException(status_code=413, detail=str(exc)) from None
         return Response(status_code=204)
 
     @app.delete("/api/clients/{cliente_id}", status_code=204, dependencies=[auth_dep])
-    def delete_client(cliente_id: str, deleted_at: int | None = None) -> None:
-        # deleted_at is epoch seconds; reject a far-future tombstone so it
-        # cannot permanently win last-write-wins over concurrent edits.
+    def delete_client(
+        request: Request, cliente_id: str, deleted_at: int | None = None
+    ) -> None:
+        # deleted_at is epoch seconds; reject implausible timestamps so they
+        # cannot be accepted into a tombstone.
+        if deleted_at is not None and deleted_at < 0:
+            raise HTTPException(status_code=400, detail="deleted_at cannot be negative")
         if deleted_at is not None and deleted_at > int(time.time()) + MAX_FUTURE_SKEW_SECONDS:
             raise HTTPException(status_code=400, detail="deleted_at is in the future")
-        if not store.delete_client(cliente_id, deleted_at=deleted_at):
+        try:
+            deleted = store.delete_client(
+                cliente_id,
+                deleted_at=deleted_at,
+                actor=getattr(request.state, "authenticated_key", None),
+            )
+        except StaleDeleteError:
+            raise HTTPException(
+                status_code=409,
+                detail="deleted_at is not newer than the stored record",
+            ) from None
+        if not deleted:
             raise HTTPException(status_code=404, detail="client not found")
 
     @app.get(
         "/api/clients/{cliente_id}/history",
-        response_model=list[AuditEntryOut],
+        response_model=None,
         dependencies=[auth_dep],
     )
-    def client_history(cliente_id: str) -> list[AuditEntryOut]:
-        return [AuditEntryOut.model_validate(e) for e in store.client_history(cliente_id)]
+    def client_history(
+        cliente_id: str,
+        limit: int | None = Query(None, ge=1, le=200),
+        after_id: int | None = Query(None, ge=0),
+    ) -> list[AuditEntryOut] | HistoryPageOut:
+        if limit is None and after_id is None:
+            return [
+                AuditEntryOut.model_validate(e)
+                for e in store.client_history(cliente_id)
+            ]
+        entries, next_after_id = store.client_history_page(
+            cliente_id, limit or 50, after_id
+        )
+        return HistoryPageOut(
+            entries=[AuditEntryOut.model_validate(e) for e in entries],
+            next_after_id=next_after_id,
+        )
 
     @app.get("/api/keys", dependencies=[auth_dep])
     def list_keys() -> list[dict]:

@@ -5,11 +5,12 @@ services:
     # Reinicia automaticamente após crash/reboot (mas não após `docker compose stop`).
     restart: unless-stopped
     ports:
-      # Endereço onde a porta 8000 é publicada no host. Por omissão escuta em
-      # todas as interfaces (LAN). Com um proxy TLS à frente, define
-      # ELISDB_BIND_ADDRESS=127.0.0.1 para o servidor só ser alcançável pelo
-      # proxy (ver docs/nginx-proxy-manager.md).
-      - "${ELISDB_BIND_ADDRESS:-0.0.0.0}:8000:8000"
+      # Endereço onde a porta 8000 é publicada no host. Por omissão escuta
+      # apenas em loopback, para o servidor não ficar exposto na LAN sem uma
+      # decisão explícita. Para acesso direto na LAN define, por exemplo,
+      # ELISDB_BIND_ADDRESS=0.0.0.0 (de preferência com TLS/proxy à frente).
+      # Com um proxy TLS à frente, mantém 127.0.0.1 (ver docs/nginx-proxy-manager.md).
+      - "${ELISDB_BIND_ADDRESS:-127.0.0.1}:8000:8000"
     volumes:
       - elisdb-data:/app/data
     # Impede que um processo dentro do contentor ganhe privilégios extra via
@@ -25,11 +26,13 @@ services:
       # elisdb-<versionName>-<versionCode>.apk (ex.: elisdb-1.6.0-11.apk).
       ELISDB_APK_DIR: /app/data/apk/latest
       # Utilizadores a provisionar no arranque (lista separada por vírgulas).
-      # O container emite uma chave por utilizador e escreve as configs em
-      # /app/data/configs/ (recuperar com `docker cp` ou bind mount).
-      ELISDB_USERS: "maria,joao"
-      # URL que os telemóveis usam para chegar ao servidor (IP do host).
-      ELISDB_SERVER_URL: "http://<ip-do-host>:8000"
+      # Vazio por omissão: nenhuma conta é criada sem uma escolha explícita.
+      # Define, por exemplo, ELISDB_USERS=utilizador1,utilizador2 no teu .env/host.
+      ELISDB_USERS: "${ELISDB_USERS:-}"
+      # URL que os telemóveis usam para chegar ao servidor. Obrigatória apenas
+      # quando ELISDB_USERS não está vazio; sem ela o arranque falha com uma
+      # mensagem clara.
+      ELISDB_SERVER_URL: "${ELISDB_SERVER_URL:-}"
       # Dono dos dados no arranque (chown feito pelo entrypoint).
       # Ajusta ao teu utilizador do host se usares um bind mount.
       PUID: "1000"

@@ -13,7 +13,32 @@ fotos em falta; copiar só as fotos perde os clientes.
 > privada de cada telemóvel. Se os incluíres na cópia, guarda-a como um segredo:
 > nunca a coloques no Git nem num local partilhado.
 
-## Fazer a cópia (servidor a correr)
+## Ferramenta integrada (recomendada)
+
+O servidor inclui um utilitário que cria uma cópia **consistente** da base de
+dados e de todas as fotos referenciadas, com um manifesto de checksums:
+
+```bash
+docker compose exec -T elisdb-server python -m app.backup create /app/data/backups/2026-11-06
+docker compose exec -T elisdb-server python -m app.backup verify /app/data/backups/2026-11-06
+```
+
+`verify` confirma o SHA-256 da base de dados e de cada foto, corre
+`PRAGMA integrity_check` e garante que o manifesto cobre exatamente as linhas de
+`fotos`. Para restaurar (com o servidor parado, para ninguém estar a escrever):
+
+```bash
+docker compose stop elisdb-server
+docker compose exec -T elisdb-server python -m app.backup restore /app/data/backups/2026-11-06
+docker compose start elisdb-server
+curl http://localhost:8000/health
+```
+
+O restauro verifica tudo antes de trocar os ficheiros; se algo falhar, mantém a
+base de dados e as fotos anteriores. A ferramenta não copia `configs/` nem
+chaves privadas.
+
+## Fazer a cópia manualmente (servidor a correr)
 
 O SQLite tem uma API de backup que produz um ficheiro consistente mesmo com o
 servidor a escrever. Corre-a dentro do contentor:
@@ -101,7 +126,9 @@ recente do servidor com o marcador local. Se o servidor estiver atrás, avisa
 primeira sincronização de cada telemóvel pode por isso demorar mais e trazer
 mais dados do que o habitual — é o comportamento esperado.
 
-> Não há sincronização periódica em segundo plano. Além do botão
-> **Sincronizar**, a app sincroniza ao abrir e ao guardar um cliente. O ecrã
-> **Configuração** mostra “Alterações por sincronizar” quando deteta que o
-> servidor tem dados diferentes dos locais.
+> A sincronização também pode ser ativada como **Sincronização automática** no
+> ecrã **Configuração** (a cada ~15 minutos, com rede). Continua a haver
+> sincronização ao abrir a app, ao guardar e ao apagar um cliente, e o botão
+> **Sincronizar** tenta imediatamente. O ecrã **Configuração** mostra
+> “Alterações por sincronizar” quando deteta que o servidor tem dados diferentes
+> dos locais.

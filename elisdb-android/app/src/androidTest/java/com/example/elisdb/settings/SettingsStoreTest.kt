@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.elisdb.remote.ApiClientProvider
 import com.example.elisdb.remote.ConfigException
+import com.example.elisdb.sync.PrefsPeriodicSyncSettings
 import com.example.elisdb.util.Signer
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertTrue
@@ -18,6 +19,7 @@ class SettingsStoreTest {
   @Before
   fun setUp() {
     context.deleteSharedPreferences("elisdb_settings")
+    context.deleteSharedPreferences("elisdb_periodic_sync")
   }
 
   @Test
@@ -131,13 +133,32 @@ class SettingsStoreTest {
   }
 
   @Test
-  fun savesGoToThePlainFallbackWhenEncryptedStoreFails() {
+  fun savesFailClosedWhenEncryptedStoreIsUnavailable() {
     val store =
       PrefsSettingsStore(context, openEncrypted = { throw IllegalStateException("keystore unavailable") })
-    store.save("https://fallback.example.com", "SEED", "maria")
+    try {
+      store.save("https://fallback.example.com", "SEED", "maria")
+      fail("a secure storage failure must not persist the signing key")
+    } catch (_: SecureStorageUnavailable) {
+      // Expected: writes fail closed instead of falling back to plaintext.
+    }
 
-    assertEquals("https://fallback.example.com", store.settings().baseUrl)
     val plain = context.getSharedPreferences("elisdb_settings", Context.MODE_PRIVATE)
-    assertEquals("https://fallback.example.com", plain.getString("server_base_url_override", null))
+    assertEquals(null, plain.getString("server_base_url_override", null))
+    assertEquals(null, plain.getString("signing_key_override", null))
+    assertEquals("", store.settings().signingKey)
+  }
+
+  @Test
+  fun periodicSyncSettingDefaultsOffAndPersists() {
+    val settings = PrefsPeriodicSyncSettings(context)
+    assertEquals(false, settings.isEnabled())
+
+    settings.setEnabled(true)
+    assertEquals(true, settings.isEnabled())
+    assertEquals(true, PrefsPeriodicSyncSettings(context).isEnabled())
+
+    settings.setEnabled(false)
+    assertEquals(false, settings.isEnabled())
   }
 }

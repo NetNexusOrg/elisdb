@@ -119,6 +119,13 @@ fun ClientDetailScreen(
                   color = MaterialTheme.colorScheme.error,
                 )
               }
+              if (cliente.localOnly) {
+                Text(
+                  text = "Apenas local",
+                  style = MaterialTheme.typography.labelLarge,
+                  color = MaterialTheme.colorScheme.tertiary,
+                )
+              }
             }
           }
         },

@@ -38,7 +38,7 @@ the code rather than trusting memory.
   single-flight), incremental paginated pull/push, tombstone deletes,
   clock-offset tracking.
 - **Persistence**: Room (SQLite), schema JSON exported to `app/schemas/` (KSP).
-- Maps: osmdroid · Photos: CameraX + Coil 3 · Location: Play Services.
+- Maps: MapLibre Native · Photos: CameraX + Coil 3 · Location: Play Services.
 
 ## Server (FastAPI)
 

@@ -46,9 +46,12 @@ O que acontece:
 ```
 issued key for 'maria' (id issue-XXXXXXXXXXXX)
 configuration written to: maria.config.json
-private seed (import into app): <seed_base64>
-registered public key:          <public_key_b64>
 ```
+
+A **seed privada não é impressa** por omissão. O ficheiro `maria.config.json`
+(permissões `0600`) é a única forma de a obter. Se precisares mesmo de a ver no
+terminal, usa `--print-seed` de forma explícita; evita fazê-lo em ambientes cujos
+logs sejam recolhidos ou partilhados.
 
 Há **um** sinal de sucesso: a criação do ficheiro **`maria.config.json`**.
 O resto da saída é informativo.
@@ -92,13 +95,15 @@ Então:
 | `ELISDB_MAX_PUSH_RECORDS` | Máximo de registos num único `POST /api/push`; acima disto responde `422` | `200` |
 | `ELISDB_MAX_PHOTOS_PER_CLIENT` | Máximo de fotos referenciadas por cliente num push; acima disto responde `422` | `500` |
 | `ELISDB_MAX_PHOTO_BYTES` | Tamanho máximo de cada upload de foto (bytes) | `20971520` (20 MiB) |
+| `ELISDB_MAX_PHOTO_BYTES_PER_KEY` | Quota total de fotos por chave (bytes); acima disto responde `413` | `2147483648` (2 GiB) |
+| `ELISDB_MAX_PHOTO_BYTES_TOTAL` | Quota total de fotos no servidor (bytes); acima disto responde `413` | `21474836480` (20 GiB) |
 | `ELISDB_RATE_LIMIT_REQUESTS` | Pedidos permitidos por IP em cada janela; acima disto responde `429` | `300` |
 | `ELISDB_RATE_LIMIT_WINDOW_SECONDS` | Duração da janela do rate limit (segundos) | `60` |
 | `ELISDB_TRUST_PROXY` | Usar o primeiro IP de `X-Forwarded-For` como origem do pedido. **Só ligar atrás de um proxy de confiança** | `false` |
 | `ELISDB_TOMBSTONE_RETENTION_DAYS` | Apaga tombstones mais antigos que N dias (`0` desativa) | `0` (desativado) |
 | `ELISDB_AUDIT_RETENTION_DAYS` | Apaga entradas de auditoria mais antigas que N dias (`0` desativa) | `0` (desativado) |
 | `ELISDB_PHOTO_GC_INTERVAL_SECONDS` | Intervalo mínimo entre limpezas de fotos órfãs depois de um push | `3600` |
-| `ELISDB_BIND_ADDRESS` | (só `compose.yaml`) Interface do host onde a porta 8000 é publicada | `0.0.0.0` |
+| `ELISDB_BIND_ADDRESS` | (só `compose.yaml`) Interface do host onde a porta 8000 é publicada. Por omissão só escuta em loopback; para expor na LAN define o IP explicitamente e usa TLS no proxy | `127.0.0.1` |
 
 Dentro do `compose.yaml`, as variáveis vão na secção `environment`. Exemplo:
 
@@ -106,9 +111,15 @@ Dentro do `compose.yaml`, as variáveis vão na secção `environment`. Exemplo:
 environment:
   ELISDB_DB: /app/data/elisdb.db
   ELISDB_PHOTOS: /app/data/photos
-  ELISDB_USERS: "maria,joao"
-  ELISDB_SERVER_URL: "http://192.168.1.10:8000"
+  # Opcional: sem ELISDB_USERS não é criada nenhuma conta no arranque.
+  # ELISDB_USERS: "maria,joao"
+  # ELISDB_SERVER_URL: "https://elisdb.exemplo.pt"
 ```
+
+> Sem `ELISDB_USERS` e `ELISDB_SERVER_URL` o servidor arranca sem contas e sem
+> chaves; emite a primeira com `app.keys issue`. O `compose.yaml` não traz
+> utilizadores nem URL de exemplo, e a porta fica publicada apenas em
+> `127.0.0.1` por omissão.
 
 > Usa sempre o mesmo valor de `ELISDB_DB` também nos comandos `app.keys` — as
 > chaves registadas vivem nesse mesmo ficheiro de dados.
@@ -145,11 +156,18 @@ cliente apagado ao sincronizar, porque o tombstone que bloqueava esse push já
 não existe. Mantém a janela superior ao período máximo em que um dispositivo
 pode estar offline, ou deixa a retenção desativada.
 
-As fotos órfãs (uploads que nenhum push referenciou) são limpas no arranque e,
-depois, no máximo uma vez por hora após um push. O varrimento corre numa thread
-em segundo plano (`ELISDB_PHOTO_GC_INTERVAL_SECONDS`, omissão `3600`) para não
-atrasar pedidos; só remove ficheiros sem linha na tabela `fotos` e com mais de
-5 minutos (margem para uploads cujo push ainda está a decorrer).
+As fotos órfãs (uploads que nenhum push referenciou) são limpas no arranque
+e, depois, periodicamente em segundo plano
+(`ELISDB_PHOTO_GC_INTERVAL_SECONDS`, omissão `3600`), mesmo que não haja
+pushes. O varrimento só remove ficheiros sem linha na tabela `fotos` e com mais
+de 5 minutos (margem para uploads cujo push ainda está a decorrer).
+
+Um upload (`PUT /api/photos/{id}`) só é aceite quando o id já foi referenciado
+por um push que criou a respetiva linha em `fotos`; caso contrário responde
+`404`. Isto evita que uma chave autenticada encha o disco com ficheiros que
+nunca serão usados. Além do limite por ficheiro, o servidor aplica as quotas
+`ELISDB_MAX_PHOTO_BYTES_PER_KEY` e `ELISDB_MAX_PHOTO_BYTES_TOTAL` **antes** de
+escrever, respondendo `413` sem deixar ficheiros para trás.
 
 ## Rate limiting e proxy
 
@@ -182,6 +200,12 @@ Consequências que valem a pena saber ao diagnosticar:
 - Uma eliminação feita com o relógio atrasado **chega na mesma** aos outros
   dispositivos: o tombstone guarda `deleted_at` (para o LWW) mas é entregue pelo
   `delivery_ts`, que é sempre maior do que tudo o que já saiu.
+- A eliminação também participa no last-write-wins: o servidor compara
+  `deleted_at` com o `updated_at` guardado e responde `409` se a eliminação não
+  for mais recente, sem apagar o registo nem criar tombstone. Timestamps
+  negativos ou demasiado no futuro são recusados com `400`. O cliente compara o
+  tombstone com o `updated_at` local: se a cópia local for mais recente, preserva-a
+  e volta a enviá-la em vez de a apagar.
 - Um `push` com `updated_at` mais antigo do que o watermark **não é rejeitado**:
   fica com o seu `updated_at` e recebe um `delivery_ts` novo.
 - A resposta do push traz `missing_photos`: fotos referenciadas cujo ficheiro não
@@ -199,6 +223,19 @@ Consequências que valem a pena saber ao diagnosticar:
   mais tarde; um relógio atrasado no dispositivo aparece refletido no histórico
   e o servidor não o corrige.
 
+## Custo do pull e hashes de fotos
+
+Um `GET /api/pull` pagina por `(delivery_ts, id)` e lê os clientes e as fotos da
+página em **lotes**, numa única ligação SQLite, com sub-lotes de ids (500). O
+custo não cresce com uma ligação por registo; uma página de 1000 registos usa um
+número limitado de consultas.
+
+Quando uma foto guardada ainda não tem `hash`, o servidor calcula-o na primeira
+leitura, **grava-o na mesma operação** e reutiliza-o nas leituras seguintes. Isto
+evita recalcular SHA-256 de todas as fotos em cada pull; o hash continua a ser a
+identidade de conteúdo usada pelo cliente para decidir se precisa de transferir
+a foto.
+
 ## Primeira execução
 
 Numa base de dados nova, **nenhuma chave é confiada**: até emitires a primeira
@@ -208,13 +245,26 @@ chave, os telemóveis recebem `401` ao tentar sincronizar.
 
 Endpoints de diagnóstico (todos exigem chave, exceto `/health`):
 
-- `GET /health` — estado do servidor, versão de release e `api_version`. A
-  `api_version` serve para diagnóstico: sobe-a sempre que uma alteração de
-  contrato importe para clientes antigos. Não é mostrada ao utilizador da app.
-- `GET /api/latest` — além de `latest_updated_at` e `client_count`, devolve a
-  mesma `api_version`. O `latest_updated_at` é o maior `delivery_ts` entre
-  **clientes e tombstones**: inclui alterações de clientes e eliminações, não
-  apenas o `updated_at` dos registos ainda existentes.
+- `GET /health` — estado do servidor, versão de release, `api_version` e
+  `instance_id`. A `api_version` serve para diagnóstico: sobe-a sempre que uma
+  alteração de contrato importe para clientes antigos. Não é mostrada ao
+  utilizador da app. O `instance_id` identifica de forma estável esta base de
+  dados: mantém-se após reinícios e muda se a base de dados/volume for recriado,
+  para a app distinguir o mesmo servidor de um servidor novo ou restaurado.
+- `GET /api/latest` — além de `latest_updated_at`, `client_count` e
+  `instance_id`, devolve `max_push_records`: o número máximo de registos aceite
+  num único `POST /api/push`. A app usa este valor para dividir lotes grandes;
+  clientes antigos ignoram os campos adicionais. O `latest_updated_at` é o maior
+  `delivery_ts` entre **clientes e tombstones**: inclui alterações de clientes e
+  eliminações, não apenas o `updated_at` dos registos ainda existentes.
+- `GET /api/clients/{id}/history` — histórico de criação, edição e eliminação.
+  Sem parâmetros devolve a lista completa (compatibilidade). Com `limit` (1–200)
+  e/ou `after_id` devolve `{entries, next_after_id}` para paginação; usa o
+  `next_after_id` na chamada seguinte até vir `null`.
+- `POST /api/push` — aceita o cabeçalho opcional `Idempotency-Key`. O mesmo par
+  chave+payload devolve a resposta anterior sem voltar a escrever; a mesma chave
+  com payload diferente responde `409`. Sem o cabeçalho mantém-se o
+  processamento registo a registo.
 - `GET /api/keys` — **só para operadores**: responde sempre `403` a um cliente
   autenticado. A listagem real (id, chave pública, comentário) é feita pela CLI
   (`python -m app.keys`, opção `2`).

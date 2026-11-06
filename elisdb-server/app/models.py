@@ -167,15 +167,22 @@ class AuditDetails(BaseModel):
 
     fields: list[AuditFieldChange] = []
     photos: AuditPhotoChanges | None = None
+    # Present on delete entries: the record as it was immediately before removal.
+    deleted_client: dict | None = None
 
 
 class AuditEntryOut(BaseModel):
-    action: str  # create | edit
+    action: str  # create | edit | delete
     username: str | None = None
     key_id: str
     ts: int
     # Older entries predate change tracking and carry no details.
     details: AuditDetails | None = None
+
+
+class HistoryPageOut(BaseModel):
+    entries: list[AuditEntryOut]
+    next_after_id: int | None = None
 
 
 class PushResult(BaseModel):

@@ -35,8 +35,73 @@ class ApiClientTest {
     val http = HttpClient(engine) {
       install(ContentNegotiation) { json(json) }
       expectSuccess = false
+      followRedirects = false
     }
-    return ApiClient("http://test", signer, http, clock)
+    return ApiClient("https://test", signer, http, clock)
+  }
+
+  @Test
+  fun `public cleartext URL is rejected before the request is sent`() = runBlocking {
+    val engine = MockEngine { respond("", HttpStatusCode.OK) }
+    val http = HttpClient(engine) {
+      install(ContentNegotiation) { json(json) }
+      expectSuccess = false
+      followRedirects = false
+    }
+    val api = ApiClient("http://public.example", signer, http)
+    try {
+      api.fetchServerTime()
+      throw AssertionError("expected the public cleartext URL to be rejected")
+    } catch (expected: ConfigException) {
+      assertTrue(expected.message!!.contains("não permitida"))
+    }
+    assertEquals("no request left the client", 0, engine.requestHistory.size)
+  }
+
+  @Test
+  fun `private cleartext URL is allowed`() = runBlocking {
+    val engine = MockEngine { okJson("""{"time":1700000000}""") }
+    val http = HttpClient(engine) {
+      install(ContentNegotiation) { json(json) }
+      expectSuccess = false
+      followRedirects = false
+    }
+    val api = ApiClient("http://192.168.1.10:8000", signer, http)
+    assertEquals(1_700_000_000L, api.fetchServerTime())
+    assertEquals(1, engine.requestHistory.size)
+  }
+
+  @Test
+  fun `https public URL is allowed`() = runBlocking {
+    val engine = MockEngine { okJson("""{"time":1700000000}""") }
+    val http = HttpClient(engine) {
+      install(ContentNegotiation) { json(json) }
+      expectSuccess = false
+      followRedirects = false
+    }
+    val api = ApiClient("https://sync.example.com", signer, http)
+    assertEquals(1_700_000_000L, api.fetchServerTime())
+    assertEquals(1, engine.requestHistory.size)
+  }
+
+  @Test
+  fun `redirects are not followed`() = runBlocking {
+    val engine =
+      MockEngine {
+        respond(
+          "",
+          HttpStatusCode.Found,
+          headersOf(HttpHeaders.Location, "http://public.example/steal"),
+        )
+      }
+    val api = client(engine)
+    try {
+      api.fetchServerTime()
+      throw AssertionError("expected the redirect to be surfaced as an error")
+    } catch (expected: ServerException) {
+      // The 3xx is returned to the caller instead of being followed.
+    }
+    assertEquals("redirect target was never requested", 1, engine.requestHistory.size)
   }
 
   private class InMemoryOffsetStore : ClockOffsetStore {
@@ -74,6 +139,16 @@ class ApiClientTest {
     assertEquals("accepted", results[0].status)
     assertEquals("duplicate", results[1].status)
     assertEquals("3", results[1].existingId)
+  }
+
+  @Test
+  fun push_sendsTheBatchIdempotencyKey() = runBlocking {
+    val api = client(MockEngine { request ->
+      assertEquals("batch-1", request.headers["Idempotency-Key"])
+      okJson("""[]""")
+    })
+    api.push(emptyList(), timestamp = 1_700_000_000L, idempotencyKey = "batch-1")
+    Unit
   }
 
   @Test
@@ -238,7 +313,7 @@ class ApiClientTest {
           socketTimeoutMillis = 200
         }
       }
-    val api = ApiClient("http://test", signer, http)
+    val api = ApiClient("https://test", signer, http)
     try {
       api.pull(timestamp = 1_700_000_000L)
       throw AssertionError("expected a timeout failure, not a hanging request")

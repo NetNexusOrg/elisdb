@@ -32,7 +32,6 @@ fun parseServerConfig(content: String): ServerConfigDto? =
     val serverUrl = element["server_url"]?.jsonPrimitive?.content?.trim().orEmpty()
     val privateSeed = element["private_seed"]?.jsonPrimitive?.content?.trim().orEmpty()
     if (serverUrl.isEmpty() || privateSeed.isEmpty()) return null
-    if (!isAllowedServerUrl(serverUrl)) return null
     val userName =
       runCatching { element["user_name"]?.jsonPrimitive?.content?.trim() }.getOrNull()
     ServerConfigDto(serverUrl, privateSeed, userName?.takeIf { it.isNotEmpty() })

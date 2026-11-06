@@ -153,6 +153,13 @@ data class AuditEntryDto(
   val ts: Long,
   val details: AuditDetailsDto? = null,
 )
+
+/** A page of history plus the cursor for the next page, when one exists. */
+@Serializable
+data class HistoryPageDto(
+  val entries: List<AuditEntryDto> = emptyList(),
+  @SerialName("next_after_id") val nextAfterId: Int? = null,
+)
 /** The Android package published by the server (`GET /api/app/latest`). */
 @Serializable
 data class AppReleaseDto(

@@ -3,6 +3,7 @@
 Provides an operator-facing, documented flow to register an app public key in the server's trust allowlist and to verify the allowlist is configured, so first-run and release setup are repeatable.
 
 ## Requirements
+
 ### Requirement: Public key registration
 
 The system SHALL expose a server-managed flow that ISSUES an app's ed25519 keypair: it generates the keypair, records the public key in the server allowlist together with a mandatory comment identifying the user, and emits a configuration file carrying the server URL, the user name and the private seed for the operator to import into the app. Issuance SHALL be the only way to add a public key to the allowlist: the CLI SHALL NOT offer a separate registration command for externally created keys. The issuance flow SHALL be available interactively: running the CLI without arguments SHALL prompt for the required data sequentially, and the URL shall default to the `ELISDB_SERVER_URL` environment variable when the operator does not supply one.
@@ -142,3 +143,31 @@ The system SHALL write issued configuration files (which carry the private seed)
 #### Scenario: Provisioned config file is written owner-only
 - **WHEN** the container provisions a key automatically from `ELISDB_USERS`
 - **THEN** the configuration file containing the private seed SHALL be created with `0600` permissions
+
+### Requirement: Private seeds are never logged
+
+Issuing or provisioning a key SHALL NOT write the private seed to standard output, container logs, or any log sink. The seed SHALL exist only in the owner-only configuration file returned to the operator; logs MAY include the key identifier and the configuration file path.
+
+#### Scenario: Provisioned key does not leak its seed
+- **WHEN** the container provisions a key from `ELISDB_USERS`
+- **THEN** the private seed SHALL NOT appear in container output or logs
+- **AND** the generated configuration file SHALL still contain the seed with `0600` permissions
+
+#### Scenario: Manual issuance does not print the seed by default
+- **WHEN** an operator issues a key without explicitly requesting the secret on the terminal
+- **THEN** the private seed SHALL NOT be printed
+- **AND** the operator SHALL be pointed to the owner-only configuration file
+
+### Requirement: Configuration paths are confined
+
+The system SHALL validate user names and key comments used to build configuration file paths. Values containing path separators, `..`, or characters outside a safe allowlist SHALL be rejected, and every resolved path SHALL be verified to remain inside the configured configs directory before writing or deleting.
+
+#### Scenario: Traversal user name is rejected
+- **WHEN** provisioning receives a user name containing `../` or a path separator
+- **THEN** it SHALL reject that user
+- **AND** SHALL NOT write or delete any file outside the configs directory
+
+#### Scenario: Revocation stays inside the configs directory
+- **WHEN** a provisioned key is revoked and its comment is used to locate the configuration file
+- **THEN** the resolved path SHALL be inside the configs directory
+- **AND** a comment that escapes it SHALL be refused rather than deleted

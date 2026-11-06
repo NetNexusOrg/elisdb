@@ -3,8 +3,10 @@ package com.example.elisdb.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.elisdb.remote.KeyIdentityDto
+import com.example.elisdb.settings.SecureStorageUnavailable
 import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.settings.parseServerConfig
+import com.example.elisdb.settings.validateServerUrl
 import com.example.elisdb.sync.SyncManager
 import com.example.elisdb.sync.SyncStatus
 import com.example.elisdb.util.Signer
@@ -87,8 +89,28 @@ class ServerConfigViewModel(
       return
     }
     val baseUrl = config.serverUrl.trim()
+    val urlError = validateServerUrl(baseUrl)
+    if (urlError != null) {
+      _uiState.update { current ->
+        current.copy(
+          signingKeyError = "Configuração não importada. $urlError.",
+          hasKey = current.signingKey.isNotEmpty(),
+        )
+      }
+      return
+    }
     val userName = config.userName.orEmpty()
-    settingsStore.save(baseUrl, config.privateSeed, userName)
+    try {
+      settingsStore.save(baseUrl, config.privateSeed, userName)
+    } catch (e: SecureStorageUnavailable) {
+      _uiState.update {
+        it.copy(
+          signingKeyError =
+            "Não foi possível guardar a configuração com segurança. A configuração anterior foi mantida.",
+        )
+      }
+      return
+    }
     _uiState.update {
       it.copy(
         baseUrl = baseUrl,
@@ -108,7 +130,17 @@ class ServerConfigViewModel(
   }
 
   fun clearConfig() {
-    settingsStore.save("", "", "")
+    try {
+      settingsStore.save("", "", "")
+    } catch (e: SecureStorageUnavailable) {
+      _uiState.update {
+        it.copy(
+          signingKeyError =
+            "Não foi possível remover a configuração com segurança. A configuração atual foi mantida.",
+        )
+      }
+      return
+    }
     _uiState.update {
       it.copy(
         baseUrl = "",

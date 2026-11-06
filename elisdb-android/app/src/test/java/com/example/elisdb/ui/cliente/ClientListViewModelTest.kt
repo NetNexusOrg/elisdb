@@ -270,6 +270,59 @@ class ClientListViewModelTest {
   }
 
   @Test
+  fun uiState_ordemPorTagsAgrupaPelaPrimeiraTagENaoTagNoFim() = runTest(dispatcher) {
+    val repo =
+      FakeClientRepository(
+        clientesComFotosFlow =
+          flowOf(
+            listOf(
+              ClienteComFotos(
+                cliente = Cliente(id = "1", nome = "Maria", tag = "PREMIUM", dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              ),
+              ClienteComFotos(
+                cliente = Cliente(id = "2", nome = "Bruno", dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              ),
+              ClienteComFotos(
+                cliente = Cliente(id = "3", nome = "Carlos", tag = "GOLD", dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              ),
+              ClienteComFotos(
+                cliente = Cliente(id = "4", nome = "Ana", tag = "PREMIUM;GOLD", dataCriacao = 0, updatedAt = 0),
+                fotos = emptyList(),
+              ),
+            )
+          )
+      )
+    val viewModel = ClientListViewModel(repo)
+    viewModel.uiState.first { it is ClientListUiState.Success }
+
+    viewModel.onOrdemChange(ClientSortOrder.TAGS)
+
+    val state =
+      viewModel.uiState.first { it is ClientListUiState.Success && it.ordem == ClientSortOrder.TAGS }
+        as ClientListUiState.Success
+    assertEquals(listOf("Ana", "Carlos", "Maria", "Bruno"), state.clientes.map { it.nome })
+  }
+
+  @Test
+  fun uiState_ordemPorTagsEUsadaNaProximaAbertura() = runTest(dispatcher) {
+    val preferences = FakeClientViewPreferences()
+    val viewModel = ClientListViewModel(FakeClientRepository(), preferences)
+    viewModel.uiState.first { it is ClientListUiState.Success }
+
+    viewModel.onOrdemChange(ClientSortOrder.TAGS)
+
+    assertEquals(ClientSortOrder.TAGS, preferences.sortOrder)
+
+    val reopened = ClientListViewModel(FakeClientRepository(), preferences)
+    val state =
+      reopened.uiState.first { it is ClientListUiState.Success } as ClientListUiState.Success
+    assertEquals(ClientSortOrder.TAGS, state.ordem)
+  }
+
+  @Test
   fun uiState_ordemRecenteMostraMaisNovosPrimeiro() = runTest(dispatcher) {
     val repo =
       FakeClientRepository(

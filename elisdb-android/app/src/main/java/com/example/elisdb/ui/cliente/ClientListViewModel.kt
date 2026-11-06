@@ -46,7 +46,7 @@ data class ClientListItem(
 enum class ClientStatusFilter { ALL, ACTIVE, INACTIVE }
 
 /** How the filtered clients are ordered. */
-enum class ClientSortOrder { NAME, RECENT, UPDATED }
+enum class ClientSortOrder { NAME, TAGS, RECENT, UPDATED }
 
 sealed interface ClientListUiState {
   data object Loading : ClientListUiState
@@ -122,6 +122,13 @@ class ClientListViewModel(
             ClientSortOrder.NAME ->
               filtered.sortedWith(
                 compareBy({ it.cliente.nome.uppercase(Locale.ROOT) }, { it.cliente.id })
+              )
+            ClientSortOrder.TAGS ->
+              filtered.sortedWith(
+                compareBy<ClienteComFotos> { tagsOf(it.cliente.tag).isEmpty() }
+                  .thenBy { tagsOf(it.cliente.tag).firstOrNull().orEmpty() }
+                  .thenBy { it.cliente.nome.uppercase(Locale.ROOT) }
+                  .thenBy { it.cliente.id }
               )
             ClientSortOrder.RECENT ->
               filtered.sortedWith(

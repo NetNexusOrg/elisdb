@@ -2,9 +2,11 @@ package com.example.elisdb.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.elisdb.sync.ServerAvailability
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncManager
 import com.example.elisdb.sync.SyncStatus
+import com.example.elisdb.sync.canUseServer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +39,8 @@ data class SyncUiState(
   val replacingLocal: Boolean = false,
   /** Opt-in background sync; disabled by default. */
   val periodicSyncEnabled: Boolean = false,
+  /** Shared server reachability, used to disable actions when offline. */
+  val serverAvailability: ServerAvailability = ServerAvailability.Online,
 )
 
 class SyncViewModel(
@@ -46,8 +50,16 @@ class SyncViewModel(
   private val onCorrectClock: suspend () -> Unit = {},
   periodicSyncEnabled: Boolean = false,
   private val onPeriodicSyncChanged: (Boolean) -> Unit = {},
+  serverAvailability: StateFlow<ServerAvailability> = MutableStateFlow(ServerAvailability.Online),
+  private val onRefreshServer: suspend () -> Unit = {},
 ) : ViewModel() {
-  private val _uiState = MutableStateFlow(SyncUiState(periodicSyncEnabled = periodicSyncEnabled))
+  private val _uiState =
+    MutableStateFlow(
+      SyncUiState(
+        periodicSyncEnabled = periodicSyncEnabled,
+        serverAvailability = serverAvailability.value,
+      )
+    )
   val uiState: StateFlow<SyncUiState> = _uiState.asStateFlow()
 
   private var syncJob: Job? = null
@@ -99,6 +111,12 @@ class SyncViewModel(
         _uiState.update { it.copy(serverIdentityChanged = changed) }
       }
     }
+    viewModelScope.launch {
+      serverAvailability.collect { availability ->
+        _uiState.update { it.copy(serverAvailability = availability) }
+      }
+    }
+    viewModelScope.launch { onRefreshServer() }
     refreshPendingState()
   }
 
@@ -124,6 +142,7 @@ class SyncViewModel(
   }
 
   fun manualSync() {
+    if (!_uiState.value.serverAvailability.canUseServer) return
     if (_uiState.value.syncStatus == SyncStatus.IN_PROGRESS) return
     if (syncJob?.isActive == true) return
     syncJob = viewModelScope.launch { syncManager.syncNow() }
@@ -141,6 +160,7 @@ class SyncViewModel(
    * The sync manager creates a local snapshot before deleting anything.
    */
   fun replaceLocalWithServer() {
+    if (!_uiState.value.serverAvailability.canUseServer) return
     if (_uiState.value.replacingLocal) return
     _uiState.update { it.copy(replacingLocal = true) }
     viewModelScope.launch {

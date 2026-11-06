@@ -5,8 +5,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,16 +20,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.CompareArrows
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
@@ -47,6 +44,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,14 +57,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.elisdb.sync.ServerAvailability
 import com.example.elisdb.sync.SyncStatus
 import com.example.elisdb.ui.components.InfoCard
-import com.example.elisdb.ui.components.StatTile
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -106,10 +102,6 @@ fun ConfigScreen(
   val importConfig: () -> Unit = {
     importConfigLauncher.launch(arrayOf("text/plain", "application/octet-stream", "*/*"))
   }
-  val formatter = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
-  val lastSync =
-    state.lastSuccessAt?.let { "Última sincronização: ${formatter.format(Date(it * 1000))}" }
-      ?: "Ainda sem sincronizações"
   val pendingDetail =
     when {
       state.hasPendingUploads && state.hasPendingDownloads ->
@@ -141,52 +133,13 @@ fun ConfigScreen(
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
       InfoCard(title = "Dados", titleTextAlign = TextAlign.Center) {
-        val serverCount = state.serverClienteCount
-        Row(
+        Text(
+          "${state.totalClientes} na app · ${state.serverClienteCount?.toString() ?: "—"} no servidor",
+          style = MaterialTheme.typography.titleMedium,
+          color = MaterialTheme.colorScheme.onSurface,
+          textAlign = TextAlign.Center,
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-          DataTile(
-            icon = Icons.Outlined.PhoneAndroid,
-            value = state.totalClientes.toString(),
-            label = "Na app",
-            modifier = Modifier.weight(1f),
-          )
-          DataTile(
-            icon = Icons.Outlined.Cloud,
-            value = serverCount?.toString() ?: "—",
-            label = "No servidor",
-            modifier = Modifier.weight(1f),
-            valueColor =
-              if (serverCount == null) MaterialTheme.colorScheme.onSurfaceVariant
-              else MaterialTheme.colorScheme.onSurface,
-          )
-        }
-        if (serverCount != null) {
-          val inSync = serverCount == state.totalClientes
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-          ) {
-            Icon(
-              if (inSync) Icons.Default.CheckCircle else Icons.AutoMirrored.Filled.CompareArrows,
-              contentDescription = null,
-              tint =
-                if (inSync) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-              if (inSync) "Em sincronia" else "Dados diferentes do servidor",
-              style = MaterialTheme.typography.bodySmall,
-              color =
-                if (inSync) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
-        }
+        )
       }
       InfoCard(title = "Sincronização", titleTextAlign = TextAlign.Center) {
         if (!configured) {
@@ -209,11 +162,14 @@ fun ConfigScreen(
             syncFault = state.syncFault,
             hasPendingUploads = state.hasPendingUploads,
             hasPendingDownloads = state.hasPendingDownloads,
-            hasConfig = true,
-            detail = pendingDetail,
+            serverAvailability = state.serverAvailability,
+            hasSynced = state.lastSuccessAt != null,
+            detail = pendingDetail ?: lastSyncDetail(state.lastSuccessAt),
             centered = true,
           )
-          state.syncNotice?.let { notice -> NoticeBanner(notice) }
+          if (state.serverAvailability == ServerAvailability.Online) {
+            state.syncNotice?.let { notice -> NoticeBanner(notice) }
+          }
           if (state.serverIdentityChanged) {
             NoticeBanner(
               "O servidor mudou ou foi restaurado. Os dados locais foram preservados; " +
@@ -227,33 +183,21 @@ fun ConfigScreen(
             )
           }
           if (state.localOnlyCount > 0 || state.serverIdentityChanged) {
-            OutlinedButton(
+            TextButton(
               onClick = { showReplaceLocalDialog = true },
-              enabled = !syncing && !state.replacingLocal,
+              enabled = !syncing && !state.replacingLocal &&
+                state.serverAvailability == ServerAvailability.Online,
               modifier = Modifier.fillMaxWidth(),
             ) {
-              Icon(
-                Icons.AutoMirrored.Filled.CompareArrows,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-              )
-              Spacer(Modifier.width(8.dp))
               Text(
                 if (state.replacingLocal) "A substituir…"
-                else "Substituir dados locais pelos do servidor"
+                else "Substituir dados locais"
               )
             }
           }
-          Text(
-            lastSync,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-          )
           Button(
             onClick = syncViewModel::manualSync,
-            enabled = !syncing,
+            enabled = !syncing && state.serverAvailability == ServerAvailability.Online,
             modifier = Modifier.fillMaxWidth(),
           ) {
             if (syncing) {
@@ -272,17 +216,11 @@ fun ConfigScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
           ) {
-            Column(modifier = Modifier.weight(1f)) {
-              Text(
-                "Sincronização automática",
-                style = MaterialTheme.typography.titleSmall,
-              )
-              Text(
-                "A cada 15 min, quando há rede.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-            }
+            Text(
+              "Automático (15 min)",
+              style = MaterialTheme.typography.titleSmall,
+              modifier = Modifier.weight(1f),
+            )
             Switch(
               checked = state.periodicSyncEnabled,
               onCheckedChange = syncViewModel::setPeriodicSync,
@@ -294,19 +232,6 @@ fun ConfigScreen(
             onCorrect = syncViewModel::correctClock,
           )
           serverState.signingKeyError?.let { ErrorText(it) }
-          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-          DetailRow(
-            icon = Icons.Outlined.Public,
-            label = "URL do servidor",
-            value = serverState.baseUrl.ifEmpty { "Não configurado" },
-          )
-          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-          DetailRow(
-            icon = Icons.Outlined.Key,
-            label = "Chave de assinatura",
-            value = maskedKey(serverState.signingKey),
-          )
-          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
           val identity = serverState.keyIdentity
           val (userLabel, userColor) =
             when (identity) {
@@ -321,13 +246,12 @@ fun ConfigScreen(
               KeyIdentity.Unavailable ->
                 "Não foi possível determinar o utilizador." to MaterialTheme.colorScheme.onSurfaceVariant
             }
-          DetailRow(
-            icon = Icons.Outlined.Person,
-            label = "Utilizador associado",
-            value = userLabel,
-            valueColor = userColor,
+          CredentialBlock(
+            baseUrl = serverState.baseUrl.ifEmpty { "—" },
+            user = userLabel,
+            userColor = userColor,
+            maskedKey = maskedKey(serverState.signingKey),
           )
-          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
           OutlinedButton(
             onClick = { showClearConfigDialog = true },
             modifier = Modifier.fillMaxWidth(),
@@ -395,7 +319,7 @@ fun ConfigScreen(
       },
       text = {
         Text(
-          "A credencial (URL do servidor, utilizador e chave de assinatura) será removida " +
+          "A credencial (servidor, utilizador e chave) será removida " +
             "deste dispositivo. Terás de importar novamente o ficheiro para sincronizar.",
           textAlign = TextAlign.Center,
           modifier = Modifier.fillMaxWidth(),
@@ -420,61 +344,99 @@ fun ConfigScreen(
   }
 }
 
-/** One of the comparable counts, on a lighter surface so it reads as its own block. */
+/** Compact credential card: URL on its own line, user and key side by side below. */
 @Composable
-private fun DataTile(
-  icon: ImageVector,
-  value: String,
-  label: String,
-  modifier: Modifier = Modifier,
-  valueColor: Color = MaterialTheme.colorScheme.onSurface,
+private fun CredentialBlock(
+  baseUrl: String,
+  user: String,
+  userColor: Color,
+  maskedKey: String,
 ) {
   Surface(
     color = MaterialTheme.colorScheme.surface,
     shape = RoundedCornerShape(12.dp),
-    modifier = modifier,
+    modifier = Modifier.fillMaxWidth(),
   ) {
-    StatTile(
-      value = value,
-      label = label,
-      icon = icon,
-      valueColor = valueColor,
-      horizontalAlignment = Alignment.CenterHorizontally,
+    Column(
       modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
-    )
+      verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+      CredentialField(
+        icon = Icons.Outlined.Public,
+        label = "Servidor",
+        value = baseUrl,
+        maxLines = 2,
+      )
+      HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+      Row(
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        CredentialField(
+          icon = Icons.Outlined.Person,
+          label = "Utilizador",
+          value = user.uppercase(),
+          valueColor = userColor,
+          maxLines = 2,
+          modifier = Modifier.weight(1f),
+        )
+        VerticalDivider(
+          modifier = Modifier.fillMaxHeight(),
+          color = MaterialTheme.colorScheme.outlineVariant,
+        )
+        CredentialField(
+          icon = Icons.Outlined.Key,
+          label = "Chave",
+          value = maskedKey,
+          maxLines = 1,
+          modifier = Modifier.weight(1f),
+        )
+      }
+    }
   }
 }
 
-/** A server detail: centered icon, small label above the (possibly long) value. */
 @Composable
-private fun DetailRow(
+private fun CredentialField(
   icon: ImageVector,
   label: String,
   value: String,
+  modifier: Modifier = Modifier,
   valueColor: Color = MaterialTheme.colorScheme.onSurface,
+  maxLines: Int = 1,
 ) {
   Column(
-    modifier = Modifier.fillMaxWidth(),
+    modifier = modifier.fillMaxWidth(),
     horizontalAlignment = Alignment.CenterHorizontally,
   ) {
-    Icon(
-      imageVector = icon,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier.size(18.dp),
-    )
-    Spacer(Modifier.height(4.dp))
-    Text(
-      text = label,
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      textAlign = TextAlign.Center,
+    Row(
       modifier = Modifier.fillMaxWidth(),
-    )
+      horizontalArrangement = Arrangement.Center,
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(14.dp),
+      )
+      Spacer(Modifier.width(4.dp))
+      Text(
+        text = label,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center,
+      )
+    }
+    Spacer(Modifier.height(2.dp))
     Text(
       text = value,
       style = MaterialTheme.typography.bodyMedium,
       color = valueColor,
+      maxLines = maxLines,
+      overflow = TextOverflow.Ellipsis,
       textAlign = TextAlign.Center,
       modifier = Modifier.fillMaxWidth(),
     )
@@ -547,12 +509,7 @@ private fun ClockWarning(
       )
       Spacer(Modifier.width(10.dp))
       Text(
-        text =
-          if (behind) {
-            "Relógio do dispositivo $amount atrasado. As alterações podem não chegar aos outros dispositivos."
-          } else {
-            "Relógio do dispositivo $amount adiantado. As alterações podem não chegar aos outros dispositivos."
-          },
+        text = if (behind) "Relógio $amount atrasado" else "Relógio $amount adiantado",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onTertiaryContainer,
         textAlign = TextAlign.Center,
@@ -562,6 +519,18 @@ private fun ClockWarning(
         Text(if (correcting) "A corrigir…" else "Corrigir")
       }
     }
+  }
+}
+
+private fun lastSyncDetail(lastSuccessAt: Long?): String? {
+  if (lastSuccessAt == null) return null
+  val elapsed =
+    (System.currentTimeMillis() / 1000 - lastSuccessAt).coerceAtLeast(0)
+  return when {
+    elapsed < 60 -> "agora"
+    elapsed < 3_600 -> "há ${elapsed / 60} min"
+    elapsed < 86_400 -> "há ${elapsed / 3_600} h"
+    else -> "há ${elapsed / 86_400} d"
   }
 }
 

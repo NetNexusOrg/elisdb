@@ -118,8 +118,6 @@ class ApiClient(
         // host) requires a hostname-aware trust check. The Android engine passes the
         // hostname; CIO does not and would throw CertificateException on HTTPS.
         defaultRequest {
-          val urlError = validateServerUrl(url.toString())
-          if (urlError != null) throw ConfigException("URL de servidor não permitida: $urlError")
           // Short-circuit the server's allowlist scan by sending our public key,
           // so the server verifies only against this key instead of every one.
           header(AuthHeaders.KEY, signer.publicKeyB64)

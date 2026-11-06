@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.room.Room
@@ -57,9 +58,11 @@ class CreateFormStartsEmptyTest {
     val notasTop = composeTestRule.onNodeWithText("Notas").fetchSemanticsNode().boundsInRoot.top
     val addTagTop =
       composeTestRule.onNodeWithText("Adicionar tag").fetchSemanticsNode().boundsInRoot.top
-    assertTrue("O botão de tags deveria aparecer abaixo das notas", notasTop < addTagTop)
+    assertTrue("O campo de tags deveria aparecer abaixo das notas", notasTop < addTagTop)
+    composeTestRule.onNodeWithText("Tag").assertDoesNotExist()
     composeTestRule.onNodeWithText("Adicionar tag").performClick()
     composeTestRule.onNodeWithText("Tag").assertExists()
+    composeTestRule.onNodeWithContentDescription("Confirmar tag").assertExists()
     composeTestRule.onNodeWithText("O cliente está em serviço.").assertDoesNotExist()
     composeTestRule
       .onNodeWithText("Cliente inativo: fica guardado, mas marcado como fora de serviço.")

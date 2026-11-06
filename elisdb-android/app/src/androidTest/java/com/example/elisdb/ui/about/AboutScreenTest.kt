@@ -9,7 +9,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.example.elisdb.BuildConfig
 import com.example.elisdb.remote.AppReleaseDto
+import com.example.elisdb.sync.ServerAvailability
 import com.example.elisdb.theme.ElisdbTheme
+import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 
@@ -29,16 +32,25 @@ class AboutScreenTest {
   private fun setContent(
     installedVersionCode: Int = 10,
     isConfigured: Boolean = true,
+    availability: ServerAvailability = ServerAvailability.Online,
     fetchRelease: suspend () -> AppReleaseDto? = { null },
   ) {
+    val availabilityFlow = MutableStateFlow(availability)
     val viewModel =
       UpdateViewModel(
         installedVersionCode = installedVersionCode,
         isConfigured = { isConfigured },
         fetchRelease = fetchRelease,
+        serverAvailability = availabilityFlow,
       )
     composeTestRule.setContent {
-      ElisdbTheme { AboutScreen(onBack = {}, updateViewModel = viewModel) }
+      ElisdbTheme {
+        AboutScreen(
+          onBack = {},
+          updateViewModel = viewModel,
+          serverAvailability = availabilityFlow,
+        )
+      }
     }
   }
 
@@ -100,16 +112,16 @@ class AboutScreenTest {
   fun sobre_verificaAutomaticamenteEMostraVersaoNova() {
     setContent(fetchRelease = { release(11) })
 
-    waitForText("Versão 1.6.11 disponível")
-    composeTestRule.onNodeWithText("Versão 1.6.11 disponível").assertExists()
-    composeTestRule.onNodeWithText("Toque para transferir", substring = true).assertExists()
+    waitForText("Versão 1.6.11")
+    composeTestRule.onNodeWithText("Versão 1.6.11", substring = true).assertExists()
+    composeTestRule.onNodeWithText("Transferir").assertExists()
   }
 
   @Test
   fun sobre_semVersaoNovaMantemBotaoEIndicaAtualizada() {
     setContent(fetchRelease = { release(10) })
 
-    waitForText("A app está atualizada")
+    waitForText("Atualizado")
     composeTestRule.onNodeWithText("Procurar atualizações").assertExists()
   }
 
@@ -117,7 +129,23 @@ class AboutScreenTest {
   fun sobre_semServidorConfiguradoNaoProcura() {
     setContent(isConfigured = false)
 
-    waitForText("Configura o servidor para procurar atualizações.")
-    composeTestRule.onNodeWithText("Servidor não configurado").assertIsNotEnabled()
+    waitForText("Não configurado")
+    composeTestRule.onNodeWithText("Procurar atualizações").assertIsNotEnabled()
+  }
+
+  @Test
+  fun sobre_offlineNaoProcuraEDesativaOBotao() {
+    var asked = false
+    setContent(
+      availability = ServerAvailability.Offline,
+      fetchRelease = {
+        asked = true
+        release(11)
+      },
+    )
+
+    waitForText("Indisponível")
+    composeTestRule.onNodeWithText("Procurar atualizações").assertIsNotEnabled()
+    assertFalse(asked)
   }
 }

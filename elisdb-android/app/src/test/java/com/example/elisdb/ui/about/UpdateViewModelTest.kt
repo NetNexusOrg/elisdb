@@ -2,9 +2,11 @@ package com.example.elisdb.ui.about
 
 import com.example.elisdb.remote.AppReleaseDto
 import com.example.elisdb.remote.ReleaseVerificationException
+import com.example.elisdb.sync.ServerAvailability
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -88,6 +90,26 @@ class UpdateViewModelTest {
     advanceUntilIdle()
 
     assertEquals(UpdatePhase.NotConfigured, vm.phase.value)
+    assertFalse(asked)
+  }
+
+  @Test
+  fun offlineNaoPedeNada() = runTest(dispatcher) {
+    var asked = false
+    val vm =
+      UpdateViewModel(
+        installedVersionCode = 10,
+        serverAvailability = MutableStateFlow(ServerAvailability.Offline),
+        fetchRelease = {
+          asked = true
+          release(11)
+        },
+      )
+
+    vm.check()
+    advanceUntilIdle()
+
+    assertEquals(UpdatePhase.Offline, vm.phase.value)
     assertFalse(asked)
   }
 

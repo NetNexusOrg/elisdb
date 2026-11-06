@@ -38,6 +38,8 @@ class SyncManager(
   private val lastSyncStore: LastSyncStore? = null,
   /** Explicit, user-confirmed replacement of local data by a complete pull. */
   private val replaceLocal: suspend () -> SyncOutcome = { SyncOutcome.TransientError },
+  /** Lets the shared reachability state react to a completed sync. */
+  private val onOutcome: (SyncOutcome) -> Unit = {},
 ) {
   private val _status = MutableStateFlow(SyncStatus.IDLE)
   val status: StateFlow<SyncStatus> = _status.asStateFlow()
@@ -290,6 +292,7 @@ class SyncManager(
     if (outcome is SyncOutcome.SuccessReport) {
       _serverIdentityChanged.value = outcome.identityChanged
     }
+    onOutcome(outcome)
   }
 
   /** Maps a sync outcome to a status + optional diagnostic, so it is unit-testable. */

@@ -42,6 +42,7 @@ import com.example.elisdb.sync.LocalSnapshotStore
 import com.example.elisdb.sync.PrefsPhotoPushState
 import com.example.elisdb.sync.PrefsServerIdentityStore
 import com.example.elisdb.sync.PrefsStagedPhotoRegistry
+import com.example.elisdb.sync.ServerAvailabilityMonitor
 import com.example.elisdb.sync.ServerIdentityStore
 import com.example.elisdb.sync.StagedPhotoRegistry
 import com.example.elisdb.sync.SyncCoordinator
@@ -153,6 +154,19 @@ class AppContainer(context: Context) {
     }
   }
 
+  /**
+   * Shared reachability state for Configuração and Sobre. It probes with a
+   * short timeout so an unreachable server is reported as offline instead of
+   * looking like an invalid configuration.
+   */
+  val serverAvailability: ServerAvailabilityMonitor =
+    ServerAvailabilityMonitor(
+      context = context,
+      settingsStore = settingsStore,
+      scope = applicationScope,
+      probe = { withApiClient { api -> api.fetchServerTime() } },
+    )
+
   /** Builds a coordinator bound to the current settings and local stores. */
   private fun buildSyncCoordinator(): SyncCoordinator {
     val lease = apiClients.acquire()
@@ -201,6 +215,7 @@ class AppContainer(context: Context) {
           PhotoStoreGuard.mutex.withLock { snapshotStore.create() }
         }
       },
+      onOutcome = serverAvailability::onSyncOutcome,
     )
 
   val repository: ClienteRepositoryImpl =
@@ -230,6 +245,8 @@ class AppContainer(context: Context) {
     clockOffsetStore.clear()
     lastSyncStore.clear()
     serverIdentityStore.clear()
+    // Re-check against the new server (or show NotConfigured after removing it).
+    serverAvailability.invalidate()
     // Re-evaluate the background schedule against the new (or removed) server.
     periodicSyncScheduler.scheduleIfEnabled()
   }

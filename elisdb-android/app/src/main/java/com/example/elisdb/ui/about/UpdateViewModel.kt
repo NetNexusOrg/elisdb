@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.elisdb.BuildConfig
 import com.example.elisdb.remote.AppReleaseDto
 import com.example.elisdb.remote.ReleaseVerificationException
+import com.example.elisdb.sync.ServerAvailability
 import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,9 @@ sealed interface UpdatePhase {
 
   /** No server (or signing key) is configured, so there is nothing to ask. */
   data object NotConfigured : UpdatePhase
+
+  /** A credential exists but the server cannot be reached. */
+  data object Offline : UpdatePhase
 
   data class Available(val release: AppReleaseDto) : UpdatePhase
 
@@ -52,6 +56,9 @@ class UpdateViewModel(
   private val fetchRelease: suspend () -> AppReleaseDto? = { null },
   private val downloadRelease: suspend (AppReleaseDto, (Long, Long?) -> Unit) -> File =
     { _, _ -> throw IllegalStateException("no downloader configured") },
+  private val serverAvailability: StateFlow<ServerAvailability> =
+    MutableStateFlow(ServerAvailability.Online),
+  private val refreshServerAvailability: suspend () -> Unit = {},
 ) : ViewModel() {
   private val _phase = MutableStateFlow<UpdatePhase>(UpdatePhase.Idle)
   val phase: StateFlow<UpdatePhase> = _phase.asStateFlow()
@@ -61,9 +68,26 @@ class UpdateViewModel(
   /** Asks the server which build it publishes and compares it with this one. */
   fun check() {
     if (job?.isActive == true) return
+    if (_phase.value is UpdatePhase.Ready) return
     if (!isConfigured()) {
       _phase.value = UpdatePhase.NotConfigured
       return
+    }
+    when (serverAvailability.value) {
+      ServerAvailability.Online -> Unit
+      ServerAvailability.NotConfigured,
+      ServerAvailability.ConfigError -> {
+        _phase.value = UpdatePhase.NotConfigured
+        return
+      }
+      ServerAvailability.Checking -> {
+        _phase.value = UpdatePhase.Checking
+        return
+      }
+      ServerAvailability.Offline -> {
+        _phase.value = UpdatePhase.Offline
+        return
+      }
     }
     job = viewModelScope.launch {
       _phase.value = UpdatePhase.Checking
@@ -76,7 +100,14 @@ class UpdateViewModel(
             else -> UpdatePhase.UpToDate
           }
         } catch (e: Exception) {
-          UpdatePhase.Failed(FailureKind.CHECK)
+          // A failure while fetching may be a server error or a network drop.
+          // Re-probe before deciding whether this is an offline state.
+          refreshServerAvailability()
+          if (serverAvailability.value == ServerAvailability.Offline) {
+            UpdatePhase.Offline
+          } else {
+            UpdatePhase.Failed(FailureKind.CHECK)
+          }
         }
     }
   }
@@ -100,6 +131,22 @@ class UpdateViewModel(
 
   private fun download(release: AppReleaseDto) {
     if (job?.isActive == true) return
+    when (serverAvailability.value) {
+      ServerAvailability.Online -> Unit
+      ServerAvailability.Offline -> {
+        _phase.value = UpdatePhase.Offline
+        return
+      }
+      ServerAvailability.NotConfigured,
+      ServerAvailability.ConfigError -> {
+        _phase.value = UpdatePhase.NotConfigured
+        return
+      }
+      ServerAvailability.Checking -> {
+        _phase.value = UpdatePhase.Checking
+        return
+      }
+    }
     job = viewModelScope.launch {
       _phase.value = UpdatePhase.Downloading(release, null)
       _phase.value =
@@ -118,7 +165,12 @@ class UpdateViewModel(
         } catch (e: ReleaseVerificationException) {
           UpdatePhase.Failed(FailureKind.CHECKSUM, release)
         } catch (e: Exception) {
-          UpdatePhase.Failed(FailureKind.DOWNLOAD, release)
+          refreshServerAvailability()
+          if (serverAvailability.value == ServerAvailability.Offline) {
+            UpdatePhase.Offline
+          } else {
+            UpdatePhase.Failed(FailureKind.DOWNLOAD, release)
+          }
         }
     }
   }

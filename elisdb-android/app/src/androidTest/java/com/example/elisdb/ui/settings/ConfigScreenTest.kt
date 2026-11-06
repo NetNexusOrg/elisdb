@@ -3,6 +3,7 @@ package com.example.elisdb.ui.settings
 import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -13,6 +14,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.elisdb.settings.PrefsSettingsStore
 import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.sync.PullWatermark
+import com.example.elisdb.sync.ServerAvailability
 import com.example.elisdb.sync.ServerInfo
 import com.example.elisdb.sync.SyncCoordinatorProvider
 import com.example.elisdb.sync.SyncManager
@@ -23,6 +25,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -92,7 +96,6 @@ class ConfigScreenTest {
       composeTestRule.onNodeWithText("Sincronização").fetchSemanticsNode().boundsInRoot.top
     assertTrue("Dados deve ser o primeiro cartão", dadosTop < sincronizacaoTop)
     composeTestRule.onNodeWithText("Sincronização e servidor").assertDoesNotExist()
-    composeTestRule.onNodeWithText("Servidor").assertDoesNotExist()
   }
 
   @Test
@@ -101,17 +104,11 @@ class ConfigScreenTest {
     configure(store)
     setContent(store)
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("Ainda sem sincronizações").assertExists()
-    // The data card only carries the two totals; pending changes live in the
-    // combined sync/server card below (and are silent when there is nothing to sync).
+    composeTestRule.onNodeWithText("Por sincronizar").assertExists()
+    // The data card is one compact line with the two totals.
     composeTestRule.onNodeWithText("Alterações por enviar").assertDoesNotExist()
     composeTestRule.onNodeWithText("Alterações por receber").assertDoesNotExist()
-    composeTestRule.onNodeWithText("No servidor").assertExists()
-    composeTestRule.onNodeWithText("Na app").assertExists()
-    // Only the local total is numeric here; the server row shows a placeholder
-    // because the test manager has no server info.
-    composeTestRule.onNodeWithText("—").assertExists()
-    composeTestRule.onAllNodesWithText("0").assertCountEquals(1)
+    composeTestRule.onNodeWithText("0 na app · — no servidor").assertExists()
   }
 
   @Test
@@ -139,7 +136,7 @@ class ConfigScreenTest {
     while (manager.status.value != SyncStatus.IN_PROGRESS) delay(5)
     setContent(store, manager = manager)
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("—").assertExists()
+    composeTestRule.onNodeWithText("0 na app · — no servidor").assertExists()
     gate.complete(Unit)
     run.join()
   }
@@ -156,7 +153,7 @@ class ConfigScreenTest {
     composeTestRule.waitForIdle()
     // The combined sync/server card alone reports the pending work; the data card
     // has no pending rows any more.
-    composeTestRule.onNodeWithText("Alterações por sincronizar").assertExists()
+    composeTestRule.onNodeWithText("Alterações pendentes").assertExists()
     composeTestRule.onNodeWithText("Novidades por receber").assertExists()
     composeTestRule.onNodeWithText("≥1").assertDoesNotExist()
     composeTestRule.onNodeWithText("Alterações por receber").assertDoesNotExist()
@@ -171,10 +168,7 @@ class ConfigScreenTest {
       manager = syncManagerWithServerInfo(latest = 200L, clientCount = 7),
     )
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("No servidor").assertExists()
-    composeTestRule.onNodeWithText("Na app").assertExists()
-    // Server total and local total both read 7.
-    composeTestRule.onAllNodesWithText("7").assertCountEquals(2)
+    composeTestRule.onNodeWithText("7 na app · 7 no servidor").assertExists()
   }
 
   @Test
@@ -182,8 +176,7 @@ class ConfigScreenTest {
     val store = store()
     setContent(store, clienteCount = flowOf(3))
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("Na app").assertExists()
-    composeTestRule.onNodeWithText("3").assertExists()
+    composeTestRule.onNodeWithText("3 na app · — no servidor").assertExists()
   }
 
   @Test
@@ -207,12 +200,22 @@ class ConfigScreenTest {
   }
 
   @Test
-  fun config_comConfiguracaoMostraSincronizado() {
+  fun config_comConfiguracaoSemSucessoMostraPorSincronizar() {
     val store = store()
     configure(store)
     setContent(store)
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("Sincronizado").assertExists()
+    composeTestRule.onNodeWithText("Por sincronizar").assertExists()
+  }
+
+  @Test
+  fun config_offlineDesativaOSincronizar() {
+    val store = store()
+    configure(store)
+    setContent(store, availability = MutableStateFlow(ServerAvailability.Offline))
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("Indisponível").assertExists()
+    composeTestRule.onNodeWithText("Sincronizar").assertIsNotEnabled()
   }
 
   @Test
@@ -221,9 +224,9 @@ class ConfigScreenTest {
     configure(store)
     setContent(store)
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("URL do servidor").assertExists()
+    composeTestRule.onNodeWithText("Servidor").assertExists()
     composeTestRule.onNodeWithText("https://db.example.com").assertExists()
-    composeTestRule.onNodeWithText("Chave de assinatura").assertExists()
+    composeTestRule.onNodeWithText("Chave").assertExists()
     composeTestRule.onNodeWithText("AAEC", substring = true).assertExists()
     composeTestRule.onNodeWithText("Guardar").assertDoesNotExist()
     // Already configured: importing is no longer offered, only removal.
@@ -240,7 +243,7 @@ class ConfigScreenTest {
     serverViewModel.importKey(config)
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("https://db.example.com").assertExists()
-    composeTestRule.onNodeWithText("Chave de assinatura").assertExists()
+    composeTestRule.onNodeWithText("Chave").assertExists()
     composeTestRule.onNodeWithText("AAEC", substring = true).assertExists()
   }
 
@@ -255,8 +258,8 @@ class ConfigScreenTest {
     composeTestRule.waitForIdle()
 
     // The name comes from the file, so it shows even with no server lookup.
-    composeTestRule.onNodeWithText("Utilizador associado").assertExists()
-    composeTestRule.onNodeWithText("carlos").assertExists()
+    composeTestRule.onNodeWithText("Utilizador").assertExists()
+    composeTestRule.onNodeWithText("CARLOS").assertExists()
   }
 
   @Test
@@ -304,7 +307,7 @@ class ConfigScreenTest {
     composeTestRule.onNodeWithText("Corrigir").assertExists()
     composeTestRule
       .onNodeWithText(
-        "Relógio do dispositivo 5 min atrasado. As alterações podem não chegar aos outros dispositivos."
+        "Relógio 5 min atrasado"
       )
       .assertExists()
     composeTestRule.onNodeWithText("Corrigir").performClick()
@@ -327,6 +330,7 @@ class ConfigScreenTest {
     manager: SyncManager = syncManager(),
     skew: Long? = null,
     onCorrectClock: suspend () -> Unit = {},
+    availability: StateFlow<ServerAvailability> = MutableStateFlow(ServerAvailability.Online),
   ): ServerConfigViewModel {
     val syncViewModel =
       SyncViewModel(
@@ -334,6 +338,7 @@ class ConfigScreenTest {
         clienteCount,
         clockSkewSeconds = flowOf(skew),
         onCorrectClock = onCorrectClock,
+        serverAvailability = availability,
       )
     val serverViewModel = ServerConfigViewModel(store, manager)
     composeTestRule.setContent {

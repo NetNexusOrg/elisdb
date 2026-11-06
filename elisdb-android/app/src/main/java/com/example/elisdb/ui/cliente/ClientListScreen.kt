@@ -5,6 +5,7 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -50,8 +51,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -345,7 +349,7 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  C
           )
         }
         val contrato = cliente.contrato?.takeIf { it.isNotBlank() }
-        if (contrato != null || !cliente.ativo) {
+        if (contrato != null || !cliente.ativo || cliente.tags.isNotEmpty()) {
           Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -373,32 +377,45 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  C
                 )
               }
             }
-          }
-        }
-        if (cliente.tags.isNotEmpty()) {
-          Column(
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-          ) {
-            cliente.tags.chunked(3).forEach { row ->
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+            if (cliente.tags.isNotEmpty()) {
+              Spacer(Modifier.width(8.dp))
+              BoxWithConstraints(
+                modifier = Modifier.weight(1f).clipToBounds(),
+                contentAlignment = Alignment.CenterEnd,
               ) {
-                row.forEach { tag ->
-                  Text(
-                    text = tag,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    maxLines = 1,
-                    modifier =
-                      Modifier
-                        .background(
-                          MaterialTheme.colorScheme.secondaryContainer,
-                          RoundedCornerShape(4.dp),
-                        )
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                  )
+                val tagStyle = MaterialTheme.typography.labelSmall
+                val textMeasurer = rememberTextMeasurer()
+                val chipPadding = with(LocalDensity.current) { 12.dp.toPx() }
+                val tagSpacing = with(LocalDensity.current) { 4.dp.toPx() }
+                var contentWidth = 0f
+                cliente.tags.forEach { tag ->
+                  contentWidth +=
+                    textMeasurer.measure(text = tag, style = tagStyle).size.width + chipPadding
+                }
+                contentWidth += tagSpacing * (cliente.tags.size - 1)
+                val overflows = contentWidth > constraints.maxWidth.toFloat()
+                Row(
+                  modifier = if (overflows) Modifier.basicMarquee() else Modifier,
+                  horizontalArrangement =
+                    if (overflows) Arrangement.spacedBy(4.dp)
+                    else Arrangement.spacedBy(4.dp, Alignment.End),
+                  verticalAlignment = Alignment.CenterVertically,
+                ) {
+                  cliente.tags.forEach { tag ->
+                    Text(
+                      text = tag,
+                      style = tagStyle,
+                      color = MaterialTheme.colorScheme.onSecondaryContainer,
+                      maxLines = 1,
+                      modifier =
+                        Modifier
+                          .background(
+                            MaterialTheme.colorScheme.secondaryContainer,
+                            RoundedCornerShape(4.dp),
+                          )
+                          .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                  }
                 }
               }
             }
@@ -437,6 +454,7 @@ private fun ClientStatusFilter.label(): String =
 private fun ClientSortOrder.label(): String =
   when (this) {
     ClientSortOrder.NAME -> "Ordem alfabética"
+    ClientSortOrder.TAGS -> "Tags (A–Z)"
     ClientSortOrder.RECENT -> "Mais recentes primeiro"
     ClientSortOrder.UPDATED -> "Última edição primeiro"
   }

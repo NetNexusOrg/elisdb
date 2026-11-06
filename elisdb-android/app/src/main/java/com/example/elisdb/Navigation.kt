@@ -90,6 +90,8 @@ fun MainNavigation() {
                 clienteCount = container.database.clienteDao().observeCount(),
                 clockSkewSeconds = container.clockSync.skewSeconds,
                 onCorrectClock = { container.refreshClock() },
+                serverAvailability = container.serverAvailability.state,
+                onRefreshServer = { container.serverAvailability.refresh() },
                 periodicSyncEnabled = container.periodicSyncSettings.isEnabled(),
                 onPeriodicSyncChanged = { enabled ->
                   container.periodicSyncScheduler.setEnabled(enabled)
@@ -126,7 +128,12 @@ fun MainNavigation() {
             viewModel {
               UpdateViewModel(
                 installedVersionCode = BuildConfig.VERSION_CODE,
-                isConfigured = { container.settingsStore.settings().signingKey.isNotBlank() },
+                isConfigured = {
+                  val settings = container.settingsStore.settings()
+                  settings.baseUrl.isNotBlank() && settings.signingKey.isNotBlank()
+                },
+                serverAvailability = container.serverAvailability.state,
+                refreshServerAvailability = { container.serverAvailability.refresh() },
                 fetchRelease = {
                   container.withApiClient { api ->
                     api.fetchLatestRelease(container.normalizedEpochSeconds())
@@ -147,6 +154,7 @@ fun MainNavigation() {
           AboutScreen(
             onBack = { backStack.removeLastOrNull() },
             updateViewModel = updateViewModel,
+            serverAvailability = container.serverAvailability.state,
           )
         }
         entry<ClientForm> { key ->

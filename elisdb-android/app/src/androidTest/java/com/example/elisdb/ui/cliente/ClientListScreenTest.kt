@@ -43,12 +43,13 @@ class ClientListScreenTest {
   fun lista_mostraTodasAsTagsDoCliente() {
     val comTag =
       ClienteComFotos(
-        cliente = Cliente(id = "4", nome = "Sofia", tag = "gold;premium", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        cliente = Cliente(id = "4", nome = "Sofia", contrato = "CT-100", tag = "gold;premium", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
         fotos = emptyList(),
       )
     setListContent(listOf(comTag))
 
     composeTestRule.onNodeWithText("Sofia").assertExists()
+    composeTestRule.onNodeWithText("CT-100").assertExists()
     composeTestRule.onNodeWithText("GOLD").assertExists()
     composeTestRule.onNodeWithText("PREMIUM").assertExists()
     val nameLeft =
@@ -62,6 +63,62 @@ class ClientListScreenTest {
         .fetchSemanticsNode()
         .boundsInRoot.left
     assertTrue("As tags deveriam aparecer do lado direito do cartão", nameLeft < tagLeft)
+
+    val contractBounds =
+      composeTestRule
+        .onNodeWithText("CT-100", useUnmergedTree = true)
+        .fetchSemanticsNode()
+        .boundsInRoot
+    val tagBounds =
+      composeTestRule
+        .onNodeWithText("PREMIUM", useUnmergedTree = true)
+        .fetchSemanticsNode()
+        .boundsInRoot
+    assertTrue(
+      "As tags devem ficar na mesma linha do contrato",
+      contractBounds.top < tagBounds.bottom && tagBounds.top < contractBounds.bottom,
+    )
+  }
+
+  @Test
+  fun lista_variasTagsFicamNaMesmaLinhaDoContrato() {
+    val comMuitasTags =
+      ClienteComFotos(
+        cliente =
+          Cliente(
+            id = "5",
+            nome = "Rita",
+            contrato = "CT-500",
+            tag = "T1;T2;T3;T4;T5;T6",
+            latitude = 1.0,
+            longitude = 2.0,
+            dataCriacao = 0,
+            updatedAt = 0,
+          ),
+        fotos = emptyList(),
+      )
+    setListContent(listOf(comMuitasTags))
+
+    composeTestRule.onNodeWithText("Rita").assertExists()
+    composeTestRule.onNodeWithText("CT-500").assertExists()
+    listOf("T1", "T2", "T3", "T4", "T5", "T6").forEach { tag ->
+      composeTestRule.onNodeWithText(tag).assertExists()
+    }
+
+    val firstTagBounds =
+      composeTestRule
+        .onNodeWithText("T1", useUnmergedTree = true)
+        .fetchSemanticsNode()
+        .boundsInRoot
+    val secondTagBounds =
+      composeTestRule
+        .onNodeWithText("T2", useUnmergedTree = true)
+        .fetchSemanticsNode()
+        .boundsInRoot
+    assertTrue(
+      "As tags devem partilhar a mesma linha",
+      firstTagBounds.top < secondTagBounds.bottom && secondTagBounds.top < firstTagBounds.bottom,
+    )
   }
 
   @Test
@@ -176,8 +233,10 @@ class ClientListScreenTest {
     composeTestRule.onNodeWithText("Ordenação").performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Ordem alfabética").assertExists()
+    composeTestRule.onNodeWithText("Tags (A–Z)").assertExists()
     composeTestRule.onNodeWithText("Mais recentes primeiro").assertExists()
-    composeTestRule.onNodeWithText("Última edição primeiro").performClick()
+    composeTestRule.onNodeWithText("Última edição primeiro").assertExists()
+    composeTestRule.onNodeWithText("Tags (A–Z)").performClick()
     composeTestRule.waitForIdle()
 
     composeTestRule.onNodeWithText("Maria").assertExists()

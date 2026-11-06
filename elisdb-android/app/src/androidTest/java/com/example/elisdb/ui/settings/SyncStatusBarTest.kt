@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import com.example.elisdb.sync.ServerAvailability
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncStatus
 import com.example.elisdb.theme.ElisdbTheme
@@ -19,7 +20,8 @@ class SyncStatusBarTest {
   private fun setBar(
     status: SyncStatus,
     fault: SyncFault? = null,
-    hasConfig: Boolean = true,
+    availability: ServerAvailability = ServerAvailability.Online,
+    hasSynced: Boolean = true,
     detail: String? = null,
     hasPendingUploads: Boolean = false,
     hasPendingDownloads: Boolean = false,
@@ -29,7 +31,8 @@ class SyncStatusBarTest {
         SyncStatusBar(
           syncStatus = status,
           syncFault = fault,
-          hasConfig = hasConfig,
+          serverAvailability = availability,
+          hasSynced = hasSynced,
           hasPendingUploads = hasPendingUploads,
           hasPendingDownloads = hasPendingDownloads,
           detail = detail,
@@ -41,16 +44,28 @@ class SyncStatusBarTest {
 
   @Test
   fun idleComConfig_mostraSincronizado() {
-    setBar(SyncStatus.IDLE, hasConfig = true)
+    setBar(SyncStatus.IDLE, availability = ServerAvailability.Online)
     composeTestRule.onNodeWithText("Sincronizado").assertIsDisplayed()
     composeTestRule.onNodeWithText("A sincronizar…").assertDoesNotExist()
   }
 
   @Test
+  fun idleSemSucesso_mostraPorSincronizar() {
+    setBar(SyncStatus.IDLE, hasSynced = false)
+    composeTestRule.onNodeWithText("Por sincronizar").assertIsDisplayed()
+  }
+
+  @Test
   fun idleSemConfig_mostraNaoConfigurado() {
-    setBar(SyncStatus.IDLE, hasConfig = false)
+    setBar(SyncStatus.IDLE, availability = ServerAvailability.NotConfigured)
     composeTestRule.onNodeWithText("Não configurado").assertIsDisplayed()
     composeTestRule.onNodeWithText("Sincronizado").assertDoesNotExist()
+  }
+
+  @Test
+  fun offline_mostraServidorOffline() {
+    setBar(SyncStatus.IDLE, availability = ServerAvailability.Offline)
+    composeTestRule.onNodeWithText("Indisponível").assertIsDisplayed()
   }
 
   @Test
@@ -66,37 +81,44 @@ class SyncStatusBarTest {
   }
 
   @Test
-  fun errorConfig_mostraNaoConfigurado() {
+  fun errorConfig_mostraConfiguracaoInvalida() {
     setBar(SyncStatus.ERROR, SyncFault.CONFIG)
-    composeTestRule.onNodeWithText("Não configurado").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Configuração inválida").assertIsDisplayed()
   }
 
   @Test
   fun errorAuth_mostraMensagemChaveNaoRegistada() {
     setBar(SyncStatus.ERROR, SyncFault.AUTH)
-    composeTestRule.onNodeWithText("Servidor rejeitou a sincronização (chave não registada).")
+    composeTestRule.onNodeWithText("Chave inválida")
       .assertIsDisplayed()
   }
 
   @Test
   fun errorClock_mostraMensagemRelogio() {
     setBar(SyncStatus.ERROR, SyncFault.CLOCK)
-    composeTestRule.onNodeWithText("Relógio do dispositivo dessincronizado. Verifique a hora do dispositivo.")
+    composeTestRule.onNodeWithText("Relógio dessincronizado")
       .assertIsDisplayed()
   }
 
   @Test
   fun errorNetwork_mostraMensagemLigacao() {
     setBar(SyncStatus.ERROR, SyncFault.NETWORK)
-    composeTestRule.onNodeWithText("Falha na sincronização. Verifique a ligação.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Indisponível").assertIsDisplayed()
+  }
+
+  @Test
+  fun offlineTemPrioridadeSobreSincronizacaoEmCurso() {
+    setBar(SyncStatus.IN_PROGRESS, availability = ServerAvailability.Offline)
+    composeTestRule.onNodeWithText("Indisponível").assertIsDisplayed()
+    composeTestRule.onNodeWithText("A sincronizar…").assertDoesNotExist()
   }
 
   @Test
   fun errorComPendencias_mostraErroEmVezDePendente() {
     setBar(SyncStatus.ERROR, SyncFault.AUTH, hasPendingUploads = true)
-    composeTestRule.onNodeWithText("Servidor rejeitou a sincronização (chave não registada).")
+    composeTestRule.onNodeWithText("Chave inválida")
       .assertIsDisplayed()
-    composeTestRule.onNodeWithText("Alterações por sincronizar").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Alterações pendentes").assertDoesNotExist()
   }
 
   @Test
@@ -110,7 +132,7 @@ class SyncStatusBarTest {
   @Test
   fun pendingUploads_mostraResumoEDetalheDeEnvio() {
     setBar(SyncStatus.IDLE, detail = "3 por enviar", hasPendingUploads = true)
-    composeTestRule.onNodeWithText("Alterações por sincronizar").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Alterações pendentes").assertIsDisplayed()
     composeTestRule.onNodeWithText("3 por enviar").assertIsDisplayed()
     composeTestRule.onNodeWithText("Sincronizado").assertDoesNotExist()
   }
@@ -118,7 +140,7 @@ class SyncStatusBarTest {
   @Test
   fun pendingDownloads_mostraResumoEDetalheDeRececao() {
     setBar(SyncStatus.IDLE, detail = "Novidades por receber", hasPendingDownloads = true)
-    composeTestRule.onNodeWithText("Alterações por sincronizar").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Alterações pendentes").assertIsDisplayed()
     composeTestRule.onNodeWithText("Novidades por receber").assertIsDisplayed()
   }
 
@@ -130,7 +152,7 @@ class SyncStatusBarTest {
       hasPendingUploads = true,
       hasPendingDownloads = true,
     )
-    composeTestRule.onNodeWithText("Alterações por sincronizar").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Alterações pendentes").assertIsDisplayed()
     composeTestRule.onNodeWithText("2 por enviar · novidades por receber").assertIsDisplayed()
   }
 
@@ -138,14 +160,14 @@ class SyncStatusBarTest {
   fun pendingOverrideSucessoAntigo() {
     // Pending state wins over a stale success.
     setBar(SyncStatus.SUCCESS, hasPendingUploads = true)
-    composeTestRule.onNodeWithText("Alterações por sincronizar").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Alterações pendentes").assertIsDisplayed()
     composeTestRule.onNodeWithText("Sincronizado").assertDoesNotExist()
   }
 
   @Test
   fun semDetalhe_mostraApenasOTitulo() {
     setBar(SyncStatus.IDLE, hasPendingUploads = true)
-    composeTestRule.onNodeWithText("Alterações por sincronizar").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Alterações pendentes").assertIsDisplayed()
     composeTestRule.onNodeWithText("Sincronizado").assertDoesNotExist()
   }
 }

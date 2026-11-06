@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.elisdb.sync.ServerAvailability
 import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncStatus
 
@@ -41,14 +42,27 @@ internal fun SyncStatusBar(
   modifier: Modifier = Modifier,
   hasPendingUploads: Boolean = false,
   hasPendingDownloads: Boolean = false,
-  hasConfig: Boolean = true,
+  serverAvailability: ServerAvailability = ServerAvailability.Online,
+  hasSynced: Boolean = true,
   detail: String? = null,
   centered: Boolean = false,
 ) {
   val message =
-    syncMessage(syncStatus, syncFault, hasPendingUploads, hasPendingDownloads, hasConfig)
+    syncMessage(
+      syncStatus,
+      syncFault,
+      hasPendingUploads,
+      hasPendingDownloads,
+      serverAvailability,
+      hasSynced,
+    )
   val (containerColor, contentColor) =
-    statusColors(syncStatus, hasConfig, hasPendingUploads, hasPendingDownloads)
+    statusColors(
+      syncStatus,
+      serverAvailability,
+      hasPendingUploads,
+      hasPendingDownloads,
+    )
   if (centered) {
     Column(
       modifier = modifier.fillMaxWidth(),
@@ -116,14 +130,20 @@ internal fun SyncStatusBar(
 @Composable
 internal fun statusColors(
   syncStatus: SyncStatus,
-  hasConfig: Boolean,
+  serverAvailability: ServerAvailability,
   hasPendingUploads: Boolean,
   hasPendingDownloads: Boolean,
 ): Pair<Color, Color> {
   val scheme = MaterialTheme.colorScheme
   return when {
-    syncStatus == SyncStatus.IN_PROGRESS -> scheme.tertiaryContainer to scheme.onTertiaryContainer
-    !hasConfig -> scheme.surfaceVariant to scheme.onSurfaceVariant
+    serverAvailability == ServerAvailability.NotConfigured ->
+      scheme.surfaceVariant to scheme.onSurfaceVariant
+    serverAvailability == ServerAvailability.Offline ||
+      serverAvailability == ServerAvailability.ConfigError ->
+      scheme.errorContainer to scheme.onErrorContainer
+    syncStatus == SyncStatus.IN_PROGRESS ||
+      serverAvailability == ServerAvailability.Checking ->
+      scheme.tertiaryContainer to scheme.onTertiaryContainer
     // An error is actionable even when there is pending work; do not hide it
     // behind the "pending" state.
     syncStatus == SyncStatus.ERROR -> scheme.errorContainer to scheme.onErrorContainer
@@ -138,22 +158,31 @@ internal fun syncMessage(
   syncFault: SyncFault?,
   hasPendingUploads: Boolean = false,
   hasPendingDownloads: Boolean = false,
-  hasConfig: Boolean = true,
+  serverAvailability: ServerAvailability = ServerAvailability.Online,
+  hasSynced: Boolean = true,
 ): Pair<ImageVector, String>? =
   when {
+    serverAvailability == ServerAvailability.NotConfigured ->
+      Icons.Default.CloudOff to "Não configurado"
+    serverAvailability == ServerAvailability.ConfigError ->
+      Icons.Default.CloudOff to "Configuração inválida"
+    serverAvailability == ServerAvailability.Offline ->
+      Icons.Default.CloudOff to "Indisponível"
+    serverAvailability == ServerAvailability.Checking ->
+      Icons.Default.Sync to "A verificar…"
     syncStatus == SyncStatus.IN_PROGRESS -> Icons.Default.Sync to "A sincronizar…"
-    !hasConfig -> Icons.Default.CloudOff to "Não configurado"
     syncStatus == SyncStatus.ERROR ->
       when (syncFault) {
-        SyncFault.CONFIG -> Icons.Default.CloudOff to "Não configurado"
-        SyncFault.AUTH -> Icons.Default.CloudOff to "Servidor rejeitou a sincronização (chave não registada)."
-        SyncFault.CLOCK -> Icons.Default.CloudOff to "Relógio do dispositivo dessincronizado. Verifique a hora do dispositivo."
-        SyncFault.NETWORK -> Icons.Default.CloudOff to "Falha na sincronização. Verifique a ligação."
-        null -> Icons.Default.CloudOff to "Falha na sincronização."
+        SyncFault.CONFIG -> Icons.Default.CloudOff to "Configuração inválida"
+        SyncFault.AUTH -> Icons.Default.CloudOff to "Chave inválida"
+        SyncFault.CLOCK -> Icons.Default.CloudOff to "Relógio dessincronizado"
+        SyncFault.NETWORK -> Icons.Default.CloudOff to "Indisponível"
+        null -> Icons.Default.CloudOff to "Indisponível"
       }
-    hasPendingUploads && hasPendingDownloads -> Icons.Default.Sync to "Alterações por sincronizar"
-    hasPendingUploads -> Icons.Default.CloudUpload to "Alterações por sincronizar"
-    hasPendingDownloads -> Icons.Default.CloudDownload to "Alterações por sincronizar"
-    syncStatus == SyncStatus.SUCCESS -> Icons.Default.CloudDone to "Sincronizado"
-    else -> Icons.Default.CloudDone to "Sincronizado"
+    hasPendingUploads && hasPendingDownloads -> Icons.Default.Sync to "Alterações pendentes"
+    hasPendingUploads -> Icons.Default.CloudUpload to "Alterações pendentes"
+    hasPendingDownloads -> Icons.Default.CloudDownload to "Alterações pendentes"
+    syncStatus == SyncStatus.SUCCESS || hasSynced ->
+      Icons.Default.CloudDone to "Sincronizado"
+    else -> Icons.Default.CloudDone to "Por sincronizar"
   }

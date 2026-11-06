@@ -19,10 +19,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -57,8 +57,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.elisdb.BuildConfig
 import com.example.elisdb.R
+import com.example.elisdb.sync.ServerAvailability
 import com.example.elisdb.ui.components.InfoCard
 import java.util.Locale
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 private const val APP_NAME = "ElisDB"
 
@@ -67,12 +70,15 @@ private const val APP_NAME = "ElisDB"
 fun AboutScreen(
   onBack: () -> Unit,
   updateViewModel: UpdateViewModel,
+  serverAvailability: StateFlow<ServerAvailability> =
+    MutableStateFlow(ServerAvailability.Online),
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
   val phase by updateViewModel.phase.collectAsState()
+  val availability by serverAvailability.collectAsState()
   var showQrFullscreen by remember { mutableStateOf(false) }
-  LaunchedEffect(updateViewModel) { updateViewModel.check() }
+  LaunchedEffect(updateViewModel, availability) { updateViewModel.check() }
   Scaffold(
     modifier = modifier.fillMaxSize(),
     topBar = {
@@ -100,6 +106,7 @@ fun AboutScreen(
       InfoCard(title = "Atualizações", titleTextAlign = TextAlign.Center) {
         UpdateSection(
           phase = phase,
+          serverAvailable = availability == ServerAvailability.Online,
           onCheck = updateViewModel::check,
           onDownload = updateViewModel::download,
           onRetry = updateViewModel::retry,
@@ -112,17 +119,35 @@ fun AboutScreen(
           },
         )
       }
-      InfoCard(title = "Grupo Telegram", titleTextAlign = TextAlign.Center) {
-        Image(
-          painter = painterResource(R.drawable.telegram_qr),
-          contentDescription = "QR code do grupo de Telegram",
+      InfoCard {
+        Row(
           modifier =
             Modifier
-              .align(Alignment.CenterHorizontally)
-              .size(180.dp)
-              .clip(RoundedCornerShape(16.dp))
-              .clickable { showQrFullscreen = true },
-        )
+              .fillMaxWidth()
+              .clickable { showQrFullscreen = true }
+              .padding(4.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+          Image(
+            painter = painterResource(R.drawable.telegram_qr),
+            contentDescription = "QR code do grupo de Telegram",
+            modifier =
+              Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(12.dp)),
+          )
+          Text(
+            "Grupo Telegram",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f),
+          )
+          Icon(
+            Icons.AutoMirrored.Filled.OpenInNew,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
       }
     }
   }
@@ -209,80 +234,72 @@ private fun AppHeader(modifier: Modifier = Modifier) {
 @Composable
 private fun UpdateSection(
   phase: UpdatePhase,
+  serverAvailable: Boolean,
   onCheck: () -> Unit,
   onDownload: () -> Unit,
   onRetry: () -> Unit,
   onInstall: (java.io.File) -> Unit,
 ) {
-  val body = MaterialTheme.typography.bodyMedium
-  var message = ""
-  var messageColor = MaterialTheme.colorScheme.onSurfaceVariant
+  var status = "Pronto a verificar"
+  var statusColor = MaterialTheme.colorScheme.onSurfaceVariant
   var buttonText = "Procurar atualizações"
   var buttonIcon: ImageVector = Icons.Default.Refresh
-  var buttonEnabled = true
+  var buttonEnabled = serverAvailable
   var buttonAction: () -> Unit = onCheck
   var busy = false
 
   when (phase) {
-    UpdatePhase.Idle -> {
-      message = "Verifica se há uma versão mais recente publicada no servidor."
-    }
+    UpdatePhase.Idle -> Unit
     UpdatePhase.Checking -> {
-      message = "A contactar o servidor…"
-      buttonText = "A procurar atualizações…"
+      status = "A verificar…"
+      buttonText = "A verificar…"
       buttonEnabled = false
       busy = true
     }
-    UpdatePhase.UpToDate -> {
-      message = "A app está atualizada (versão ${BuildConfig.VERSION_NAME})."
-    }
-    UpdatePhase.NoRelease -> {
-      message = "Não há nenhuma versão publicada no servidor."
-    }
+    UpdatePhase.UpToDate -> status = "Atualizado"
+    UpdatePhase.NoRelease -> status = "Sem atualizações"
     UpdatePhase.NotConfigured -> {
-      message = "Configura o servidor para procurar atualizações."
-      buttonText = "Servidor não configurado"
-      buttonIcon = Icons.Default.Settings
+      status = "Não configurado"
+      buttonEnabled = false
+    }
+    UpdatePhase.Offline -> {
+      status = "Indisponível"
       buttonEnabled = false
     }
     is UpdatePhase.Available -> {
-      message = "Toque para transferir · ${formatSize(phase.release.size)}"
-      buttonText = "Versão ${phase.release.versionName} disponível"
+      status = "Versão ${phase.release.versionName} · ${formatSize(phase.release.size)}"
+      buttonText = "Transferir"
       buttonIcon = Icons.Default.Download
       buttonAction = onDownload
     }
     is UpdatePhase.Downloading -> {
-      message = "A transferir a versão ${phase.release.versionName}…"
-      buttonText = "A transferir…"
-      buttonIcon = Icons.Default.Download
+      val percent = phase.progress?.let { " ${(it * 100).toInt()}%" } ?: ""
+      status = "A transferir…$percent"
       buttonEnabled = false
       busy = true
     }
     is UpdatePhase.Ready -> {
-      message = "Versão ${phase.release.versionName} transferida e verificada."
-      buttonText = "Instalar versão ${phase.release.versionName}"
+      status = "Pronto a instalar"
+      buttonText = "Instalar"
       buttonIcon = Icons.Default.SystemUpdate
       buttonAction = { onInstall(phase.file) }
     }
     is UpdatePhase.Failed -> {
-      message =
-        when (phase.kind) {
-          FailureKind.CHECK -> "Não foi possível procurar atualizações. Verifica a ligação."
-          FailureKind.DOWNLOAD -> "Não foi possível transferir a atualização. Verifica a ligação."
-          FailureKind.CHECKSUM ->
-            "O ficheiro transferido não corresponde ao publicado. Tenta novamente."
-        }
-      messageColor = MaterialTheme.colorScheme.error
-      buttonText =
-        if (phase.release != null) "Tentar transferir novamente" else "Tentar novamente"
+      status = when (phase.kind) {
+        FailureKind.CHECK -> "Não foi possível verificar"
+        FailureKind.DOWNLOAD -> "Não foi possível transferir"
+        FailureKind.CHECKSUM -> "Ficheiro inválido"
+      }
+      statusColor = MaterialTheme.colorScheme.error
+      buttonText = "Tentar novamente"
       buttonAction = onRetry
     }
   }
 
   Text(
-    message,
-    style = body,
-    color = messageColor,
+    status,
+    style = MaterialTheme.typography.bodyMedium,
+    color = statusColor,
     textAlign = TextAlign.Center,
     modifier = Modifier.fillMaxWidth(),
   )
@@ -296,21 +313,23 @@ private fun UpdateSection(
     }
   }
 
-  Button(
-    onClick = buttonAction,
-    enabled = buttonEnabled,
-    modifier = Modifier.fillMaxWidth(),
-  ) {
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
+  if (phase !is UpdatePhase.Downloading) {
+    Button(
+      onClick = buttonAction,
+      enabled = buttonEnabled,
+      modifier = Modifier.fillMaxWidth(),
     ) {
-      if (busy) {
-        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-      } else {
-        Icon(buttonIcon, contentDescription = null)
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        if (busy) {
+          CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        } else {
+          Icon(buttonIcon, contentDescription = null)
+        }
+        Text(buttonText)
       }
-      Text(buttonText)
     }
   }
 }

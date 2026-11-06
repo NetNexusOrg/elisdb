@@ -11,9 +11,9 @@ and the current-location marker.
 A app SHALL provide a map screen that shows clients with valid coordinates,
 independently of the search or filter applied to the client list. By default it
 SHALL show only active clients, and a menu SHALL allow showing all clients, only
-inactive clients, or only clients with a chosen tag. The app SHALL request
-location permission when needed, center the map on the current location and show
-a marker there.
+inactive clients, or only clients that include a chosen tag. The app SHALL
+request location permission when needed, center the map on the current location
+and show a marker there.
 
 #### Scenario: Open the map from the client list
 - **WHEN** the user taps the map action in the client list top bar
@@ -46,14 +46,15 @@ a marker there.
 #### Scenario: Filter the map by tag
 - **WHEN** the user opens the map menu, expands Tags and selects one of the
   available tags
-- **THEN** the map SHALL show only clients with that tag
+- **THEN** the map SHALL show only clients whose set of tags includes that tag
 - **AND** the tag options SHALL come from the stored clients, in uppercase and
   sorted
 - **AND** the client list filter and search SHALL remain unchanged
 
 #### Scenario: Clear the map tag filter
 - **WHEN** the user chooses "Todas as tags" in the map menu
-- **THEN** the map SHALL show clients of any tag matching the status filter
+- **THEN** the map SHALL show the clients matching the status filter, regardless
+  of their tags
 
 #### Scenario: Client without coordinates
 - **WHEN** a client has no latitude/longitude, or the values are outside the

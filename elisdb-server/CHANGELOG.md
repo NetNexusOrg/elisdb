@@ -6,15 +6,33 @@ mantém a app Android sincronizada. A versão de release vive em
 
 ## [Unreleased]
 
-### Notas
+## [1.5.0] - 2026-11-06
 
-- Changelog inicial do componente servidor. As alterações ao servidor passam a
-  ser registadas aqui.
+### Added
+
+- Identidade estável da instância em `/health` e `/api/latest`, e limite de
+  registos por push anunciado ao cliente.
+- Idempotência opcional do push por `Idempotency-Key`, com resposta repetida
+  sem voltar a gravar e conflito `409` quando o conteúdo muda.
+- Histórico de clientes paginado (`limit`, `after_id`, `next_after_id`) e
+  registo de eliminações no histórico.
+- Comandos de backup, verificação e restauro com manifesto, checksums e
+  verificação de integridade.
+- Quotas de armazenamento de fotos por chave e por instância, e limpeza
+  periódica de fotos órfãs mesmo sem pushes.
+- Upload de fotos apenas para fotos referenciadas por um cliente.
+- O servidor recusa eliminações com data anterior ou igual à última edição
+  (last-write-wins) e valida datas negativas ou demasiado futuras.
 
 ### Changed
 
-- O campo `tag` aceita até 10 tags separadas por `;` (100 caracteres por tag e
-  500 no total), normalizadas em maiúsculas, sem duplicados e ordenadas.
+- O pull lê clientes e fotos em lotes numa única ligação SQLite; hashes de
+  fotos em falta são calculados uma vez e reutilizados.
+- A seed privada deixa de ser impressa por omissão no provisionamento; está
+  disponível apenas com `--print-seed`.
+- Caminhos de configuração de utilizadores são validados e confinados.
+- Os valores por omissão do `compose.yaml` não criam contas nem expõem o
+  servidor fora de localhost; o arranque valida utilizadores e URL.
 
 ## [1.4.0] - 2026-11-04
 

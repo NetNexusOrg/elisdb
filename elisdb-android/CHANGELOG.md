@@ -8,6 +8,24 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [1.12.0] - 2026-11-06
+
+### Novidades
+
+- **Servidor offline identificado.** Quando a credencial é válida mas o servidor não responde, a app mostra **Indisponível** em vez de “Não configurado”.
+- **Ações protegidas.** Sincronizar e Procurar atualizações ficam desativados quando o servidor não está configurado ou está offline, e voltam a ativar quando a ligação regressa.
+- **Configuração mais simples.** Cartões **Na app** e **No servidor** na secção Dados, informação de sincronização resumida e credenciais em cartões compactos.
+- **Sobre mais direto.** Estado das atualizações e ação necessária numa única linha, com o grupo Telegram compacto.
+- **Tags na lista.** As tags aparecem na mesma linha do contrato, alinhadas à direita; quando não cabem, deslizam horizontalmente.
+- **Ordenação por Tags (A–Z).** Nova opção para ordenar clientes pela primeira tag.
+- **Criação de tags.** O formulário volta a ter o botão **Adicionar tag**, que abre o campo com confirmação e cancelamento.
+
+### Correções
+
+- Corrigida a importação de credenciais privadas que podia ser rejeitada como configuração inválida.
+- Melhorada a recuperação do estado do servidor quando a rede ou o servidor voltam a estar disponíveis.
+- Incluídas as melhorias de robustez de sincronização e segurança da versão anterior.
+
 ## [1.11.0] - 2026-11-04
 
 ### Novidades

@@ -9,8 +9,8 @@ class BuildConfigVersionTest {
 
   @Test
   fun `BuildConfig exposes version code and name from configured source`() {
-    assertEquals("1.11.0", BuildConfig.VERSION_NAME)
-    assertEquals(18, BuildConfig.VERSION_CODE)
+    assertEquals("1.12.0", BuildConfig.VERSION_NAME)
+    assertEquals(19, BuildConfig.VERSION_CODE)
   }
 
   @Test

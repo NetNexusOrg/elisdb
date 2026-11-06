@@ -21,10 +21,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
@@ -63,6 +65,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.elisdb.sync.ServerAvailability
 import com.example.elisdb.sync.SyncStatus
 import com.example.elisdb.ui.components.InfoCard
+import com.example.elisdb.ui.components.StatTile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -133,13 +136,27 @@ fun ConfigScreen(
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
       InfoCard(title = "Dados", titleTextAlign = TextAlign.Center) {
-        Text(
-          "${state.totalClientes} na app · ${state.serverClienteCount?.toString() ?: "—"} no servidor",
-          style = MaterialTheme.typography.titleMedium,
-          color = MaterialTheme.colorScheme.onSurface,
-          textAlign = TextAlign.Center,
+        val serverCount = state.serverClienteCount
+        Row(
           modifier = Modifier.fillMaxWidth(),
-        )
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+          DataTile(
+            icon = Icons.Outlined.PhoneAndroid,
+            value = state.totalClientes.toString(),
+            label = "Na app",
+            modifier = Modifier.weight(1f),
+          )
+          DataTile(
+            icon = Icons.Outlined.Cloud,
+            value = serverCount?.toString() ?: "—",
+            label = "No servidor",
+            modifier = Modifier.weight(1f),
+            valueColor =
+              if (serverCount == null) MaterialTheme.colorScheme.onSurfaceVariant
+              else MaterialTheme.colorScheme.onSurface,
+          )
+        }
       }
       InfoCard(title = "Sincronização", titleTextAlign = TextAlign.Center) {
         if (!configured) {
@@ -345,6 +362,30 @@ fun ConfigScreen(
 }
 
 /** Compact credential card: URL on its own line, user and key side by side below. */
+@Composable
+private fun DataTile(
+  icon: ImageVector,
+  value: String,
+  label: String,
+  modifier: Modifier = Modifier,
+  valueColor: Color = MaterialTheme.colorScheme.onSurface,
+) {
+  Surface(
+    color = MaterialTheme.colorScheme.surface,
+    shape = RoundedCornerShape(12.dp),
+    modifier = modifier,
+  ) {
+    StatTile(
+      value = value,
+      label = label,
+      icon = icon,
+      valueColor = valueColor,
+      horizontalAlignment = Alignment.CenterHorizontally,
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
+    )
+  }
+}
+
 @Composable
 private fun CredentialBlock(
   baseUrl: String,

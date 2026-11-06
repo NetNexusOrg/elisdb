@@ -108,7 +108,10 @@ class ConfigScreenTest {
     // The data card is one compact line with the two totals.
     composeTestRule.onNodeWithText("Alterações por enviar").assertDoesNotExist()
     composeTestRule.onNodeWithText("Alterações por receber").assertDoesNotExist()
-    composeTestRule.onNodeWithText("0 na app · — no servidor").assertExists()
+    composeTestRule.onNodeWithText("Na app").assertExists()
+    composeTestRule.onNodeWithText("No servidor").assertExists()
+    composeTestRule.onNodeWithText("0").assertExists()
+    composeTestRule.onNodeWithText("—").assertExists()
   }
 
   @Test
@@ -136,7 +139,10 @@ class ConfigScreenTest {
     while (manager.status.value != SyncStatus.IN_PROGRESS) delay(5)
     setContent(store, manager = manager)
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("0 na app · — no servidor").assertExists()
+    composeTestRule.onNodeWithText("Na app").assertExists()
+    composeTestRule.onNodeWithText("No servidor").assertExists()
+    composeTestRule.onNodeWithText("0").assertExists()
+    composeTestRule.onNodeWithText("—").assertExists()
     gate.complete(Unit)
     run.join()
   }
@@ -168,7 +174,9 @@ class ConfigScreenTest {
       manager = syncManagerWithServerInfo(latest = 200L, clientCount = 7),
     )
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("7 na app · 7 no servidor").assertExists()
+    composeTestRule.onNodeWithText("Na app").assertExists()
+    composeTestRule.onNodeWithText("No servidor").assertExists()
+    composeTestRule.onAllNodesWithText("7").assertCountEquals(2)
   }
 
   @Test
@@ -176,7 +184,10 @@ class ConfigScreenTest {
     val store = store()
     setContent(store, clienteCount = flowOf(3))
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("3 na app · — no servidor").assertExists()
+    composeTestRule.onNodeWithText("Na app").assertExists()
+    composeTestRule.onNodeWithText("No servidor").assertExists()
+    composeTestRule.onNodeWithText("3").assertExists()
+    composeTestRule.onNodeWithText("—").assertExists()
   }
 
   @Test

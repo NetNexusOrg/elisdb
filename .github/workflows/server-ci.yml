@@ -6,12 +6,14 @@ on:
     paths:
       - "elisdb-server/**"
       - "elisdb-memento/**"
+      - "elisdb-telegram-bot/**"
       - ".github/workflows/server-ci.yml"
   pull_request:
     branches: [main]
     paths:
       - "elisdb-server/**"
       - "elisdb-memento/**"
+      - "elisdb-telegram-bot/**"
       - ".github/workflows/server-ci.yml"
   workflow_dispatch:
 
@@ -53,6 +55,11 @@ jobs:
       - name: Run memento migration tests
         working-directory: elisdb-memento
         run: python -m pytest -q test_migrar_memento.py
+
+      # The Telegram bot is also stdlib only; it shares the server's pytest.
+      - name: Run telegram bot tests
+        working-directory: elisdb-telegram-bot
+        run: python -m pytest
 
   docker:
     # The server only reaches production as a container, so a dependency missing

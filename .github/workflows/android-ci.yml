@@ -314,3 +314,25 @@ jobs:
             "elisdb-android/app/build/outputs/apk/release/$APK_NAME" \
             "$DEPLOY_USER@$DEPLOY_HOST:$target"
           echo "published $APK_NAME to $DEPLOY_USER@$DEPLOY_HOST:$target"
+
+      # Announces the version in the community group: the signed APK plus the
+      # same hand-written notes used for the GitHub Release. Runs last, when
+      # both the Release and the server copy already exist, so a Telegram
+      # outage can never undo a published release (hence continue-on-error).
+      # The script also skips itself, with a warning, while the secrets are
+      # absent.
+      - name: Announce release in Telegram
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::warning::TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID not set; skipping Telegram announcement"
+            exit 0
+          fi
+          python3 elisdb-telegram-bot/publish_release.py \
+            --version "${GITHUB_REF_NAME#v}" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --apk "elisdb-android/app/build/outputs/apk/release/$APK_NAME"

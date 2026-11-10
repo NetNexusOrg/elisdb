@@ -10,8 +10,9 @@ description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-ci.ym
 - File: `.github/workflows/android-ci.yml` — name `Android CI`.
 - Triggers: `push` to `main`, `push` of tags `v*`, `pull_request` to `main`, `workflow_dispatch`.
 - File: `.github/workflows/server-ci.yml` — name `Server CI`. Runs the server `pytest`
-  suite on `push`/`pull_request` to `main` when `elisdb-server/**` changes (path-filtered)
-  and on `workflow_dispatch`.
+  suite plus the memento and telegram-bot tests on `push`/`pull_request` to `main` when
+  `elisdb-server/**`, `elisdb-memento/**` or `elisdb-telegram-bot/**` changes
+  (path-filtered) and on `workflow_dispatch`.
 
 ## Jobs
 
@@ -40,6 +41,11 @@ Job display names are part of the checks list; keep them prefixed by the compone
   without `DEPLOY_KNOWN_HOSTS`).
   The APK is **not** uploaded as a workflow artifact: Release assets have their own
   storage and do not consume the Actions artifact quota.
+  Last step, `Announce release in Telegram` (`continue-on-error`): runs
+  `elisdb-telegram-bot/publish_release.py` with the extracted notes and the APK, so the
+  group gets the file plus the Novidades/Correções text. Skips with a warning when the
+  Telegram secrets are absent; the Bot API upload ceiling is 50 MB (the script leaves
+  1 MB of margin and falls back to a text-only announcement).
 
 ## Deploy guard (no branch protection)
 
@@ -80,6 +86,16 @@ gh secret set ANDROID_KEY_PASSWORD --repo NetNexusOrg/elisdb
 `ANDROID_KEYSTORE_BASE64` is the base64 of the real `.jks`; the other three are the
 keystore password, key alias, and key password. Use the actual values — never
 commit them or put them in any file in the repo.
+
+Telegram announcement (optional, step no-ops with a warning when missing):
+`TELEGRAM_BOT_TOKEN` (from `@BotFather`) and `TELEGRAM_CHAT_ID` (the supergroup id,
+starting with `-100`). The local `elisdb-telegram-bot/Telegram-Bot-Info.txt` holds the
+same values and is ignored by Git — never copy it into the repo.
+
+```bash
+gh secret set TELEGRAM_BOT_TOKEN --repo NetNexusOrg/elisdb
+gh secret set TELEGRAM_CHAT_ID --repo NetNexusOrg/elisdb --body "-100…"
+```
 
 Deployment to the server (optional, step no-ops with a warning when missing):
 `DEPLOY_SSH_KEY` (private ed25519 key), `DEPLOY_HOST` (a name or IP the runner can

@@ -1,13 +1,13 @@
 ---
 name: github-actions
-description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-release.yml) — jobs, triggers, secrets, permissions, caching. Use when editing or debugging the GitHub Actions pipeline.
+description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-ci.yml) — jobs, triggers, secrets, permissions, caching. Use when editing or debugging the GitHub Actions pipeline.
 ---
 
 # GitHub Actions (CI/CD)
 
 ## Workflow (verified)
 
-- File: `.github/workflows/android-release.yml` — name `Android CI`.
+- File: `.github/workflows/android-ci.yml` — name `Android CI`.
 - Triggers: `push` to `main`, `push` of tags `v*`, `pull_request` to `main`, `workflow_dispatch`.
 - File: `.github/workflows/server-ci.yml` — name `Server CI`. Runs the server `pytest`
   suite on `push`/`pull_request` to `main` when `elisdb-server/**` changes (path-filtered)
@@ -15,15 +15,20 @@ description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-relea
 
 ## Jobs
 
-- `test` (always): checkout → `actions/setup-java` (Temurin 17) → `android-actions/setup-android`
+Job display names are part of the checks list; keep them prefixed by the component
+(`Android tests`, `Server sync smoke …`) so they stay unambiguous next to `Server CI`.
+
+- `test` (`Android tests`, always): checkout → `actions/setup-java` (Temurin 17) → `android-actions/setup-android`
   → `gradle/actions/setup-gradle` → `:app:testDebugUnitTest` → `:app:lintDebug` → `:app:assembleDebug`
   → uploads test reports **only when the job fails** (3-day retention, best effort).
-- `instrumented` (always, **release gate**): boots an emulator (API 34) and runs only
+- `instrumented` (`Instrumented tests (Room migrations)`, always, **release gate**): boots an emulator (API 34) and runs only
   `AppDatabaseMigrationTest`.
-- `instrumented-suite` (pull requests and manual dispatch, **non-blocking**, `continue-on-error: true`): runs the
+- `instrumented-suite` (`Instrumented suite (non-blocking)`, pull requests and manual dispatch, **non-blocking**, `continue-on-error: true`): runs the
   full `:app:connectedDebugAndroidTest` suite on the emulator for visibility. It is not
   in `release.needs`, so a flaky UI test cannot block a release.
-- `release` (only on `v*` tags, `needs: [test, instrumented]`): extracts the release body from
+- `sync-smoke` (`Server sync smoke (release gate)`, only on `v*` tags): runs
+  `elisdb-server/scripts/sync_smoke.py` against a disposable server.
+- `release` (`Build & Release`, only on `v*` tags, `needs: [test, instrumented, sync-smoke]`): extracts the release body from
   `elisdb-android/CHANGELOG.md` (step "Extract release notes": the `## [X.Y.Z]` section
   matching the tag; a tag without that section fails before the build), decodes keystore from secret,
   `:app:assembleRelease`,

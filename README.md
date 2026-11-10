@@ -43,5 +43,5 @@ O desenvolvimento é assistido por IA (OpenCode + OpenSpec) e gerido por Git/Git
   ```bash
   cd elisdb-android && ./gradlew :app:testDebugUnitTest   # testes unitários
   ```
-- **Release:** o CI (`.github/workflows/android-release.yml`) constrói o APK
+- **Release:** o CI (`.github/workflows/android-ci.yml`) constrói o APK
   assinado e cria a GitHub Release ao fazer push de uma tag `vX.Y.Z`.

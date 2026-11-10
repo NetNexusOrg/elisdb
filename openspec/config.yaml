@@ -30,7 +30,7 @@ context: |
   repo (GitHub Secrets).
 
   Git/GitHub: branch main; private repo NetNexusOrg/elisdb; CI in
-  .github/workflows/android-release.yml builds and releases on v* tags.
+  .github/workflows/android-ci.yml builds and releases on v* tags.
 
   OpenSpec: use a change for significant work (new features, API/db/auth/deployment/
   architecture changes); trivial fixes may be done directly without a change.

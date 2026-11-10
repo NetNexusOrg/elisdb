@@ -72,7 +72,7 @@ gh repo view NetNexusOrg/elisdb --json visibility
 ## Release
 
 ```bash
-git tag vX.Y.Z && git push origin vX.Y.Z   # triggers the CI release (see android-release)
+git tag vX.Y.Z && git push origin vX.Y.Z   # triggers the CI release (see android-ci.yml)
 ```
 
 ## OpenSpec

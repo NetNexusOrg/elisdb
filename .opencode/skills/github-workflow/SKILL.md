@@ -24,7 +24,7 @@ description: GitHub operations for the ElisDB repository (gh CLI, SSH, PRs, issu
 
 ## Releases
 
-- Releases are created automatically by CI from `v*` tags (see `github-actions` / `android-release`). Prefer tags over manual release creation.
+- Releases are created automatically by CI from `v*` tags (see `github-actions` / `android-ci.yml`). Prefer tags over manual release creation.
 - Do not delete a release or its assets without confirmation.
 
 ## Safety rules

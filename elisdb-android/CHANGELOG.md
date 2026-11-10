@@ -1,7 +1,7 @@
 # Histórico de versões
 
 Notas da página de Releases do GitHub. Cada tag `vX.Y.Z` usa a secção
-`## [X.Y.Z]` deste ficheiro — o trabalho `release` do `android-release.yml`
+`## [X.Y.Z]` deste ficheiro — o trabalho `release` do `android-ci.yml`
 extrai-a e publica-a como descrição do release. Uma tag sem secção falha no CI
 antes de gerar o APK, para não sair uma versão sem notas.
 

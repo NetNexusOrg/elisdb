@@ -31,7 +31,7 @@ description: Git conventions and safety rules for the ElisDB repo (branches, com
 
 ## Tags
 
-- Release tags are SemVer `vX.Y.Z` and trigger CI (see `android-release`). Tag only when a release is intended.
+- Release tags are SemVer `vX.Y.Z` and trigger CI (see `android-ci.yml`). Tag only when a release is intended.
 
 ## Rollback / undo
 

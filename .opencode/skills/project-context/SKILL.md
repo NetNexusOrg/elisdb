@@ -16,7 +16,7 @@ the code rather than trusting memory.
 - `elisdb-memento/` — one-off Python migration scripts (legacy "Memento" CSV → ElisDB SQLite).
 - `openspec/` — OpenSpec specs (`openspec/specs/`) and change history (`openspec/changes/`).
 - `.opencode/` — OpenCode config: `commands/`, `skills/`.
-- `.github/workflows/android-release.yml` — CI/CD.
+- `.github/workflows/android-ci.yml` — CI/CD.
 
 ## Android app
 

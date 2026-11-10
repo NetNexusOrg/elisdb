@@ -53,7 +53,7 @@ Para mudar estes caminhos, vê a referência em [Configuração](configuracao.md
 ## Publicar uma nova versão da app
 
 Criar a tag `v*` publica o APK no GitHub **e** copia-o para o servidor: o
-trabalho `release` do `android-release.yml` envia
+trabalho `release` do `android-ci.yml` envia
 `elisdb-<versão>-<código>.apk` para a pasta de atualizações por `rsync` (só em
 tags, nunca em `main`). Não é preciso reiniciar o servidor — o ficheiro é
 descoberto no pedido seguinte. Antes do release, o job **Sync smoke** corre um

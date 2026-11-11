@@ -15,6 +15,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
+from starlette.concurrency import run_in_threadpool
 
 from . import auth, updates
 from .database import (
@@ -168,19 +169,22 @@ async def require_auth(request: Request) -> None:
 
     key_header = request.headers.get(auth.KEY_HEADER)
     if key_header is not None:
-        key_record = store.get_key_by_public_key(key_header)
+        key_record = await run_in_threadpool(store.get_key_by_public_key, key_header)
         if key_record is not None and auth.verify_signature(key_header, signature, message):
-            if not auth.consume_replay(signature):
+            if not auth.consume_replay(signature, timestamp=timestamp):
                 raise HTTPException(status_code=401, detail="replay detected")
             request.state.authenticated_key = key_record
             return
         raise HTTPException(status_code=401, detail="invalid signature")
 
-    for public_key in store.get_all_public_keys():
+    public_keys = await run_in_threadpool(store.get_all_public_keys)
+    for public_key in public_keys:
         if auth.verify_signature(public_key, signature, message):
-            if not auth.consume_replay(signature):
+            if not auth.consume_replay(signature, timestamp=timestamp):
                 raise HTTPException(status_code=401, detail="replay detected")
-            request.state.authenticated_key = store.get_key_by_public_key(public_key)
+            request.state.authenticated_key = await run_in_threadpool(
+                store.get_key_by_public_key, public_key
+            )
             return
     raise HTTPException(status_code=401, detail="invalid signature")
 
@@ -253,7 +257,23 @@ class _BodyLimitMiddleware:
         await self.app(scope, replay, send)
 
 
+def _assert_single_worker() -> None:
+    """Fail fast when more than one worker process is configured.
+
+    The replay cache and the rate limiter are in-memory, so multiple processes
+    would silently weaken both. SQLite also assumes a single writer host.
+    """
+    for name in ("WEB_CONCURRENCY", "UVICORN_WORKERS"):
+        raw = os.environ.get(name)
+        if raw and raw.strip().isdigit() and int(raw) > 1:
+            raise RuntimeError(
+                f"{name}={raw}: ElisDB requires a single worker process "
+                "(replay cache and rate limiter are per-process)"
+            )
+
+
 def create_app(database: Database | None = None) -> FastAPI:
+    _assert_single_worker()
     version = _read_version()
     app = FastAPI(title="ElisDB Server", version=version)
     store = database if database is not None else db
@@ -438,6 +458,11 @@ def create_app(database: Database | None = None) -> FastAPI:
             )
         return response
 
+    # The body limit is added before the rate limiter so the rate limiter is the
+    # outermost middleware: unauthenticated clients are throttled before their
+    # bodies are buffered for signature verification.
+    app.add_middleware(_BodyLimitMiddleware)
+
     @app.middleware("http")
     async def _rate_limit(request: Request, call_next):
         # Limit by source address only. The X-Elisdb-Key header is not verified
@@ -448,10 +473,6 @@ def create_app(database: Database | None = None) -> FastAPI:
             logger.warning("rate limit exceeded for ip")
             return Response(status_code=429, content=b"too many requests")
         return await call_next(request)
-
-    # Added last so it is the outermost middleware: the body is capped before
-    # rate limiting, logging, or FastAPI body parsing can consume it.
-    app.add_middleware(_BodyLimitMiddleware)
 
     @app.get("/health")
     def health() -> dict:
@@ -583,7 +604,8 @@ def create_app(database: Database | None = None) -> FastAPI:
         key = getattr(request.state, "authenticated_key", None)
         key_id = key["id"] if key is not None else None
         try:
-            store.write_photo(
+            await run_in_threadpool(
+                store.write_photo,
                 foto_id,
                 data,
                 uploaded_by_key=key_id,

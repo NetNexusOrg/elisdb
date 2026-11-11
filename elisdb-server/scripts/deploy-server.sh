@@ -89,7 +89,18 @@ fi
 rsync -az \
   --exclude=.venv --exclude=__pycache__ --exclude='*.pyc' --exclude=.pytest_cache \
   --exclude=compose.yaml \
+  --exclude='*.db' --exclude='*.db-*' --exclude='*.config.json' \
+  --exclude=photos/ --exclude=data/ --exclude='.env' --exclude='.env.*' \
+  --exclude='*.log' \
   elisdb-server/ "$HOST:$TARGET/"
+
+# Back up the running server before the new image runs its startup migrations.
+if ssh "$HOST" "cd '$TARGET' && docker compose ps --status running -q elisdb-server | grep -q ."; then
+  echo "A criar backup pré-deploy..."
+  ssh "$HOST" "cd '$TARGET' && docker compose exec -T elisdb-server python -m app.backup create /app/data/backups/pre-deploy-$(date +%s)"
+else
+  echo "Sem contentor em execução: backup pré-deploy ignorado (primeiro deploy)."
+fi
 
 ssh "$HOST" "cd '$TARGET' && docker compose up -d --build"
 

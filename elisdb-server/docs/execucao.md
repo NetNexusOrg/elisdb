@@ -232,7 +232,8 @@ Variáveis opcionais:
 - **Um único worker.** O servidor corre um único worker uvicorn: o cache
   anti-replay e o rate limiter são mantidos em memória. Não corras múltiplos
   workers nem réplicas sem um backend partilhado (enfraquece a proteção
-  anti-replay e torna os limites de ritmo por-worker).
+  anti-replay e torna os limites de ritmo por-worker). O arranque falha
+  explicitamente se `WEB_CONCURRENCY` ou `UVICORN_WORKERS` for maior que 1.
 - **Versão de dependências.** As versões do servidor estão fixadas em
   `requirements.txt`, para que as imagens sejam reprodutíveis.
 

@@ -49,14 +49,28 @@ def is_replay(signature_b64: str, now: int | None = None) -> bool:
         return signature_b64 in _replay_cache
 
 
-def record_replay(signature_b64: str, now: int | None = None) -> None:
-    """Remember an accepted signature until its timestamp window expires."""
+def record_replay(
+    signature_b64: str,
+    now: int | None = None,
+    timestamp: int | None = None,
+) -> None:
+    """Remember an accepted signature until its signed timestamp expires.
+
+    The expiry is anchored to the signed timestamp, not to when the request was
+    received: a signature carrying a future timestamp (allowed by the clock-skew
+    window) must stay in the cache until that timestamp itself becomes stale.
+    """
     now = int(time.time()) if now is None else now
+    expiry = (now if timestamp is None else timestamp) + TIMESTAMP_WINDOW_SECONDS + 1
     with _replay_lock:
-        _replay_cache[signature_b64] = now + TIMESTAMP_WINDOW_SECONDS
+        _replay_cache[signature_b64] = expiry
 
 
-def consume_replay(signature_b64: str, now: int | None = None) -> bool:
+def consume_replay(
+    signature_b64: str,
+    now: int | None = None,
+    timestamp: int | None = None,
+) -> bool:
     """Atomically consume a signature.
 
     Returns True exactly once per signature within its timestamp window. The
@@ -64,11 +78,12 @@ def consume_replay(signature_b64: str, now: int | None = None) -> bool:
     requests cannot both pass.
     """
     now = int(time.time()) if now is None else now
+    expiry = (now if timestamp is None else timestamp) + TIMESTAMP_WINDOW_SECONDS + 1
     with _replay_lock:
         _prune_replay(now)
         if signature_b64 in _replay_cache:
             return False
-        _replay_cache[signature_b64] = now + TIMESTAMP_WINDOW_SECONDS
+        _replay_cache[signature_b64] = expiry
         return True
 
 

@@ -79,3 +79,22 @@ def test_consume_replay_is_atomic_and_single_use():
     assert auth.consume_replay(signature, now=now) is False
     # Expiry follows the same window as the replay cache.
     assert auth.consume_replay(signature, now=now + auth.TIMESTAMP_WINDOW_SECONDS + 1) is True
+
+
+def test_consume_replay_keeps_future_timestamp_signature_until_it_goes_stale():
+    now = 1_700_000_000
+    signature = base64.b64encode(b"future-timestamp").decode()
+    timestamp = now + auth.TIMESTAMP_WINDOW_SECONDS - 1
+
+    assert auth.consume_replay(signature, now=now, timestamp=timestamp) is True
+    # Still inside the signed timestamp's freshness window, so it must remain
+    # cached even though the receive-time window has elapsed.
+    assert auth.consume_replay(signature, now=now + 301, timestamp=timestamp) is False
+    assert (
+        auth.consume_replay(
+            signature,
+            now=timestamp + auth.TIMESTAMP_WINDOW_SECONDS + 1,
+            timestamp=timestamp,
+        )
+        is True
+    )

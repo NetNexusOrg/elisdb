@@ -38,6 +38,21 @@ O restauro verifica tudo antes de trocar os ficheiros; se algo falhar, mantém a
 base de dados e as fotos anteriores. A ferramenta não copia `configs/` nem
 chaves privadas.
 
+## Backups automáticos
+
+Agenda a ferramenta integrada no anfitrião (cron ou systemd timer), fora do
+contentor. Exemplo diário às 03:00:
+
+```cron
+0 3 * * * root cd /srv/elisdb && docker compose exec -T elisdb-server python -m app.backup create /app/data/backups/$(date +\%Y\%m\%d) && docker compose exec -T elisdb-server python -m app.backup verify /app/data/backups/$(date +\%Y\%m\%d)
+```
+
+Copia as cópias para fora do volume (rsync/rclone para outro host) e define uma
+retenção explícita — por exemplo 7 diárias e 4 semanais. O `verify` faz parte da
+rotina: uma cópia que nunca foi verificada não conta como recuperável. O
+`scripts/deploy-server.sh` também cria uma cópia `pre-deploy-*` antes de cada
+atualização, quando o servidor está a correr.
+
 ## Fazer a cópia manualmente (servidor a correr)
 
 O SQLite tem uma API de backup que produz um ficheiro consistente mesmo com o
@@ -126,9 +141,8 @@ recente do servidor com o marcador local. Se o servidor estiver atrás, avisa
 primeira sincronização de cada telemóvel pode por isso demorar mais e trazer
 mais dados do que o habitual — é o comportamento esperado.
 
-> A sincronização também pode ser ativada como **Sincronização automática** no
-> ecrã **Configuração** (a cada ~15 minutos, com rede). Continua a haver
-> sincronização ao abrir a app, ao guardar e ao apagar um cliente, e o botão
-> **Sincronizar** tenta imediatamente. O ecrã **Configuração** mostra
-> “Alterações por sincronizar” quando deteta que o servidor tem dados diferentes
-> dos locais.
+> A sincronização acontece ao abrir a app, ao guardar ou apagar um cliente e no
+> botão **Sincronizar**. Não há sincronização periódica de fundo; falhas
+> transitórias de rede são retentadas automaticamente com backoff exponencial.
+> O ecrã **Configuração** mostra “Alterações por sincronizar” quando deteta que
+> o servidor tem dados diferentes dos locais.

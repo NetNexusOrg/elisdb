@@ -3,6 +3,7 @@
 Defines the release build requirements for the Android app: reproducible, signed, minified artifacts that embed the correct configuration, so a shipped release installs and runs identically to the configured environment.
 
 ## Requirements
+
 ### Requirement: Reproducible release versioning
 
 The system SHALL produce a release artifact whose version code and version name come from a single, non-hard-coded source, and SHALL expose the version name to the running app.
@@ -49,3 +50,28 @@ The system SHALL require the server base URL and signing key to be configured ex
 - **WHEN** a release is built without an explicit signing key
 - **THEN** the signing key build config field SHALL be blank
 - **AND** a build that ships blank is unconfigured until a key is provided
+
+### Requirement: Release builds are exercised before tagging
+
+The CI SHALL assemble the minified release APK on every pull request, using an
+ephemeral signing key provided by the workflow, so that R8/ProGuard or
+resource-shrinking regressions fail before a release tag exists.
+
+#### Scenario: Pull request builds the release variant
+
+- **WHEN** a pull request targets `main`
+- **THEN** the test job SHALL generate a throwaway keystore and run
+  `:app:assembleRelease`
+- **AND** the job SHALL fail if the release build fails
+
+### Requirement: Encrypted settings tests gate releases
+
+The blocking instrumented job used as the release gate SHALL run the encrypted
+settings-store tests together with the Room migration tests.
+
+#### Scenario: Encrypted store regression blocks the release
+
+- **WHEN** the blocking instrumented job runs
+- **THEN** it SHALL execute both `AppDatabaseMigrationTest` and
+  `SettingsStoreTest`
+- **AND** a failure in either test SHALL fail the release gate

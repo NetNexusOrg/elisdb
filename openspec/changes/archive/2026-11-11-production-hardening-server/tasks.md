@@ -21,7 +21,7 @@
 ## 3. Fecho
 
 - [x] 3.1 Validar a change com `openspec validate production-hardening-server --strict`.
-- [ ] 3.2 Arquivar após revisão.
+- [x] 3.2 Arquivar após revisão.
 
 ## Workflow
 

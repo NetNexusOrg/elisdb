@@ -17,7 +17,7 @@
 ## 3. Fecho
 
 - [x] 3.1 Validar a change com `openspec validate production-hardening-android --strict`.
-- [ ] 3.2 Arquivar após revisão e commit aprovado pelo utilizador.
+- [x] 3.2 Arquivar após revisão e commit aprovado pelo utilizador.
 
 ## Workflow
 

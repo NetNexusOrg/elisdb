@@ -3,6 +3,7 @@
 Adds ed25519 request signing so the database server can authenticate clients cryptographically: each protected request carries a signature over its method, path, body hash and timestamp, verified against an allowlist of trusted public keys to reject unsigned, invalid and replayed requests.
 
 ## Requirements
+
 ### Requirement: Authenticated requests
 
 The server SHALL require every protected endpoint request to be authenticated by an ed25519 signature produced with an authorized private key. The signature SHALL cover the request method, the request path, the request query string, the hash of the request body, and a client-supplied timestamp. To avoid verifying against every allowlisted key on each request, the client MAY send its key identifier in the `X-Elisdb-Key` header; when present, the server SHALL verify the signature against only that key (and SHALL reject if the header names a key not in the allowlist). When the header is absent, the server SHALL fall back to trying each allowlisted key. The authenticated identity (key id and, when present, user name) derived from the verified signature SHALL be stored on the per-request `request.state` object, NOT on shared application state (`app.state`), so that concurrent requests can never overwrite one another's identity.
@@ -47,7 +48,7 @@ The server SHALL require every protected endpoint request to be authenticated by
 
 ### Requirement: Anti-replay protection
 
-The server SHALL reject replayed requests by checking the signed timestamp; a request whose timestamp is too old or too far in the future SHALL be rejected. Within the accepted timestamp window, the server SHALL additionally reject a request whose signature has already been seen (replay), using a short-TTL nonce or a cache of consumed signatures, so a captured signed request cannot be replayed while its timestamp remains valid.
+The server SHALL reject replayed requests by checking the signed timestamp; a request whose timestamp is too old or too far in the future SHALL be rejected. Within the accepted timestamp window, the server SHALL additionally reject a request whose signature has already been seen (replay), using a short-TTL nonce or a cache of consumed signatures, so a captured signed request cannot be replayed while its timestamp remains valid. The cache entry SHALL expire no earlier than the signed timestamp itself stops being valid, so a request signed with a timestamp ahead of the server clock remains protected for the whole time it would still be accepted.
 
 #### Scenario: Request with a stale timestamp is rejected
 - **WHEN** a signed request has a timestamp older than the allowed window

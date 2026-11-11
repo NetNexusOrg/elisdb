@@ -48,6 +48,15 @@ jobs:
         working-directory: elisdb-server
         run: python -m pytest
 
+      # Non-blocking dependency audit: report known CVEs without blocking normal
+      # development, while Dependabot opens upgrade PRs for the findings.
+      - name: Audit Python dependencies
+        working-directory: elisdb-server
+        continue-on-error: true
+        run: |
+          python -m pip install pip-audit
+          pip-audit -r requirements.txt
+
       # The Telegram bot is also stdlib only; it shares the server's pytest.
       - name: Run telegram bot tests
         working-directory: elisdb-telegram-bot

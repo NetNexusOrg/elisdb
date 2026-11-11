@@ -1042,6 +1042,19 @@ class Database:
             return None
         return row["mime"], data
 
+    def get_photo_path(self, foto_id: str) -> tuple[str, str] | None:
+        """Return (mime, path) for a stored photo, without reading its bytes."""
+        conn = self._conn()
+        try:
+            row = conn.execute(
+                "SELECT mime, caminho FROM fotos WHERE id = ?", (foto_id,)
+            ).fetchone()
+        finally:
+            conn.close()
+        if row is None or not os.path.isfile(row["caminho"]):
+            return None
+        return row["mime"], row["caminho"]
+
     def write_photo(
         self,
         foto_id: str,

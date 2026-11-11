@@ -631,21 +631,22 @@ def create_app(database: Database | None = None) -> FastAPI:
 
     @app.get("/api/photos/{foto_id}", dependencies=[auth_dep])
     def get_photo(foto_id: str) -> Response:
-        result = store.get_photo(foto_id)
+        result = store.get_photo_path(foto_id)
         if result is None:
             raise HTTPException(status_code=404, detail="photo not found")
-        mime, data = result
-        return Response(
-            content=data,
+        mime, path = result
+        # Stream from disk instead of loading the whole photo into memory.
+        # FileResponse also supplies Content-Length/Last-Modified/ETag and
+        # handles conditional and range requests.
+        return FileResponse(
+            path,
             media_type=mime,
             headers={
                 "X-Content-Type-Options": "nosniff",
                 "Content-Disposition": "attachment",
                 # Photos are content-addressed by name and never rewritten under
-                # the same id, so clients may cache them; the digest also lets a
-                # future client revalidate instead of re-downloading.
+                # the same id, so clients may cache them.
                 "Cache-Control": "private, max-age=86400",
-                "ETag": f'"{hashlib.sha256(data).hexdigest()}"',
             },
         )
 

@@ -1214,6 +1214,27 @@ class Database:
             conn.close()
         return tombstones_removed, audit_removed
 
+    def prune_idempotency(self, retention_days: int, now: int | None = None) -> int:
+        """Delete push idempotency records older than the retention window.
+
+        A key only needs to survive as long as a client may retry the same push;
+        keeping every response forever makes the table grow without bound.
+        Returns the number of rows removed.
+        """
+        if retention_days <= 0:
+            return 0
+        now = int(time.time()) if now is None else now
+        cutoff = now - retention_days * 86400
+        conn = self._conn()
+        try:
+            cur = conn.execute(
+                "DELETE FROM push_idempotency WHERE created_at < ?", (cutoff,)
+            )
+            conn.commit()
+            return cur.rowcount
+        finally:
+            conn.close()
+
     @staticmethod
     def _delivery_watermark(conn: sqlite3.Connection) -> int:
         """Highest delivery timestamp handed out so far (clients + tombstones).

@@ -29,6 +29,10 @@ def test_health_and_time_are_open(server):
     assert now.status_code == 200
     assert isinstance(now.json()["time"], int)
 
+    ready = client.client.get("/ready")
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
+
 
 def test_instance_id_is_stable_and_latest_exposes_limits(server):
     client, db = server
@@ -251,14 +255,14 @@ def test_oversized_photo_is_rejected_with_413(server, monkeypatch):
 
 def test_oversized_push_body_is_rejected_before_parsing(server, monkeypatch):
     client, _db = server
-    monkeypatch.setattr("app.main.MAX_PHOTO_BYTES", 100)
+    monkeypatch.setattr("app.main.MAX_PUSH_BYTES", 100)
     response = client.post("/api/push", b"x" * 200)
     assert response.status_code == 413
 
 
 def test_oversized_chunked_push_body_is_rejected(server, monkeypatch):
     client, _db = server
-    monkeypatch.setattr("app.main.MAX_PHOTO_BYTES", 100)
+    monkeypatch.setattr("app.main.MAX_PUSH_BYTES", 100)
 
     def chunks():
         yield b"x" * 80

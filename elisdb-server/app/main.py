@@ -61,6 +61,13 @@ def _read_version() -> str:
 # ELISDB_MAX_PHOTO_BYTES. Rejects oversized uploads with 413 instead of
 # buffering the whole body in memory.
 MAX_PHOTO_BYTES = int(os.environ.get("ELISDB_MAX_PHOTO_BYTES", "20971520"))
+# JSON pushes can legitimately exceed one photo (many records with notes), so
+# they get their own cap instead of sharing the photo upload limit.
+MAX_PUSH_BYTES = int(os.environ.get("ELISDB_MAX_PUSH_BYTES", str(64 * 1024 * 1024)))
+# Server-side ceilings for endpoints that historically returned everything when
+# the client omitted `limit`.
+MAX_PULL_RECORDS = 1000
+MAX_HISTORY_ENTRIES = 200
 
 
 def _env_int(name: str, default: int) -> int:
@@ -145,8 +152,9 @@ async def require_auth(request: Request) -> None:
     # a client that declares a larger Content-Length is refused here instead of
     # exhausting memory during `request.body()`.
     content_length = request.headers.get("content-length")
+    body_limit = MAX_PUSH_BYTES if request.url.path == "/api/push" else MAX_PHOTO_BYTES
     if content_length is not None and content_length.isdigit():
-        if int(content_length) > MAX_PHOTO_BYTES:
+        if int(content_length) > body_limit:
             raise HTTPException(status_code=413, detail="request body too large")
     body = await request.body()
 
@@ -208,13 +216,14 @@ class _BodyLimitMiddleware:
             return
 
         headers = dict(scope.get("headers") or [])
+        limit = MAX_PUSH_BYTES if scope.get("path") == "/api/push" else MAX_PHOTO_BYTES
         declared = headers.get(b"content-length")
         if declared is not None:
             try:
                 declared_size = int(declared)
             except ValueError:
                 declared_size = None
-            if declared_size is not None and declared_size > MAX_PHOTO_BYTES:
+            if declared_size is not None and declared_size > limit:
                 await Response(
                     status_code=413, content=b"request body too large"
                 )(scope, receive, send)
@@ -233,7 +242,7 @@ class _BodyLimitMiddleware:
             if message["type"] != "http.request":
                 continue
             body.extend(message.get("body", b""))
-            if len(body) > MAX_PHOTO_BYTES:
+            if len(body) > limit:
                 await Response(
                     status_code=413, content=b"request body too large"
                 )(scope, receive, send)
@@ -301,6 +310,18 @@ def create_app(database: Database | None = None) -> FastAPI:
             removed_audit,
         )
 
+    # Idempotency keys only matter while a client may retry the same push; the
+    # table has no historical value, so it gets a default window even though the
+    # other retentions stay opt-in.
+    idempotency_retention_days = _env_non_negative_int(
+        "ELISDB_IDEMPOTENCY_RETENTION_DAYS", 30
+    )
+    removed_idempotency = store.prune_idempotency(idempotency_retention_days)
+    if removed_idempotency:
+        logger.info(
+            "startup retention removed %d idempotency record(s)", removed_idempotency
+        )
+
     max_push_records = _env_int("ELISDB_MAX_PUSH_RECORDS", 200)
     max_photos_per_client = _env_int("ELISDB_MAX_PHOTOS_PER_CLIENT", 500)
     photo_gc_interval = _env_int("ELISDB_PHOTO_GC_INTERVAL_SECONDS", PHOTO_GC_INTERVAL_SECONDS)
@@ -323,7 +344,11 @@ def create_app(database: Database | None = None) -> FastAPI:
 
     def _maybe_prune() -> None:
         """Run retention pruning at most once per interval (cheap no-op when off)."""
-        if tombstone_retention_days <= 0 and audit_retention_days <= 0:
+        if (
+            tombstone_retention_days <= 0
+            and audit_retention_days <= 0
+            and idempotency_retention_days <= 0
+        ):
             return
         now = time.monotonic()
         if now - maintenance_state["last"] < MAINTENANCE_INTERVAL_SECONDS:
@@ -340,6 +365,11 @@ def create_app(database: Database | None = None) -> FastAPI:
                     "retention removed %d tombstone(s) and %d audit entries",
                     tombstones,
                     audit,
+                )
+            idempotency = store.prune_idempotency(idempotency_retention_days)
+            if idempotency:
+                logger.info(
+                    "retention removed %d idempotency record(s)", idempotency
                 )
         except Exception:  # never fail a push because maintenance failed
             logger.exception("retention maintenance failed")
@@ -494,6 +524,19 @@ def create_app(database: Database | None = None) -> FastAPI:
             "instance_id": store.instance_id(),
         }
 
+    @app.get("/ready")
+    def ready() -> Response:
+        """Readiness probe: the database answers and the photo volume is usable."""
+        try:
+            store.client_count()
+            photos = os.environ.get("ELISDB_PHOTOS")
+            if photos and not os.access(photos, os.W_OK):
+                raise RuntimeError("photos directory is not writable")
+        except Exception:
+            logger.exception("readiness check failed")
+            return JSONResponse(status_code=503, content={"status": "not ready"})
+        return JSONResponse(content={"status": "ready"})
+
     @app.get("/api/time")
     def time_now() -> dict:
         return {"time": int(time.time())}
@@ -566,7 +609,7 @@ def create_app(database: Database | None = None) -> FastAPI:
     @app.get("/api/pull", response_model=None, dependencies=[auth_dep])
     def pull(
         since: int | None = None,
-        limit: int | None = Query(None, ge=1, le=1000),
+        limit: int | None = Query(None, ge=1, le=MAX_PULL_RECORDS),
         since_id: str | None = None,
     ) -> dict:
         if since_id is not None and since is None:
@@ -598,6 +641,11 @@ def create_app(database: Database | None = None) -> FastAPI:
             headers={
                 "X-Content-Type-Options": "nosniff",
                 "Content-Disposition": "attachment",
+                # Photos are content-addressed by name and never rewritten under
+                # the same id, so clients may cache them; the digest also lets a
+                # future client revalidate instead of re-downloading.
+                "Cache-Control": "private, max-age=86400",
+                "ETag": f'"{hashlib.sha256(data).hexdigest()}"',
             },
         )
 
@@ -669,10 +717,12 @@ def create_app(database: Database | None = None) -> FastAPI:
         after_id: int | None = Query(None, ge=0),
     ) -> list[AuditEntryOut] | HistoryPageOut:
         if limit is None and after_id is None:
-            return [
-                AuditEntryOut.model_validate(e)
-                for e in store.client_history(cliente_id)
-            ]
+            # Older clients omit both parameters and expect a list; cap it so a
+            # long history cannot turn into an unbounded response.
+            entries, _ = store.client_history_page(
+                cliente_id, MAX_HISTORY_ENTRIES, None
+            )
+            return [AuditEntryOut.model_validate(e) for e in entries]
         entries, next_after_id = store.client_history_page(
             cliente_id, limit or 50, after_id
         )

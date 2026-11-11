@@ -593,6 +593,33 @@ def test_retention_is_disabled_by_default(tmp_path):
     conn.close()
 
 
+def test_idempotency_retention_prunes_old_rows(tmp_path):
+    db = _db(tmp_path)
+    now = 1_000_000_000
+    conn = connect(db.db_path)
+    conn.execute(
+        "INSERT INTO push_idempotency (key, payload_hash, response_json, created_at) "
+        "VALUES (?, ?, ?, ?)",
+        ("old", "hash", "{}", now - 31 * 86400),
+    )
+    conn.execute(
+        "INSERT INTO push_idempotency (key, payload_hash, response_json, created_at) "
+        "VALUES (?, ?, ?, ?)",
+        ("recent", "hash", "{}", now - 29 * 86400),
+    )
+    conn.commit()
+    conn.close()
+
+    assert db.prune_idempotency(30, now=now) == 1
+    assert db.prune_idempotency(30, now=now) == 0
+    # A zero window disables pruning, like the other retention settings.
+    assert db.prune_idempotency(0, now=now) == 0
+    conn = connect(db.db_path)
+    remaining = conn.execute("SELECT key FROM push_idempotency").fetchall()
+    conn.close()
+    assert [row[0] for row in remaining] == ["recent"]
+
+
 def test_retention_prunes_only_rows_older_than_the_window(tmp_path):
     db = _db(tmp_path)
     actor = {"id": "key-1", "comment": "Joao"}

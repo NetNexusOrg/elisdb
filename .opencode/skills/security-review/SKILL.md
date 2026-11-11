@@ -8,7 +8,7 @@ description: Security review checklist for the ElisDB repo (secrets, auth, stora
 ## Secrets to hunt for (verified against this project)
 
 - Device config files `*.config.json` (contain `private_seed` ed25519) — must stay git-ignored.
-- Databases `*.db`, migration data `ELIS.csv` / `memento-import.db`.
+- Databases `*.db`.
 - Android signing: `*.jks`, `*.keystore`, `keystore.properties`, passwords.
 - `.env`, API keys, tokens, hardcoded passwords, credentials in URLs.
 

@@ -2,8 +2,8 @@
 
 ## Context
 
-See `proposal.md` — Why. The repository is a monorepo with four components
-(`elisdb-android/`, `elisdb-server/`, `elisdb-telegram-bot/`, `elisdb-memento/`)
+See `proposal.md` — Why. The repository is a monorepo with three components
+(`elisdb-android/`, `elisdb-server/`, `elisdb-telegram-bot/`)
 plus root-level OpenSpec and OpenCode tooling. Two component-owned files still
 live at the root and are referenced by CI, docs and skills.
 

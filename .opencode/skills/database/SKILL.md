@@ -42,6 +42,6 @@ Base facts in `project-context`. This skill covers the data model and safe-chang
 
 - **Never run destructive operations** (`DROP`, `DELETE FROM`, `VACUUM`, removing columns/rows,
   deleting `.db` files or photo files) **without explicit user confirmation.**
-- Never commit `*.db` files, `ELIS.csv`, or `memento-import.db` (real data).
+- Never commit `*.db` files (real data).
 - Back up the `.db` (and photos dir) before any manual schema/data migration.
 - Prefer additive migrations; avoid rebuilding tables unless required (as `_migrate_clients_nullable_coords` does, carefully).

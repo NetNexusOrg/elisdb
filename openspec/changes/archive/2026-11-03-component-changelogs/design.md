@@ -6,9 +6,8 @@ O repositório está organizado por componente, mas só `elisdb-android/` tem um
 `CHANGELOG.md`. Esse ficheiro é específico da app: o job `release` de
 `.github/workflows/android-release.yml` extrai dele a secção `## [X.Y.Z]` para
 publicar as notas de uma tag `v*`. O servidor tem a versão em
-`elisdb-server/VERSION`, o bot Telegram é um componente separado e a migração
-Memento é um conjunto de scripts autónomo — nenhum deles tinha um registo de
-mudanças próprio.
+`elisdb-server/VERSION`, o bot Telegram é um componente separado — nenhum deles
+tinha um registo de mudanças próprio.
 
 ## Decisions
 

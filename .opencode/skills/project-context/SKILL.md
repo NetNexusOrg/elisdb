@@ -13,7 +13,6 @@ the code rather than trusting memory.
 
 - `elisdb-android/` — Android app (Kotlin + Jetpack Compose). Gradle project root.
 - `elisdb-server/` — Python backend (FastAPI + SQLite). Docker via `compose.yaml`.
-- `elisdb-memento/` — one-off Python migration scripts (legacy "Memento" CSV → ElisDB SQLite).
 - `openspec/` — OpenSpec specs (`openspec/specs/`) and change history (`openspec/changes/`).
 - `.opencode/` — OpenCode config: `commands/`, `skills/`.
 - `.github/workflows/android-ci.yml` — CI/CD.
@@ -61,7 +60,7 @@ the code rather than trusting memory.
 ## Secrets model (never commit)
 
 - Device config `<user>.config.json` = `server_url` + `user_name` + `private_seed` (ed25519) → git-ignored (`*.config.json`). The app shows `user_name` as the associated user directly from the file; the `/api/keys/me` lookup is only a fallback for files without it.
-- `*.db`, migration data `ELIS.csv` / `memento-import.db` → git-ignored.
+- `*.db` → git-ignored.
 - Android signing keystore/passwords live outside the repo (`~/.keystores/` or GitHub Secrets).
 
 ## Conventions

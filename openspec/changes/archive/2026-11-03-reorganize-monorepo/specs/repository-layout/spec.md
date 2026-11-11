@@ -10,8 +10,8 @@ the repository root only keeps cross-cutting documentation, CI and tooling.
 ### Requirement: Component-owned files
 
 Android-specific files SHALL live under `elisdb-android/`, server-specific
-files under `elisdb-server/`, Telegram bot files under `elisdb-telegram-bot/`,
-and memento migration files under `elisdb-memento/`.
+files under `elisdb-server/`, and Telegram bot files under
+`elisdb-telegram-bot/`.
 
 #### Scenario: Android files stay in the Android component
 
@@ -23,11 +23,10 @@ and memento migration files under `elisdb-memento/`.
 - **WHEN** a file is specific to the sync server, such as its deploy helper
 - **THEN** it SHALL live under `elisdb-server/`
 
-#### Scenario: Bot and migration files stay in their components
+#### Scenario: Bot files stay in their component
 
-- **WHEN** a file belongs to the Telegram bot or the memento migration
-- **THEN** it SHALL live under `elisdb-telegram-bot/` or `elisdb-memento/`
-  respectively
+- **WHEN** a file belongs to the Telegram bot
+- **THEN** it SHALL live under `elisdb-telegram-bot/`
 
 ### Requirement: Root only holds cross-cutting files
 

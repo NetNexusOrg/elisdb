@@ -5,8 +5,7 @@
 - [x] 1.1 Confirmar que `elisdb-android/CHANGELOG.md` existe e fica inalterado.
 - [x] 1.2 Criar `elisdb-server/CHANGELOG.md` com `## [Unreleased]` e referência a `elisdb-server/VERSION`.
 - [x] 1.3 Criar `elisdb-telegram-bot/CHANGELOG.md` com `## [Unreleased]`.
-- [x] 1.4 Criar `elisdb-memento/CHANGELOG.md` com `## [Unreleased]`.
-- [x] 1.5 Confirmar que não foi criado nenhum changelog na raiz e que nenhum segredo, token ou dado real foi incluído.
+- [x] 1.4 Confirmar que não foi criado nenhum changelog na raiz e que nenhum segredo, token ou dado real foi incluído.
 
 ## 2. Spec e validação
 

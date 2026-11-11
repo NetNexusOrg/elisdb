@@ -156,7 +156,7 @@ Archive a completed change in the experimental workflow.
    After archiving, commit and push automatically — do NOT ask for confirmation (this is the project default for `/opsx-archive`, per AGENTS.md).
 
    - Run `git status --short` and review `git diff` / `git diff --cached` to see what is uncommitted.
-   - Verify no secrets/data are staged (no `*.config.json`, `*.db`, `*.jks`, `*.keystore`, `keystore.properties`, `.env`, `ELIS.csv`). See the security rules.
+   - Verify no secrets/data are staged (no `*.config.json`, `*.db`, `*.jks`, `*.keystore`, `keystore.properties`, `.env`). See the security rules.
    - Stage the change: the implementation diff plus the archived change directory (`<planningHome.changesDir>/archive/<target-name>/`).
    - Commit with a Conventional Commit message that reflects the change (`feat:`, `fix:`, `docs:`, `chore:`, etc.). One logical change per commit when there are multiple unrelated changes.
    - `git push` to the current branch's remote (`origin`).

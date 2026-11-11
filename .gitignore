@@ -30,12 +30,6 @@ elisdb-server/uv.lock
 # ---- Configuração de dispositivo (contém seed ed25519 privada) ----
 *.config.json
 
-# ---- Dados reais de migração (não versionar) ----
-elisdb-memento/*.csv
-elisdb-memento/memento-import.db
-elisdb-memento/memento-import-report.txt
-elisdb-memento/memento-import-exclude.txt
-
 # ---- Node / OpenCode ----
 node_modules/
 

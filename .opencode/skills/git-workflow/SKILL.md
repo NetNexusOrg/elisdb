@@ -20,8 +20,7 @@ description: Git conventions and safety rules for the ElisDB repo (branches, com
 ## Secrets before commit
 
 - Always check that no secret/data file is staged: `git status` must not list
-  `*.config.json`, `*.db`, `*.jks`, `*.keystore`, `keystore.properties`, `.env`,
-  `ELIS.csv`, or `memento-import.db`. Run `git check-ignore <file>` if unsure.
+  `*.config.json`, `*.db`, `*.jks`, `*.keystore`, `keystore.properties`, or `.env`. Run `git check-ignore <file>` if unsure.
 - If a secret is found staged, unstage it and confirm with the user; never commit it.
 
 ## Diff inspection / merge

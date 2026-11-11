@@ -10,9 +10,9 @@ description: Guide to the ElisDB CI/CD workflow (.github/workflows/android-ci.ym
 - File: `.github/workflows/android-ci.yml` — name `Android CI`.
 - Triggers: `push` to `main`, `push` of tags `v*`, `pull_request` to `main`, `workflow_dispatch`.
 - File: `.github/workflows/server-ci.yml` — name `Server CI`. Runs the server `pytest`
-  suite plus the memento and telegram-bot tests on `push`/`pull_request` to `main` when
-  `elisdb-server/**`, `elisdb-memento/**` or `elisdb-telegram-bot/**` changes
-  (path-filtered) and on `workflow_dispatch`.
+  suite plus the telegram-bot tests on `push`/`pull_request` to `main` when
+  `elisdb-server/**` or `elisdb-telegram-bot/**` changes (path-filtered) and on
+  `workflow_dispatch`.
 
 ## Jobs
 

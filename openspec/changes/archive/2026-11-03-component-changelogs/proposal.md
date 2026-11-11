@@ -2,10 +2,10 @@
 
 ## Why
 
-O monorepo tem quatro componentes (`elisdb-android/`, `elisdb-server/`,
-`elisdb-telegram-bot/`, `elisdb-memento/`), mas só a app Android mantém um
-`CHANGELOG.md`. O histórico de mudanças do servidor, do bot Telegram e da
-migração Memento não tem um local canónico, o que torna difícil perceber o que
+O monorepo tem três componentes (`elisdb-android/`, `elisdb-server/`,
+`elisdb-telegram-bot/`), mas só a app Android mantém um
+`CHANGELOG.md`. O histórico de mudanças do servidor e do bot Telegram não tem um
+local canónico, o que torna difícil perceber o que
 mudou em cada componente sem ler o histórico de commits.
 
 O `CHANGELOG.md` da app Android é específico da app e é lido pelo workflow
@@ -15,8 +15,7 @@ registo, na raiz de cada componente.
 
 ## What Changes
 
-- Criar `elisdb-server/CHANGELOG.md`, `elisdb-telegram-bot/CHANGELOG.md` e
-  `elisdb-memento/CHANGELOG.md`.
+- Criar `elisdb-server/CHANGELOG.md` e `elisdb-telegram-bot/CHANGELOG.md`.
 - Cada changelog começa em `## [Unreleased]`, sem inventar versões ou histórico
   de releases que não existam.
 - O changelog do servidor indica que a versão de release vive em
@@ -39,8 +38,8 @@ registo, na raiz de cada componente.
 
 ## Impact
 
-- **Documentação**: novos `elisdb-server/CHANGELOG.md`,
-  `elisdb-telegram-bot/CHANGELOG.md` e `elisdb-memento/CHANGELOG.md`.
+- **Documentação**: novos `elisdb-server/CHANGELOG.md` e
+  `elisdb-telegram-bot/CHANGELOG.md`.
 - **Specs**: `openspec/specs/repository-layout/spec.md` passa a cobrir os
   changelogs por componente.
 - **Sem alterações**: `elisdb-android/CHANGELOG.md`, workflow de release,

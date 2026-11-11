@@ -23,7 +23,7 @@
 ## 4. Documentação
 
 - [x] 4.1 Atualizar `elisdb-android/docs/uso.md` com o formato `A;B`, chips e filtro por tag
-- [x] 4.2 Atualizar `elisdb-server/CHANGELOG.md` e a nota do memento sobre `;` na Rota
+- [x] 4.2 Atualizar `elisdb-server/CHANGELOG.md`.
 
 ## 5. Verificação final
 

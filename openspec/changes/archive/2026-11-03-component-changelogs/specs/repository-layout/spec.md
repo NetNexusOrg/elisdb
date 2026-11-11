@@ -5,8 +5,8 @@
 ### Requirement: Component changelogs
 
 Each component SHALL keep its own `CHANGELOG.md` at the component root:
-`elisdb-android/`, `elisdb-server/`, `elisdb-telegram-bot/` and
-`elisdb-memento/`. The repository root SHALL NOT contain a changelog.
+`elisdb-android/`, `elisdb-server/` and `elisdb-telegram-bot/`. The repository
+root SHALL NOT contain a changelog.
 
 #### Scenario: Each component has a changelog
 

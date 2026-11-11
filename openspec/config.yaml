@@ -12,7 +12,6 @@ context: |
   - elisdb-server/ — Python 3.14 + FastAPI + SQLite (WAL). ed25519 request-signing
     auth (X-Elisdb-Timestamp/Signature/Key headers), LWW conflict resolution,
     tombstones, photo binaries on disk.
-  - elisdb-memento/ — one-off Python migration scripts.
 
   Conventions:
   - Docs in Portuguese under */docs/; Conventional Commits (feat/fix/ci/docs/chore).
@@ -25,8 +24,7 @@ context: |
   - Server: Docker-only for running (docker compose up -d); pytest suite in
     elisdb-server/tests/ (python -m pytest; needs requirements-dev.txt).
 
-  Security: never commit *.config.json (private ed25519 seed), *.db, ELIS.csv,
-  *.jks/*.keystore, keystore.properties, or .env. Signing secrets live outside the
+  Security: never commit *.config.json (private ed25519 seed), *.db, *.jks/*.keystore, keystore.properties, or .env. Signing secrets live outside the
   repo (GitHub Secrets).
 
   Git/GitHub: branch main; private repo NetNexusOrg/elisdb; CI in

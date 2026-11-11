@@ -1,6 +1,6 @@
 ## Context
 
-Monorepo na raiz `/home/ricardo/Projectos/elisdb` com três componentes (app Android em `elisdb-android/`, servidor FastAPI em `elisdb-server/`, migração em `elisdb-memento/`) e a infraestrutura OpenSpec/OpenCode. Não existe ainda Git. O build de release Android já está automatizado localmente por `elisdb-android/scripts/build-release.sh`, que lê credenciais de `~/.keystores/elisdb-release.env`; o `app/build.gradle.kts` resolve o signing a partir de `keystore.properties` ou das env vars `KEYSTORE_PATH`/`KEYSTORE_PASSWORD`/`KEY_ALIAS`/`KEY_PASSWORD` e falha rapidamente na ausência das mesmas.
+Monorepo na raiz `/home/ricardo/Projectos/elisdb` com dois componentes (app Android em `elisdb-android/`, servidor FastAPI em `elisdb-server/`) e a infraestrutura OpenSpec/OpenCode. Não existe ainda Git. O build de release Android já está automatizado localmente por `elisdb-android/scripts/build-release.sh`, que lê credenciais de `~/.keystores/elisdb-release.env`; o `app/build.gradle.kts` resolve o signing a partir de `keystore.properties` ou das env vars `KEYSTORE_PATH`/`KEYSTORE_PASSWORD`/`KEY_ALIAS`/`KEY_PASSWORD` e falha rapidamente na ausência das mesmas.
 
 ## Goals / Non-Goals
 
@@ -32,7 +32,7 @@ Monorepo na raiz `/home/ricardo/Projectos/elisdb` com três componentes (app And
 
 6. **Versionamento**: SemVer `MAJOR.MINOR.PATCH`; a tag `vX.Y.Z` dispara o release e deve corresponder ao `versionName` (hoje `1.4`; a introdução do patch não altera a versão atual — ver Open Questions). `versionCode` continua incrementado manualmente em `gradle.properties`.
 
-7. **Segredos a excluir** (via `.gitignore`): `Maria.config.json` (chave real de dispositivo), `*.config.json` (já ignorado no servidor), bases `.db`, `ELIS.csv`/`memento-import.db`, `.venv`, `__pycache__`, `.gradle`, `build/`, `local.properties`, `.idea`, `keystore.properties`, `*.jks`/`*.keystore`.
+7. **Segredos a excluir** (via `.gitignore`): `Maria.config.json` (chave real de dispositivo), `*.config.json` (já ignorado no servidor), bases `.db`, `.venv`, `__pycache__`, `.gradle`, `build/`, `local.properties`, `.idea`, `keystore.properties`, `*.jks`/`*.keystore`.
 
 ## Risks / Trade-offs
 

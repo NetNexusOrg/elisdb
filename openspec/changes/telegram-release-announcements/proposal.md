@@ -17,7 +17,7 @@ grupo no momento em que o release é criado.
   `android-ci.yml`, não bloqueante, alimentado por `TELEGRAM_BOT_TOKEN` e
   `TELEGRAM_CHAT_ID` (GitHub Secrets).
 - Testes unitários do script em `elisdb-telegram-bot/tests/`, corridos no job
-  `Server tests` (mesmo padrão dos testes do memento).
+  `Server tests`.
 - Documentação do componente (README, CHANGELOG) e da pipeline
   (`.opencode/skills/github-actions`).
 

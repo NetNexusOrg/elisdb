@@ -8,13 +8,14 @@ import asyncio
 import hashlib
 import logging
 import os
+import sqlite3
 import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from . import auth, updates
@@ -473,6 +474,16 @@ def create_app(database: Database | None = None) -> FastAPI:
             logger.warning("rate limit exceeded for ip")
             return Response(status_code=429, content=b"too many requests")
         return await call_next(request)
+
+    @app.exception_handler(sqlite3.OperationalError)
+    async def _sqlite_unavailable(_request: Request, exc: sqlite3.OperationalError):
+        # A contended write that exceeds busy_timeout must surface as a
+        # retryable 503, not an opaque 500 that looks like a server bug.
+        logger.warning("database unavailable: %s", exc)
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "database busy, retry later"},
+        )
 
     @app.get("/health")
     def health() -> dict:

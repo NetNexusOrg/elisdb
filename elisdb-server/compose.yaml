@@ -18,6 +18,15 @@ services:
     # de baixar para PUID/PGID.
     security_opt:
       - no-new-privileges:true
+    # Limites de recursos e rotação de logs: um contentor comprometido ou com
+    # fuga de memória não deve esgotar o host.
+    pids_limit: 256
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       ELISDB_DB: /app/data/elisdb.db
       ELISDB_PHOTOS: /app/data/photos

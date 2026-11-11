@@ -76,4 +76,13 @@ class LocalSnapshotStore(
     val dirs = snapshotsDir.listFiles()?.filter { it.isDirectory }?.sortedBy { it.name } ?: return
     dirs.dropLast(maxSnapshots).forEach { it.deleteRecursively() }
   }
+
+  /**
+   * Removes every stored snapshot. Called when the server configuration is
+   * replaced or cleared: the snapshots belong to the previous server's data and
+   * keeping them would retain client PII after the user asked to disconnect.
+   */
+  suspend fun clear() = withContext(Dispatchers.IO) {
+    snapshotsDir.deleteRecursively()
+  }
 }

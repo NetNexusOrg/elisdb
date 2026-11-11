@@ -268,6 +268,9 @@ class AppContainer(context: Context) {
     // Stop and await the old run before clearing persisted state, so it cannot
     // write a stale watermark/hash after the reset.
     syncManager.resetState()
+    // Snapshots belong to the previous server's data; do not retain client PII
+    // after the configuration is replaced or cleared.
+    snapshotStore.clear()
     watermark.clear()
     photoPushState.clearAll()
     clockOffsetStore.clear()

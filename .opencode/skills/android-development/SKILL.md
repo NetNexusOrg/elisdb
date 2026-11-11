@@ -11,7 +11,8 @@ Base facts live in `project-context`. This skill covers how to write code here.
 
 - Kotlin 2.4.20, Jetpack Compose + Material 3, Navigation 3 (`androidx.navigation3`).
 - Room 2.8.5 (KSP), Ktor 3.6 client, kotlinx-serialization, CameraX,
-  Coil 3, osmdroid, Play Services Location, `EncryptedSharedPreferences`.
+  Coil 3, osmdroid, Play Services Location, `KeystoreSettingsStore` (Android
+  Keystore AES-GCM).
 - No Hilt/Koin: manual DI via `AppContainer`. No DataStore: SharedPreferences.
 
 ## Architecture rules

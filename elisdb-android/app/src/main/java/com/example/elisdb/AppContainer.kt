@@ -22,7 +22,7 @@ import com.example.elisdb.location.LocationService
 import com.example.elisdb.remote.ApiClient
 import com.example.elisdb.remote.ApiClientProvider
 import com.example.elisdb.remote.ClientHolder
-import com.example.elisdb.settings.PrefsSettingsStore
+import com.example.elisdb.settings.KeystoreSettingsStore
 import com.example.elisdb.settings.ServerSettings
 import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.settings.hasCredentials
@@ -65,7 +65,7 @@ class AppContainer(context: Context) {
 
   val locationService: LocationService = LocationService(context)
 
-  val settingsStore: SettingsStore = PrefsSettingsStore(context)
+  val settingsStore: SettingsStore = KeystoreSettingsStore(context)
 
   /** Latest saved configuration, so the UI reacts when a credential is imported or removed. */
   private val _settings = MutableStateFlow(settingsStore.settings())

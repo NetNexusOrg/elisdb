@@ -17,8 +17,10 @@ description: Security review checklist for the ElisDB repo (secrets, auth, stora
 - **Auth**: every protected server route must enforce `require_auth`; verify signature
   freshness (±300s) and replay protection are not bypassed. The app must never sign with a
   blank or baked-in key (`ApiClientProvider` throws on blank key).
-- **Storage at rest**: the app's signing key is in `EncryptedSharedPreferences`
-  (Android Keystore master key); do not downgrade to plain `SharedPreferences`.
+- **Storage at rest**: the app's signing key is encrypted by
+  `KeystoreSettingsStore` with an AES-GCM key in the Android Keystore; the
+  legacy `EncryptedSharedPreferences` is read-only during migration. Do not
+  downgrade to plain `SharedPreferences`.
 - **Network**: `network_security_config.xml` currently permits cleartext HTTP (LAN sync).
   Do not widen this further; do not embed credentials in URLs.
 - **Path safety**: photo ids must not contain `/`, `\`, `..` (path traversal guard). Keep it.

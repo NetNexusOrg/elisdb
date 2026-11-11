@@ -1,46 +1,57 @@
-# Migração do `security-crypto`
+# Migração do security-crypto para Android Keystore
 
-## Estado atual
+## Estado
 
-As credenciais do dispositivo (URL do servidor, chave ed25519 e nome do
-utilizador) são guardadas em `EncryptedSharedPreferences`
-(`androidx.security:security-crypto` 1.1.0), com uma chave mestra AES256-GCM no
-Android Keystore. A escrita é verificada por leitura de retorno e falha de forma
-segura se o armazenamento não estiver disponível.
+Implementada. O `androidx.security:security-crypto` deixou de ser usado para
+guardar a configuração; os valores passam a ser cifrados diretamente com uma
+chave AES-256-GCM no Android Keystore.
 
-A biblioteca está **deprecated** (o Jetpack Security foi descontinuado), mas a
-API continua estável e funcional. Não há, neste momento, uma substituição oficial
-com migração automática.
+- Implementação: `settings/KeystoreSettingsStore.kt`.
+- Chave: alias `elisdb_settings_aes_v1` no `AndroidKeyStore`
+  (`AES/GCM/NoPadding`, 256 bits, IV aleatório por valor).
+- Preferências: ficheiro `elisdb_settings_keystore`.
+- Formato de cada valor: `v1:<base64(iv)>:<base64(ciphertext)>`.
 
-## Porque não foi migrado já
+A dependência `security-crypto` continua apenas para **leitura legacy** durante
+a janela de migração; pode ser removida quando não houver instalações antigas.
 
-- O caminho atual já cumpre o objetivo de segurança: a chave privada nunca é
-  escrita em texto simples e a chave mestra não sai do Keystore.
-- Uma migração mal feita pode **perder a chave do utilizador**, obrigando a
-  reimportar o ficheiro de credenciais em todos os dispositivos.
-- É necessário testar o upgrade em dispositivos reais (API 24+) e em instalações
-  que ainda tenham dados legados em texto simples.
+## Migração
 
-## Plano proposto
+No arranque, o `KeystoreSettingsStore`:
 
-1. Criar um `KeystoreSettingsStore` que use uma chave AES-GCM no Android
-   Keystore diretamente (sem `EncryptedSharedPreferences`), com um formato
-   versionado e um marcador de migração.
-2. Na primeira abertura após o upgrade:
-   - ler os valores antigos;
-   - escrever no novo formato;
-   - reler e confirmar;
-   - só então remover os valores antigos.
-3. Manter um caminho de leitura dos dados antigos enquanto a migração não estiver
-   confirmada, para nunca deixar o utilizador sem credenciais.
-4. Testes instrumentados de upgrade: instalação limpa, instalação com dados
-   antigos, Keystore indisponível e repetição idempotente da migração.
-5. Só remover `security-crypto` depois de os testes passarem numa matriz de APIs
-   suportadas (24, 30, 34, 37).
+1. lê os valores já guardados no novo formato, se existirem;
+2. caso contrário, lê os valores antigos (texto simples primeiro e depois o
+   `EncryptedSharedPreferences` original);
+3. cifra tudo com a chave do Keystore, grava com `commit = true` e confirma por
+   leitura;
+4. só depois de a confirmação passar é que remove as cópias antigas.
 
-## Decisão
+Qualquer falha (Keystore indisponível, chave invalidada, erro de I/O) mantém os
+dados antigos intactos e legíveis. Nesse estado, `settings()` continua a
+funcionar em leitura, mas `save()` lança `SecureStorageUnavailable` — nunca
+escreve a chave em texto simples.
 
-Adiado para uma change própria. O risco de perda de credenciais é superior ao
-benefício imediato de remover uma dependência deprecated; a decisão deve ser
-revista quando houver uma alternativa oficial estável ou uma janela de testes
-com dispositivos reais.
+A migração é idempotente: correr outra vez não altera nem duplica dados.
+
+## Riscos residuais
+
+- **Invalidação da chave do Keystore** (alteração de bloqueio do ecrã, OEM,
+  restauro de dispositivo): os valores novos deixam de decifrar. É necessário
+  reimportar o ficheiro `<utilizador>.config.json`.
+- **Transferência direta entre dispositivos**: `allowBackup=false` desativa o
+  backup cloud, mas alguns OEMs permitem D2D; a chave do Keystore não viaja, pelo
+  que o destino pede reimportação.
+- **Downgrade da app**: versões antigas não leem o novo formato. Não há suporte
+  a downgrade; a configuração tem de ser reimportada.
+- A chave privada ed25519 continua a ser o dado mais sensível: nunca deve ser
+  registada em logs, exports ou relatórios.
+
+## Testes
+
+`app/src/androidTest/.../settings/KeystoreSettingsStoreTest.kt` cobre:
+
+- roundtrip de gravação/leitura;
+- preferências novas sem a seed em claro;
+- migração de valores antigos em texto simples, com limpeza só após confirmação;
+- migração do `EncryptedSharedPreferences` antigo;
+- falha do Keystore: leitura legacy mantém-se e `save()` falha fechado.

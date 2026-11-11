@@ -36,7 +36,7 @@ jobs:
           packages: platform-tools
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Unit tests
         working-directory: elisdb-android
@@ -99,7 +99,7 @@ jobs:
           packages: platform-tools
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Enable KVM
         run: |
@@ -143,7 +143,7 @@ jobs:
           packages: platform-tools
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Enable KVM
         run: |
@@ -251,7 +251,7 @@ jobs:
           packages: platform-tools
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Decode keystore
         env:

@@ -136,6 +136,7 @@ fun ConfigScreen(
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
       InfoCard(title = "Dados", titleTextAlign = TextAlign.Center) {
+        val appCount = state.totalClientes
         val serverCount = state.serverClienteCount
         Row(
           modifier = Modifier.fillMaxWidth(),
@@ -143,18 +144,21 @@ fun ConfigScreen(
         ) {
           DataTile(
             icon = Icons.Outlined.PhoneAndroid,
-            value = state.totalClientes.toString(),
+            value = dataCountLabel(appCount),
             label = "Na app",
             modifier = Modifier.weight(1f),
+            valueColor =
+              if (appCount > 0) MaterialTheme.colorScheme.onSurface
+              else MaterialTheme.colorScheme.onSurfaceVariant,
           )
           DataTile(
             icon = Icons.Outlined.Cloud,
-            value = serverCount?.toString() ?: "—",
+            value = dataCountLabel(serverCount),
             label = "No servidor",
             modifier = Modifier.weight(1f),
             valueColor =
-              if (serverCount == null) MaterialTheme.colorScheme.onSurfaceVariant
-              else MaterialTheme.colorScheme.onSurface,
+              if (serverCount != null && serverCount > 0) MaterialTheme.colorScheme.onSurface
+              else MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }
       }
@@ -360,6 +364,10 @@ fun ConfigScreen(
     )
   }
 }
+
+/** Count shown in the data cards: no records is shown like an unknown server count. */
+internal fun dataCountLabel(count: Int?): String =
+  count?.takeIf { it > 0 }?.toString() ?: "—"
 
 /** Compact credential card: URL on its own line, user and key side by side below. */
 @Composable

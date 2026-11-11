@@ -23,7 +23,13 @@ class StartupScreensTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Configuração necessária").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Acesso Negado").assertIsDisplayed()
+    composeTestRule
+      .onNodeWithText("app de dados privados", substring = true)
+      .assertIsDisplayed()
+    composeTestRule
+      .onNodeWithText("<utilizador>.config.json", substring = true)
+      .assertIsDisplayed()
     composeTestRule.onNodeWithText("Abrir configuração").performClick()
 
     assertTrue(opened)

@@ -10,7 +10,7 @@ no dia a dia. Assumimos que o servidor está instalado e a correr
 A app só avança depois de ter um **utilizador configurado por completo**: URL do
 servidor, chave de assinatura e nome do utilizador, todos vindos do ficheiro
 `<utilizador>.config.json`. Enquanto faltar algum destes dados, o arranque mostra
-**Configuração necessária** com o botão **Abrir configuração**; a lista de
+**Acesso Negado** com o botão **Abrir configuração**; a lista de
 clientes só fica disponível depois de importares a credencial.
 
 Precisas de três coisas: o servidor a correr, a chave emitida nesse servidor, e
@@ -46,7 +46,7 @@ o `maria.config.json`. O **URL do servidor**, a **chave de assinatura** e o
 logo.
 
 Se importares uma credencial antiga sem `user_name`, a app tenta obter o nome ao
-servidor; sem rede, o ecrã **Configuração necessária** pede para reimportares o
+servidor; sem rede, o ecrã **Acesso Negado** pede para reimportares o
 ficheiro.
 
 (O cartão **Sincronização**, no ecrã **Configuração**, mostra o URL, a chave mascarada e
@@ -237,7 +237,7 @@ uma nova.
 
 | O que aparece na barra de estado   | O que está a acontecer                | O que fazer |
 | ---------------------------------- | ------------------------------------- | ----------- |
-| "Configuração necessária" no arranque | Falta o URL, a chave ou o nome do utilizador | Importa o `<nome>.config.json` na Configuração |
+| "Acesso Negado" no arranque | Falta o URL, a chave ou o nome do utilizador | Importa o `<nome>.config.json` na Configuração |
 | "Não configurado" | Falta o URL ou a chave (no ecrã Configuração ou no build) | Importa o `<nome>.config.json` (ou emite um novo no servidor) |
 | "Servidor rejeitou a sincronização (chave não registada)." | A chave pública não está registada no servidor | No servidor: `docker compose exec elisdb-server python -m app.keys issue <nome> --server-url <url>` e importa o ficheiro (ver passo 1) |
 | "Relógio do dispositivo dessincronizado. Verifique a hora do dispositivo." | O relógio do telemóvel está fora da janela de ±5 min do servidor | Ativa a hora automática no telemóvel (e no servidor) e sincroniza de novo |

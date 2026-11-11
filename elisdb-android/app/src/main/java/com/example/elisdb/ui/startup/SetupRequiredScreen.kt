@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -44,14 +44,14 @@ fun SetupRequiredScreen(
       verticalArrangement = Arrangement.Center,
     ) {
       Icon(
-        Icons.Default.Person,
+        Icons.Filled.Block,
         contentDescription = null,
         modifier = Modifier.height(72.dp),
-        tint = MaterialTheme.colorScheme.primary,
+        tint = MaterialTheme.colorScheme.error,
       )
       Spacer(Modifier.height(16.dp))
       Text(
-        text = "Configuração necessária",
+        text = "Acesso Negado",
         style = MaterialTheme.typography.headlineSmall,
         textAlign = TextAlign.Center,
       )
@@ -59,18 +59,25 @@ fun SetupRequiredScreen(
       Text(
         text =
           if (missingUserName) {
-            "Existe uma chave guardada, mas falta o nome do utilizador. " +
-              "Importe novamente o ficheiro de credenciais (<utilizador>.config.json) " +
-              "na Configuração para completar a configuração."
+            "Já existe uma chave guardada, mas falta o nome do utilizador. " +
+              "Importa novamente as credenciais na Configuração para concluir o acesso."
           } else {
-            "Para usar o ElisDB, importe o ficheiro de credenciais " +
-              "(<utilizador>.config.json) na Configuração. O ficheiro contém o " +
-              "endereço do servidor e a chave do utilizador."
+            "A ElisDB é uma app de dados privados.\n" +
+              "O acesso é feito com as credenciais de utilizador autorizado."
           },
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
       )
+      if (!missingUserName) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+          text = "Importa o ficheiro <utilizador>.config.json na Configuração.",
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          textAlign = TextAlign.Center,
+        )
+      }
       Spacer(Modifier.height(28.dp))
       Button(onClick = onOpenConfig, modifier = Modifier.testTag("open_config")) {
         Icon(Icons.Default.Settings, contentDescription = null)

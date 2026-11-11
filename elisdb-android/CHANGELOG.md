@@ -8,6 +8,19 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [2.0.0] - 2026-11-11
+
+### Novidades
+
+- Credenciais guardadas diretamente no Android Keystore com AES-256-GCM; migração automática das credenciais antigas.
+- Servidor mais robusto: proteção anti-replay corrigida, limites antes da autenticação, respostas 503 em contenção da base de dados e endpoint `/ready`.
+- Fotos descarregadas em streaming e atualizações de dependências automatizadas.
+
+### Importante
+
+- Atualização obrigatória: desinstalar a app antiga, instalar esta versão e importar as **novas credenciais** fornecidas.
+- Antes de desinstalar, abrir a app antiga, carregar em **Sincronizar** e confirmar que não ficam alterações por enviar.
+
 ## [1.12.0] - 2026-11-06
 
 ### Novidades

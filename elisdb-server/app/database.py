@@ -102,6 +102,17 @@ def _migrate_keys_provisioned(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE keys ADD COLUMN provisioned INTEGER NOT NULL DEFAULT 0")
 
 
+def _migrate_keys_revoked(conn: sqlite3.Connection) -> None:
+    """Idempotently add keys.revoked_at so old credentials can be disabled.
+
+    NULL means the key is active; an epoch-seconds value revokes it without
+    deleting the row, preserving the audit trail that references key ids.
+    """
+    columns = [row["name"] for row in conn.execute("PRAGMA table_info(keys)").fetchall()]
+    if "revoked_at" not in columns:
+        conn.execute("ALTER TABLE keys ADD COLUMN revoked_at INTEGER")
+
+
 def _migrate_fotos_hash(conn: sqlite3.Connection) -> None:
     """Idempotently add the fotos.hash column for cached content hashes."""
     columns = [row["name"] for row in conn.execute("PRAGMA table_info(fotos)").fetchall()]
@@ -519,6 +530,7 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     )
     _migrate_keys_comment(conn)
     _migrate_keys_provisioned(conn)
+    _migrate_keys_revoked(conn)
     _migrate_clients_created_at(conn)
     _migrate_clients_tag(conn)
     _migrate_fotos_hash(conn)
@@ -1674,7 +1686,7 @@ class Database:
         conn = self._conn()
         try:
             rows = conn.execute(
-                "SELECT id, public_key, comment, provisioned, created_at FROM keys ORDER BY created_at"
+                "SELECT id, public_key, comment, provisioned, created_at, revoked_at FROM keys ORDER BY created_at"
             ).fetchall()
             return [dict(r) for r in rows]
         finally:
@@ -1683,7 +1695,9 @@ class Database:
     def get_all_public_keys(self) -> list[str]:
         conn = self._conn()
         try:
-            rows = conn.execute("SELECT public_key FROM keys").fetchall()
+            rows = conn.execute(
+                "SELECT public_key FROM keys WHERE revoked_at IS NULL"
+            ).fetchall()
             return [r["public_key"] for r in rows]
         finally:
             conn.close()
@@ -1692,9 +1706,25 @@ class Database:
         conn = self._conn()
         try:
             row = conn.execute(
-                "SELECT id, public_key, comment, created_at FROM keys WHERE public_key = ?",
+                "SELECT id, public_key, comment, created_at FROM keys WHERE public_key = ? AND revoked_at IS NULL",
                 (public_key,),
             ).fetchone()
             return dict(row) if row is not None else None
+        finally:
+            conn.close()
+
+    def revoke_keys_by_comment(self, comment: str, now: int | None = None) -> int:
+        """Revokes every active key whose comment matches, returning how many changed.
+
+        The rows are kept so existing audit entries keep pointing at a valid key id.
+        """
+        conn = self._conn()
+        try:
+            with conn:
+                cursor = conn.execute(
+                    "UPDATE keys SET revoked_at = ? WHERE comment = ? AND revoked_at IS NULL",
+                    (int(now if now is not None else time.time()), comment),
+                )
+                return cursor.rowcount
         finally:
             conn.close()

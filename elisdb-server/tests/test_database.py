@@ -887,3 +887,38 @@ def test_pull_batches_a_thousand_records_and_their_photos(tmp_path):
     assert records[-1]["client"]["id"] == "c999"
     assert records[0]["fotos"][0]["available"] is False
     assert records[0]["fotos"][0]["hash"] is None
+
+
+def test_revoked_keys_are_hidden_and_revoke_is_idempotent(tmp_path):
+    db = _db(tmp_path)
+    db.add_key("key-1", "public-1", comment="maria")
+    db.add_key("key-2", "public-2", comment="maria")
+    db.add_key("key-3", "public-3", comment="joao")
+
+    assert "public-1" in db.get_all_public_keys()
+    assert db.get_key_by_public_key("public-1") is not None
+
+    # Revoking twice is safe: the second call has nothing left to update.
+    assert db.revoke_keys_by_comment("maria") == 2
+    assert db.revoke_keys_by_comment("maria") == 0
+
+    assert db.get_all_public_keys() == ["public-3"]
+    assert db.get_key_by_public_key("public-1") is None
+    assert db.get_key_by_public_key("public-3") is not None
+
+    rows = {row["id"]: row for row in db.list_keys()}
+    assert rows["key-1"]["revoked_at"] is not None
+    assert rows["key-3"]["revoked_at"] is None
+
+
+def test_apply_schema_adds_revoked_at_idempotently(tmp_path):
+    path = tmp_path / "legacy.db"
+    conn = connect(str(path))
+
+    _apply_schema(conn)
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(keys)").fetchall()}
+    assert "revoked_at" in columns
+
+    # Running it again must not fail on the already-present column.
+    _apply_schema(conn)
+    conn.close()

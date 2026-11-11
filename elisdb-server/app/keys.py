@@ -2,6 +2,7 @@
 
 Usage:
     python -m app.keys issue USER_NAME [--server-url URL] [--output PATH] [--print-seed]
+    python -m app.keys revoke USER_NAME
 
 ``issue`` generates an ed25519 keypair; ``issue_and_register`` (the CLI flow)
 registers the public key in the allowlist with the user name as comment and
@@ -97,6 +98,10 @@ def _usage() -> None:
         "[--server-url <url>] [--output <path>] [--print-seed]",
         file=sys.stderr,
     )
+    print(
+        "       python -m app.keys revoke <user-name>",
+        file=sys.stderr,
+    )
 
 
 def issue_and_register(
@@ -139,6 +144,17 @@ def _run_args(args: list[str], db: Database) -> int:
         _usage()
         return 2
     command = args[0]
+    if command == "revoke":
+        if len(args) != 2 or not args[1].strip() or args[1].startswith("--"):
+            print(
+                "error: exactly one user name is required to revoke keys",
+                file=sys.stderr,
+            )
+            return 2
+        user = args[1].strip()
+        revoked = db.revoke_keys_by_comment(user)
+        print(f"revoked {revoked} key(s) for '{user}'")
+        return 0
     if command != "issue":
         print(f"unknown command: {command}", file=sys.stderr)
         return 2

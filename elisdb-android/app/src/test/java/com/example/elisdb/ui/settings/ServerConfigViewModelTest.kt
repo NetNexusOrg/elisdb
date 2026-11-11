@@ -53,7 +53,14 @@ class ServerConfigViewModelTest {
     store: SettingsStore,
     runScope: kotlinx.coroutines.CoroutineScope,
     fetch: suspend () -> KeyIdentityDto? = { null },
-  ): ServerConfigViewModel = ServerConfigViewModel(store, syncManager(runScope), fetch)
+    onSettingsChanged: () -> Unit = {},
+  ): ServerConfigViewModel =
+    ServerConfigViewModel(
+      store,
+      syncManager(runScope),
+      fetch,
+      onSettingsChanged = onSettingsChanged,
+    )
 
   @Test
   fun `sem chave mantem identidade nao resolvida`() = runTest(dispatcher) {
@@ -358,6 +365,50 @@ class ServerConfigViewModelTest {
     assertEquals(0, photoHashes)
     assertNull(clockOffset)
     assertEquals(listOf("1", "2"), records)
+  }
+
+  @Test
+  fun `importar configuracao notifica mudanca de configuracao`() = runTest(dispatcher) {
+    var changes = 0
+    val store = FakeSettingsStore(ServerSettings("", ""))
+    val viewModel = vm(store, backgroundScope, onSettingsChanged = { changes++ })
+
+    viewModel.importKey(
+      """{"server_url":"https://s","private_seed":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","user_name":"carlos"}""",
+    )
+    advanceUntilIdle()
+
+    assertEquals(1, changes)
+  }
+
+  @Test
+  fun `clearConfig notifica mudanca de configuracao`() = runTest(dispatcher) {
+    var changes = 0
+    val store = FakeSettingsStore(ServerSettings("https://s", "seed", "maria"))
+    val viewModel = vm(store, backgroundScope, onSettingsChanged = { changes++ })
+    advanceUntilIdle()
+
+    viewModel.clearConfig()
+    advanceUntilIdle()
+
+    assertEquals(1, changes)
+  }
+
+  @Test
+  fun `lookup completa o nome em falta e notifica`() = runTest(dispatcher) {
+    var changes = 0
+    val store = FakeSettingsStore(ServerSettings("https://s", "seed"))
+    val viewModel =
+      vm(
+        store,
+        backgroundScope,
+        fetch = { KeyIdentityDto("k1", "maria") },
+        onSettingsChanged = { changes++ },
+      )
+    advanceUntilIdle()
+
+    assertEquals("maria", store.current.userName)
+    assertEquals(1, changes)
   }
 }
 

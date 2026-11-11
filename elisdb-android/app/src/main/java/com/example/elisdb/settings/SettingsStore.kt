@@ -16,6 +16,21 @@ data class ServerSettings(
   val userName: String = "",
 )
 
+/**
+ * True when the app has a server URL and a signing key, i.e. it can authenticate
+ * against the server. The user name is not required for the connection.
+ */
+fun ServerSettings.hasCredentials(): Boolean =
+  baseUrl.isNotBlank() && signingKey.isNotBlank()
+
+/**
+ * True when the app has a complete user configuration: server, signing key and
+ * the user name carried by the imported credential. The app only operates with
+ * a complete configuration; see `ServerSettings.recoverUserName`.
+ */
+fun ServerSettings.hasConfiguredUser(): Boolean =
+  hasCredentials() && userName.isNotBlank()
+
 /** Storage for runtime server connection settings (base URL + signing key). */
 interface SettingsStore {
   /** Currently effective values: runtime override when saved, else build-time default. */

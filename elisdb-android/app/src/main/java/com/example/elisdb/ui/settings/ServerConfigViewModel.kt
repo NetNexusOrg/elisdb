@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.elisdb.remote.KeyIdentityDto
 import com.example.elisdb.settings.SecureStorageUnavailable
+import com.example.elisdb.settings.ServerSettings
 import com.example.elisdb.settings.SettingsStore
 import com.example.elisdb.settings.parseServerConfig
 import com.example.elisdb.settings.validateServerUrl
@@ -49,6 +50,8 @@ class ServerConfigViewModel(
    * new one. Records are kept: the full pull that follows reconciles them.
    */
   private val resetSyncState: suspend () -> Unit = {},
+  /** Notifies the composition root that the saved configuration changed. */
+  private val onSettingsChanged: () -> Unit = {},
 ) : ViewModel() {
   private val _uiState = MutableStateFlow(ServerConfigUiState())
   val uiState: StateFlow<ServerConfigUiState> = _uiState.asStateFlow()
@@ -111,6 +114,7 @@ class ServerConfigViewModel(
       }
       return
     }
+    onSettingsChanged()
     _uiState.update {
       it.copy(
         baseUrl = baseUrl,
@@ -141,6 +145,7 @@ class ServerConfigViewModel(
       }
       return
     }
+    onSettingsChanged()
     _uiState.update {
       it.copy(
         baseUrl = "",
@@ -159,6 +164,7 @@ class ServerConfigViewModel(
 
   /** Informational identity lookup: any failure leaves the identity unavailable and never blocks. */
   private fun lookupKeyIdentity() {
+    val expected = settingsStore.settings()
     viewModelScope.launch {
       _uiState.update { it.copy(keyIdentity = KeyIdentity.Resolving) }
       val identity = runCatching { fetchKeyIdentity() }.getOrNull()
@@ -168,6 +174,28 @@ class ServerConfigViewModel(
             if (identity == null) KeyIdentity.Unavailable else KeyIdentity.Resolved(identity.username),
         )
       }
+      adoptResolvedUserName(expected, identity?.username)
+    }
+  }
+
+  /**
+   * Persists a user name learned from the server when the imported credential
+   * did not carry one, but only if the configuration it belongs to is still the
+   * current one (the user may have imported another file while the lookup ran).
+   */
+  private fun adoptResolvedUserName(expected: ServerSettings, username: String?) {
+    val name = username?.trim().orEmpty()
+    if (name.isEmpty()) return
+    val current = settingsStore.settings()
+    if (current.userName.isNotBlank() ||
+      current.baseUrl != expected.baseUrl ||
+      current.signingKey != expected.signingKey
+    ) {
+      return
+    }
+    runCatching {
+      settingsStore.save(current.baseUrl, current.signingKey, name)
+      onSettingsChanged()
     }
   }
 

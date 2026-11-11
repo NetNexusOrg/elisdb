@@ -1,8 +1,13 @@
 package com.example.elisdb
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -11,10 +16,11 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import com.example.elisdb.BuildConfig
+import com.example.elisdb.settings.hasConfiguredUser
+import com.example.elisdb.settings.hasCredentials
 import com.example.elisdb.ui.about.AboutScreen
-import com.example.elisdb.ui.about.UpdateViewModel
-import java.io.File
+import com.example.elisdb.ui.about.AppUpdatePrompt
+import com.example.elisdb.ui.about.rememberUpdateViewModel
 import com.example.elisdb.ui.cliente.ClientListScreen
 import com.example.elisdb.ui.cliente.ClientListViewModel
 import com.example.elisdb.ui.cliente.ClientMapScreen
@@ -31,11 +37,36 @@ import com.example.elisdb.ui.form.ClientFormViewModel
 import com.example.elisdb.ui.settings.ConfigScreen
 import com.example.elisdb.ui.settings.ServerConfigViewModel
 import com.example.elisdb.ui.settings.SyncViewModel
+import com.example.elisdb.ui.startup.SetupRequiredScreen
 import com.example.elisdb.ui.rememberAppContainer
 
 @Composable
 fun MainNavigation() {
+  val container = rememberAppContainer()
+  val settings by container.settings.collectAsStateWithLifecycle()
+  var configOpen by rememberSaveable { mutableStateOf(false) }
+
+  // While the configuration screen is open from the setup screen, system back
+  // returns to the setup screen instead of closing the activity.
+  BackHandler(enabled = configOpen) { configOpen = false }
+
+  when {
+    // Configuration keeps priority even after the credential is saved, so its
+    // ViewModel survives long enough to run the first sync after the import.
+    configOpen -> ConfigDestination(container = container, onBack = { configOpen = false })
+    !settings.hasConfiguredUser() ->
+      SetupRequiredScreen(
+        missingUserName = settings.hasCredentials(),
+        onOpenConfig = { configOpen = true },
+      )
+    else -> MainDestinations(container = container)
+  }
+}
+
+@Composable
+private fun MainDestinations(container: AppContainer) {
   val backStack = rememberNavBackStack(ClientList)
+  val updateViewModel = rememberUpdateViewModel(container)
   val viewModelStoreOwner = checkNotNull(LocalViewModelStoreOwner.current)
   val saveableStateHolderNavEntryDecorator =
     rememberSaveableStateHolderNavEntryDecorator<NavKey>(rememberSaveableStateHolder())
@@ -82,79 +113,17 @@ fun MainNavigation() {
           )
         }
         entry<Config> {
-          val container = rememberAppContainer()
-          val syncViewModel =
-            viewModel {
-              SyncViewModel(
-                syncManager = container.syncManager,
-                clienteCount = container.database.clienteDao().observeCount(),
-                clockSkewSeconds = container.clockSync.skewSeconds,
-                onCorrectClock = { container.refreshClock() },
-                serverAvailability = container.serverAvailability.state,
-                onRefreshServer = { container.serverAvailability.refresh() },
-                periodicSyncEnabled = container.periodicSyncSettings.isEnabled(),
-                onPeriodicSyncChanged = { enabled ->
-                  container.periodicSyncScheduler.setEnabled(enabled)
-                },
-              )
-            }
-          val serverViewModel =
-            viewModel {
-              ServerConfigViewModel(
-                settingsStore = container.settingsStore,
-                syncManager = container.syncManager,
-                fetchKeyIdentity = {
-                  try {
-                    container.withApiClient { api ->
-                      api.fetchKeyIdentity(timestamp = container.normalizedEpochSeconds())
-                    }
-                  } catch (e: Exception) {
-                    null
-                  }
-                },
-                resetSyncState = { container.resetSyncState() },
-              )
-            }
-          ConfigScreen(
-            syncViewModel = syncViewModel,
-            serverViewModel = serverViewModel,
+          ConfigDestination(
+            container = rememberAppContainer(),
             onBack = { backStack.removeLastOrNull() },
           )
         }
         entry<About> {
-          val container = rememberAppContainer()
-          val context = LocalContext.current
-          val updateViewModel =
-            viewModel {
-              UpdateViewModel(
-                installedVersionCode = BuildConfig.VERSION_CODE,
-                isConfigured = {
-                  val settings = container.settingsStore.settings()
-                  settings.baseUrl.isNotBlank() && settings.signingKey.isNotBlank()
-                },
-                serverAvailability = container.serverAvailability.state,
-                refreshServerAvailability = { container.serverAvailability.refresh() },
-                fetchRelease = {
-                  container.withApiClient { api ->
-                    api.fetchLatestRelease(container.normalizedEpochSeconds())
-                  }
-                },
-                downloadRelease = { release, onProgress ->
-                  container.withApiClient { api ->
-                    api.downloadRelease(
-                      release = release,
-                      targetDir = File(context.cacheDir, "updates"),
-                      timestamp = container.normalizedEpochSeconds(),
-                      onProgress = onProgress,
-                    )
-                  }
-                },
-              )
-            }
+          val aboutContainer = rememberAppContainer()
           AboutScreen(
             onBack = { backStack.removeLastOrNull() },
-            updateViewModel = updateViewModel,
-            serverAvailability = container.serverAvailability.state,
+            updateViewModel = rememberUpdateViewModel(aboutContainer),
+            serverAvailability = aboutContainer.serverAvailability.state,
           )
         }
         entry<ClientForm> { key ->
@@ -233,5 +202,54 @@ fun MainNavigation() {
           )
         }
       },
+  )
+
+  AppUpdatePrompt(
+    updateViewModel = updateViewModel,
+    serverAvailability = container.serverAvailability.state,
+    isAboutOpen = backStack.lastOrNull() is About,
+    onUpdate = { backStack.add(About) },
+  )
+}
+
+@Composable
+private fun ConfigDestination(container: AppContainer, onBack: () -> Unit) {
+  val syncViewModel =
+    viewModel {
+      SyncViewModel(
+        syncManager = container.syncManager,
+        clienteCount = container.database.clienteDao().observeCount(),
+        clockSkewSeconds = container.clockSync.skewSeconds,
+        onCorrectClock = { container.refreshClock() },
+        serverAvailability = container.serverAvailability.state,
+        onRefreshServer = { container.serverAvailability.refresh() },
+        periodicSyncEnabled = container.periodicSyncSettings.isEnabled(),
+        onPeriodicSyncChanged = { enabled ->
+          container.periodicSyncScheduler.setEnabled(enabled)
+        },
+      )
+    }
+  val serverViewModel =
+    viewModel {
+      ServerConfigViewModel(
+        settingsStore = container.settingsStore,
+        syncManager = container.syncManager,
+        fetchKeyIdentity = {
+          try {
+            container.withApiClient { api ->
+              api.fetchKeyIdentity(timestamp = container.normalizedEpochSeconds())
+            }
+          } catch (e: Exception) {
+            null
+          }
+        },
+        resetSyncState = { container.resetSyncState() },
+        onSettingsChanged = { container.refreshSettings() },
+      )
+    }
+  ConfigScreen(
+    syncViewModel = syncViewModel,
+    serverViewModel = serverViewModel,
+    onBack = onBack,
   )
 }

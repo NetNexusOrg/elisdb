@@ -7,6 +7,12 @@ no dia a dia. Assumimos que o servidor está instalado e a correr
 
 ## 1. Ligar a app ao servidor (primeira vez)
 
+A app só avança depois de ter um **utilizador configurado por completo**: URL do
+servidor, chave de assinatura e nome do utilizador, todos vindos do ficheiro
+`<utilizador>.config.json`. Enquanto faltar algum destes dados, o arranque mostra
+**Configuração necessária** com o botão **Abrir configuração**; a lista de
+clientes só fica disponível depois de importares a credencial.
+
 Precisas de três coisas: o servidor a correr, a chave emitida nesse servidor, e
 a importação dessa chave na app.
 
@@ -35,8 +41,13 @@ precisa. Transfere-o para o telemóvel.
 ### 1.2 Importar a chave na app
 
 Na app: menu (⋮) → **Configuração** → **Importar credencial do utilizador** → escolhe
-o `maria.config.json`. O **URL do servidor** e a **chave de assinatura** ficam
-preenchidos em simultâneo e a sincronização arranca logo.
+o `maria.config.json`. O **URL do servidor**, a **chave de assinatura** e o
+**nome do utilizador** ficam preenchidos em simultâneo e a sincronização arranca
+logo.
+
+Se importares uma credencial antiga sem `user_name`, a app tenta obter o nome ao
+servidor; sem rede, o ecrã **Configuração necessária** pede para reimportares o
+ficheiro.
 
 (O cartão **Sincronização**, no ecrã **Configuração**, mostra o URL, a chave mascarada e
 o utilizador associado, em modo só de leitura; a credencial entra sempre pela
@@ -66,6 +77,9 @@ acionada no ecrã **Configuração** (menu ⋮ → **Configuração**), automati
 app** (uma vez por arranque, quando há servidor configurado) — o envio segue em
 segundo plano, sem bloquear o ecrã. O estado aparece no ecrã
 **Configuração** e na lista — ícone + mensagem curta.
+
+Ao abrir a app com a configuração completa, a lista de clientes fica disponível
+de imediato.
 
 Opcionalmente, podes ligar **Sincronização automática** no ecrã **Configuração**:
 a app tenta sincronizar a cada 15 minutos, apenas quando há rede e sem duplicar
@@ -142,6 +156,13 @@ se não houver nenhuma versão publicada, a app di-lo e não há nada a instalar
 As versões são publicadas pelo administrador do servidor (ver
 `elisdb-server/docs/execucao.md`).
 
+Ao abrir a app, e quando há servidor configurado e rede, esta verifica em
+segundo plano se existe uma versão mais recente. Se existir, aparece um aviso
+com a versão nova e as opções **Atualizar** e **Adiar**: **Atualizar** abre o
+ecrã **Sobre** (onde transferes e instalas o pacote) e **Adiar** fecha o aviso
+até ao próximo arranque. Sem versão nova, sem release publicada, sem
+configuração ou sem rede, o aviso não aparece.
+
 Durante uma sincronização, as fotos que já existem no servidor **sem mudanças**
 não são reescritas, e um ficheiro novo só é gravado antes da sua linha na base
 de dados — se a sincronização falhar a meio, as fotos anteriores ficam intactas.
@@ -216,6 +237,7 @@ uma nova.
 
 | O que aparece na barra de estado   | O que está a acontecer                | O que fazer |
 | ---------------------------------- | ------------------------------------- | ----------- |
+| "Configuração necessária" no arranque | Falta o URL, a chave ou o nome do utilizador | Importa o `<nome>.config.json` na Configuração |
 | "Não configurado" | Falta o URL ou a chave (no ecrã Configuração ou no build) | Importa o `<nome>.config.json` (ou emite um novo no servidor) |
 | "Servidor rejeitou a sincronização (chave não registada)." | A chave pública não está registada no servidor | No servidor: `docker compose exec elisdb-server python -m app.keys issue <nome> --server-url <url>` e importa o ficheiro (ver passo 1) |
 | "Relógio do dispositivo dessincronizado. Verifique a hora do dispositivo." | O relógio do telemóvel está fora da janela de ±5 min do servidor | Ativa a hora automática no telemóvel (e no servidor) e sincroniza de novo |

@@ -23,7 +23,9 @@ import com.example.elisdb.remote.ApiClient
 import com.example.elisdb.remote.ApiClientProvider
 import com.example.elisdb.remote.ClientHolder
 import com.example.elisdb.settings.PrefsSettingsStore
+import com.example.elisdb.settings.ServerSettings
 import com.example.elisdb.settings.SettingsStore
+import com.example.elisdb.settings.hasCredentials
 import com.example.elisdb.ui.cliente.ClientViewPreferences
 import com.example.elisdb.ui.cliente.PrefsClientViewPreferences
 import com.example.elisdb.sync.ClockOffsetStore
@@ -51,6 +53,9 @@ import com.example.elisdb.sync.SyncManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.withLock
 
 class AppContainer(context: Context) {
@@ -64,6 +69,15 @@ class AppContainer(context: Context) {
 
   val settingsStore: SettingsStore = PrefsSettingsStore(context)
 
+  /** Latest saved configuration, so the UI reacts when a credential is imported or removed. */
+  private val _settings = MutableStateFlow(settingsStore.settings())
+  val settings: StateFlow<ServerSettings> = _settings.asStateFlow()
+
+  /** Re-reads the configuration after a save or clear performed by the settings screen. */
+  fun refreshSettings() {
+    _settings.value = settingsStore.settings()
+  }
+
   /** Opt-in background sync preference (disabled by default). */
   val periodicSyncSettings: PeriodicSyncSettings = PrefsPeriodicSyncSettings(context)
 
@@ -73,8 +87,7 @@ class AppContainer(context: Context) {
       context,
       periodicSyncSettings,
       isConfigured = {
-        val settings = settingsStore.settings()
-        settings.baseUrl.isNotBlank() && settings.signingKey.isNotBlank()
+        settingsStore.settings().hasCredentials()
       },
     )
 
@@ -118,6 +131,27 @@ class AppContainer(context: Context) {
   suspend fun refreshClock() {
     runCatching {
       withApiClient { api -> clockSync.observeServerTime(api.fetchServerTime()) }
+    }
+  }
+
+  /**
+   * Completes a legacy credential that carries the server and key but no user
+   * name, by asking the server which user owns the key. Best-effort: offline or
+   * unconfigured leaves the settings untouched, and the setup screen then asks
+   * for the credential file again.
+   */
+  suspend fun recoverUserName() {
+    val current = settingsStore.settings()
+    if (!current.hasCredentials() || current.userName.isNotBlank()) return
+    val identity =
+      runCatching {
+        withApiClient { api -> api.fetchKeyIdentity(timestamp = normalizedEpochSeconds()) }
+      }.getOrNull()
+    val userName = identity?.username?.trim().orEmpty()
+    if (userName.isEmpty()) return
+    runCatching {
+      settingsStore.save(current.baseUrl, current.signingKey, userName)
+      refreshSettings()
     }
   }
 

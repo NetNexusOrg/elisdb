@@ -45,6 +45,9 @@ class ElisdbApp : Application() {
     // then carry a timestamp the server accepts (a wrong device clock used to
     // stamp records so far in the past that other devices never pulled them).
     container.applicationScope.launch { container.refreshClock() }
+    // Legacy credentials may carry the key but not the user name; complete them
+    // from the server so the configuration gate can let the app through.
+    container.applicationScope.launch { container.recoverUserName() }
   }
 }
 

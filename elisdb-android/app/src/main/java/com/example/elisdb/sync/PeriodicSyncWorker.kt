@@ -6,9 +6,9 @@ import androidx.work.WorkerParameters
 import com.example.elisdb.ElisdbApp
 
 /**
- * Runs one background sync attempt. It joins an in-flight run through
- * [SyncManager.sync] (single-flight), so a periodic tick never duplicates a
- * manual or save-triggered transfer.
+ * Runs one background retry attempt. It joins an in-flight run through
+ * [SyncManager.sync] (single-flight), so a retry never duplicates a manual or
+ * save-triggered transfer.
  */
 class PeriodicSyncWorker(
   appContext: Context,

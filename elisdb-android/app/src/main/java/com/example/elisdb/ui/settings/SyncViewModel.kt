@@ -37,8 +37,6 @@ data class SyncUiState(
   val serverIdentityChanged: Boolean = false,
   /** True while the explicit replace-local action is running. */
   val replacingLocal: Boolean = false,
-  /** Opt-in background sync; disabled by default. */
-  val periodicSyncEnabled: Boolean = false,
   /** Shared server reachability, used to disable actions when offline. */
   val serverAvailability: ServerAvailability = ServerAvailability.Online,
 )
@@ -48,15 +46,12 @@ class SyncViewModel(
   clienteCount: Flow<Int>,
   clockSkewSeconds: Flow<Long?> = flowOf(null),
   private val onCorrectClock: suspend () -> Unit = {},
-  periodicSyncEnabled: Boolean = false,
-  private val onPeriodicSyncChanged: (Boolean) -> Unit = {},
   serverAvailability: StateFlow<ServerAvailability> = MutableStateFlow(ServerAvailability.Online),
   private val onRefreshServer: suspend () -> Unit = {},
 ) : ViewModel() {
   private val _uiState =
     MutableStateFlow(
       SyncUiState(
-        periodicSyncEnabled = periodicSyncEnabled,
         serverAvailability = serverAvailability.value,
       )
     )
@@ -146,13 +141,6 @@ class SyncViewModel(
     if (_uiState.value.syncStatus == SyncStatus.IN_PROGRESS) return
     if (syncJob?.isActive == true) return
     syncJob = viewModelScope.launch { syncManager.syncNow() }
-  }
-
-  /** Enables or disables the opt-in periodic background sync. */
-  fun setPeriodicSync(enabled: Boolean) {
-    if (_uiState.value.periodicSyncEnabled == enabled) return
-    _uiState.update { it.copy(periodicSyncEnabled = enabled) }
-    onPeriodicSyncChanged(enabled)
   }
 
   /**

@@ -17,11 +17,10 @@ class ElisdbApp : Application() {
     super.onCreate()
     MapLibre.getInstance(this)
     container = AppContainer(this)
-    // Background transfers are opt-in. The launch sync still covers the first
-    // pull/push of the session; saving a client and the manual action trigger
-    // their own runs. A transient failure schedules a one-off retry with
-    // exponential backoff even when periodic sync is disabled.
-    container.periodicSyncScheduler.scheduleIfEnabled()
+    // Syncs run on launch, after a save/edit and on the manual action. A
+    // transient network failure still gets one background retry with
+    // exponential backoff. Cancel the periodic job left by older versions.
+    container.syncRetryScheduler.cancelLegacyPeriodicSync()
     container.applicationScope.launch {
       initialSyncIfConfigured(
         settingsStore = container.settingsStore,
@@ -30,12 +29,12 @@ class ElisdbApp : Application() {
     }
     container.applicationScope.launch {
       container.syncManager.fault.collect { fault ->
-        if (fault == SyncFault.NETWORK) container.periodicSyncScheduler.scheduleRetry()
+        if (fault == SyncFault.NETWORK) container.syncRetryScheduler.scheduleRetry()
       }
     }
     container.applicationScope.launch {
       container.syncManager.status.collect { status ->
-        if (status == SyncStatus.SUCCESS) container.periodicSyncScheduler.cancelRetry()
+        if (status == SyncStatus.SUCCESS) container.syncRetryScheduler.cancelRetry()
       }
     }
     container.applicationScope.launch {

@@ -81,13 +81,11 @@ segundo plano, sem bloquear o ecrã. O estado aparece no ecrã
 Ao abrir a app com a configuração completa, a lista de clientes fica disponível
 de imediato.
 
-Opcionalmente, podes ligar **Sincronização automática** no ecrã **Configuração**:
-a app tenta sincronizar a cada 15 minutos, apenas quando há rede e sem duplicar
-uma sincronização já em curso. Se a rede falhar, o sistema aplica um atraso
-exponencial com jitter (a partir de 30 segundos, até cerca de 5 horas); erros de
-autenticação, relógio ou configuração não são repetidos automaticamente. O botão
-**Sincronizar** continua a tentar imediatamente e ignora o atraso. A
-sincronização automática está desligada por omissão para não gastar bateria.
+A app sincroniza no primeiro arranque, ao guardar um cliente novo, ao guardar
+uma alteração e quando carregas em **Sincronizar**. Se a rede falhar, o sistema
+faz uma nova tentativa em segundo plano com atraso exponencial (a partir de 30
+segundos); erros de autenticação, relógio ou configuração não são repetidos
+automaticamente. O botão **Sincronizar** tenta imediatamente e ignora o atraso.
 
 Se o relógio do dispositivo estiver mais de 2 minutos diferente do servidor,
 o ecrã **Configuração** mostra um aviso a dizer quanto está atrasado ou

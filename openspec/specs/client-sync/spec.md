@@ -222,52 +222,6 @@ The system SHALL NOT convert a history fetch failure into an empty result; a fai
 - **THEN** the app SHALL surface the failure (not an empty list)
 - **AND** the UI SHALL present it as a load error
 
-### Requirement: Sync happens on launch, save and manual trigger
-
-The system SHALL synchronize on app start, when the user saves a client, when the user deletes a client, and when the user triggers a sync manually. The app MAY also synchronize on a periodic background schedule when that schedule is enabled; the periodic schedule SHALL be opt-in, SHALL use the single-flight behavior, and SHALL use exponential backoff after transient failures.
-
-#### Scenario: No automatic sync runs
-- **WHEN** the app stays open or in the background without a launch, a save, a delete, a manual trigger, or an enabled periodic schedule
-- **THEN** the app SHALL NOT transfer data to or from the server
-
-#### Scenario: Initial sync on app start
-- **WHEN** the app process starts and a server configuration exists
-- **THEN** the app SHALL start a synchronisation in the background
-- **AND** the app SHALL be usable without waiting for it to finish
-
-#### Scenario: Start without a server configuration
-- **WHEN** the app starts and no signing key is configured
-- **THEN** the app SHALL NOT attempt a synchronisation
-- **AND** no synchronisation error SHALL be shown
-
-#### Scenario: Manual trigger transfers
-- **WHEN** the user triggers a sync manually
-- **THEN** the app SHALL perform the full push/pull synchronisation
-
-#### Scenario: Saving a client triggers a sync
-- **WHEN** the user saves a new or edited client and the save succeeds
-- **THEN** the app SHALL start a synchronisation in the background
-- **AND** the app SHALL return to the previous screen without waiting for the synchronisation to finish
-
-#### Scenario: Deleting a client triggers a sync
-- **WHEN** the user confirms the deletion of a client
-- **THEN** the app SHALL mark it for deletion and start a synchronisation in the background
-- **AND** SHALL NOT require a manual sync to send the deletion
-
-#### Scenario: Saving while a sync is running joins it
-- **WHEN** the user saves a client while a synchronisation is already in progress
-- **THEN** the app SHALL NOT start a second concurrent synchronisation
-- **AND** the pending changes SHALL be sent by the run already in progress or by the next sync
-
-#### Scenario: Opening settings does not transfer
-- **WHEN** the user opens the settings screen
-- **THEN** the app SHALL check pending uploads and downloads without transferring client/photo data
-
-#### Scenario: Enabled periodic sync runs in the background
-- **WHEN** the periodic schedule is enabled and its interval elapses
-- **THEN** the app SHALL run a single synchronisation through the same single-flight path
-- **AND** SHALL publish the same observable status as a manual sync
-
 ### Requirement: Pending sync state shown on the synchronization screen
 
 The system SHALL show pending synchronization states in the synchronization screen's sync status row — "synchronization pending" when there are local changes not yet acknowledged by the server, and "updates to receive" when the server holds data newer than this device's last pull — instead of showing a stale success or error from an earlier sync.
@@ -613,3 +567,59 @@ The app SHALL attach a stable idempotency key to each push batch and SHALL reuse
 - **WHEN** a push succeeds but its response is lost and the app retries with the same key
 - **THEN** the server SHALL NOT persist the records twice or create duplicate audit entries
 - **AND** the app SHALL treat the returned result as the acknowledgement
+
+### Requirement: Sync happens on launch, save, delete and manual trigger
+
+The system SHALL synchronize on app start, when the user saves a client, when the
+user deletes a client, and when the user triggers a sync manually. The app SHALL
+NOT run a periodic background synchronisation.
+
+#### Scenario: No automatic sync runs
+
+- **WHEN** the app stays open or in the background without a launch, a save, a
+  delete, or a manual trigger
+- **THEN** the app SHALL NOT transfer data to or from the server
+
+#### Scenario: Initial sync on app start
+
+- **WHEN** the app process starts and a server configuration exists
+- **THEN** the app SHALL start a synchronisation in the background
+- **AND** the app SHALL be usable without waiting for it to finish
+
+#### Scenario: Start without a server configuration
+
+- **WHEN** the app starts and no signing key is configured
+- **THEN** the app SHALL NOT attempt a synchronisation
+- **AND** no synchronisation error SHALL be shown
+
+#### Scenario: Manual trigger transfers
+
+- **WHEN** the user triggers a sync manually
+- **THEN** the app SHALL perform the full push/pull synchronisation
+
+#### Scenario: Saving a client triggers a sync
+
+- **WHEN** the user saves a new or edited client and the save succeeds
+- **THEN** the app SHALL start a synchronisation in the background
+- **AND** the app SHALL return to the previous screen without waiting for the
+  synchronisation to finish
+
+#### Scenario: Deleting a client triggers a sync
+
+- **WHEN** the user confirms the deletion of a client
+- **THEN** the app SHALL mark it for deletion and start a synchronisation in the
+  background
+- **AND** SHALL NOT require a manual sync to send the deletion
+
+#### Scenario: Saving while a sync is running joins it
+
+- **WHEN** the user saves a client while a synchronisation is already in progress
+- **THEN** the app SHALL NOT start a second concurrent synchronisation
+- **AND** the pending changes SHALL be sent by the run already in progress or by
+  the next sync
+
+#### Scenario: Opening settings does not transfer
+
+- **WHEN** the user opens the settings screen
+- **THEN** the app SHALL check pending uploads and downloads without transferring
+  client/photo data

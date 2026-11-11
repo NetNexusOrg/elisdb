@@ -32,14 +32,11 @@ import com.example.elisdb.sync.ClockOffsetStore
 import com.example.elisdb.sync.ClockSync
 import com.example.elisdb.sync.FilePhotoStore
 import com.example.elisdb.sync.LastSyncStore
-import com.example.elisdb.sync.PeriodicSyncScheduler
-import com.example.elisdb.sync.PeriodicSyncSettings
 import com.example.elisdb.sync.PhotoPushState
 import com.example.elisdb.sync.PhotoStoreGuard
 import com.example.elisdb.sync.PhotoSweeper
 import com.example.elisdb.sync.PrefsClockOffsetStore
 import com.example.elisdb.sync.PrefsLastSyncStore
-import com.example.elisdb.sync.PrefsPeriodicSyncSettings
 import com.example.elisdb.sync.LocalSnapshotStore
 import com.example.elisdb.sync.PrefsPhotoPushState
 import com.example.elisdb.sync.PrefsServerIdentityStore
@@ -50,6 +47,7 @@ import com.example.elisdb.sync.StagedPhotoRegistry
 import com.example.elisdb.sync.SyncCoordinator
 import com.example.elisdb.sync.SyncCoordinatorProvider
 import com.example.elisdb.sync.SyncManager
+import com.example.elisdb.sync.SyncRetryScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -78,14 +76,10 @@ class AppContainer(context: Context) {
     _settings.value = settingsStore.settings()
   }
 
-  /** Opt-in background sync preference (disabled by default). */
-  val periodicSyncSettings: PeriodicSyncSettings = PrefsPeriodicSyncSettings(context)
-
-  /** Schedules the periodic sync and one-off transient retries. */
-  val periodicSyncScheduler: PeriodicSyncScheduler =
-    PeriodicSyncScheduler(
+  /** Schedules the one-off retry after a transient network failure. */
+  val syncRetryScheduler: SyncRetryScheduler =
+    SyncRetryScheduler(
       context,
-      periodicSyncSettings,
       isConfigured = {
         settingsStore.settings().hasCredentials()
       },
@@ -281,7 +275,7 @@ class AppContainer(context: Context) {
     serverIdentityStore.clear()
     // Re-check against the new server (or show NotConfigured after removing it).
     serverAvailability.invalidate()
-    // Re-evaluate the background schedule against the new (or removed) server.
-    periodicSyncScheduler.scheduleIfEnabled()
+    // Drop any retry or legacy periodic work tied to the previous server.
+    syncRetryScheduler.cancelPending()
   }
 }

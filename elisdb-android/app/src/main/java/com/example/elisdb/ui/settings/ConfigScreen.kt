@@ -42,7 +42,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -232,20 +231,6 @@ fun ConfigScreen(
             }
             Spacer(Modifier.width(8.dp))
             Text(if (syncing) "A sincronizar…" else "Sincronizar")
-          }
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            Text(
-              "Automático (15 min)",
-              style = MaterialTheme.typography.titleSmall,
-              modifier = Modifier.weight(1f),
-            )
-            Switch(
-              checked = state.periodicSyncEnabled,
-              onCheckedChange = syncViewModel::setPeriodicSync,
-            )
           }
           ClockWarning(
             skewSeconds = state.clockSkewSeconds,

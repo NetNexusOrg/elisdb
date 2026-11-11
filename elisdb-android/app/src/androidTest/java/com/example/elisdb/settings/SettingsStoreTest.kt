@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.elisdb.remote.ApiClientProvider
 import com.example.elisdb.remote.ConfigException
-import com.example.elisdb.sync.PrefsPeriodicSyncSettings
 import com.example.elisdb.util.Signer
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertTrue
@@ -19,7 +18,6 @@ class SettingsStoreTest {
   @Before
   fun setUp() {
     context.deleteSharedPreferences("elisdb_settings")
-    context.deleteSharedPreferences("elisdb_periodic_sync")
   }
 
   @Test
@@ -147,18 +145,5 @@ class SettingsStoreTest {
     assertEquals(null, plain.getString("server_base_url_override", null))
     assertEquals(null, plain.getString("signing_key_override", null))
     assertEquals("", store.settings().signingKey)
-  }
-
-  @Test
-  fun periodicSyncSettingDefaultsOffAndPersists() {
-    val settings = PrefsPeriodicSyncSettings(context)
-    assertEquals(false, settings.isEnabled())
-
-    settings.setEnabled(true)
-    assertEquals(true, settings.isEnabled())
-    assertEquals(true, PrefsPeriodicSyncSettings(context).isEnabled())
-
-    settings.setEnabled(false)
-    assertEquals(false, settings.isEnabled())
   }
 }

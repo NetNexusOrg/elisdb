@@ -223,10 +223,6 @@ private fun ConfigDestination(container: AppContainer, onBack: () -> Unit) {
         onCorrectClock = { container.refreshClock() },
         serverAvailability = container.serverAvailability.state,
         onRefreshServer = { container.serverAvailability.refresh() },
-        periodicSyncEnabled = container.periodicSyncSettings.isEnabled(),
-        onPeriodicSyncChanged = { enabled ->
-          container.periodicSyncScheduler.setEnabled(enabled)
-        },
       )
     }
   val serverViewModel =

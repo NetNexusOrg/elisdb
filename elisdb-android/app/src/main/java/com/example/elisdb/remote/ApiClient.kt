@@ -349,7 +349,14 @@ class ApiClient(
       throw ServerException("release download failed HTTP ${response.status}", response.status.value)
     }
     targetDir.mkdirs()
-    val target = File(targetDir, release.filename)
+    // The filename comes from the server: never let it escape the update
+    // directory. Keep only the basename and require an .apk suffix.
+    val safeName = release.filename.substringAfterLast('/').substringAfterLast('\\')
+    val isPlainName = safeName == release.filename && safeName != "." && safeName != ".."
+    if (!isPlainName || !safeName.endsWith(".apk", ignoreCase = true)) {
+      throw ServerException("published release filename is not an APK", response.status.value)
+    }
+    val target = File(targetDir, safeName)
     val digest = MessageDigest.getInstance("SHA-256")
     withContext(Dispatchers.IO) {
       response.bodyAsChannel().toInputStream().use { input ->

@@ -18,6 +18,7 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import java.io.File
 import java.nio.file.Files
 import java.security.MessageDigest
 import org.junit.Assert.assertArrayEquals
@@ -552,6 +553,25 @@ class ApiClientTest {
     val file = api.downloadRelease(release, dir, timestamp = 100L)
 
     assertArrayEquals(bytes, file.readBytes())
+  }
+
+  @Test
+  fun downloadReleaseRejectsAFilenameOutsideTheUpdateDirectory() = runBlocking {
+    val bytes = "apk-bytes".toByteArray()
+    val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+    val release = AppReleaseDto("1.6.0", 11, bytes.size.toLong(), sha, "../evil.apk")
+    val engine = MockEngine { respond(bytes, HttpStatusCode.OK) }
+    val api = client(engine)
+    val dir = Files.createTempDirectory("release").toFile()
+
+    try {
+      api.downloadRelease(release, dir, timestamp = 100L)
+      fail("expected ServerException")
+    } catch (e: ServerException) {
+      assertEquals("published release filename is not an APK", e.message)
+    }
+    assertEquals(0, dir.listFiles()?.size ?: 0)
+    assertEquals(false, File(dir.parentFile, "evil.apk").exists())
   }
 
   @Test

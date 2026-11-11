@@ -46,6 +46,21 @@ jobs:
         working-directory: elisdb-android
         run: ./gradlew :app:lintDebug
 
+      # Build the minified release variant on every change with a throwaway
+      # keystore, so an R8/ProGuard regression fails here instead of on a tag.
+      - name: Build release APK (R8 check)
+        working-directory: elisdb-android
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/ci-release.jks
+          KEYSTORE_PASSWORD: ci-release
+          KEY_ALIAS: ci-release
+          KEY_PASSWORD: ci-release
+        run: |
+          keytool -genkeypair -keystore "$KEYSTORE_PATH" \
+            -storepass ci-release -keypass ci-release \
+            -alias ci-release -keyalg RSA -keysize 2048 -validity 1 -dname "CN=CI"
+          ./gradlew :app:assembleRelease
+
       - name: Build debug APK
         working-directory: elisdb-android
         run: ./gradlew :app:assembleDebug
@@ -65,7 +80,7 @@ jobs:
         continue-on-error: true
 
   instrumented:
-    name: Instrumented tests (Room migrations)
+    name: Instrumented tests (Room migrations + settings store)
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout
@@ -99,7 +114,7 @@ jobs:
           arch: x86_64
           disable-animations: true
           working-directory: elisdb-android
-          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.elisdb.data.AppDatabaseMigrationTest
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.elisdb.data.AppDatabaseMigrationTest,com.example.elisdb.settings.SettingsStoreTest
 
   # Runs the whole instrumented suite (UI + Room) so regressions outside the
   # migration tests are visible in CI. It is deliberately non-blocking: the
@@ -189,6 +204,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      # A tag that does not match app.versionName would publish an APK whose
+      # reported version disagrees with the release and the update endpoint.
+      - name: Verify tag matches the app version
+        working-directory: elisdb-android
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          version_name=$(sed -n 's/^app\.versionName=//p' gradle.properties)
+          if [ "$tag" != "$version_name" ]; then
+            echo "::error::tag v${tag} does not match app.versionName '${version_name}' in gradle.properties"
+            exit 1
+          fi
 
       # The release body is the hand-written section of the Android component's
       # changelog for this tag — what changed, for the people who use the app —

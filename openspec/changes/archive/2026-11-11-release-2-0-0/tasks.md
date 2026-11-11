@@ -20,7 +20,7 @@
 - [x] 3.2 Atualizar `BuildConfigVersionTest.kt`.
 - [x] 3.3 Adicionar a secção `[2.0.0]` ao `CHANGELOG.md`.
 - [x] 3.4 Validar a change com `openspec validate --strict`.
-- [ ] 3.5 Criar a tag `v2.0.0` (produção; requer confirmação explícita).
-- [ ] 3.6 Commitar e arquivar (requer confirmação explícita).
+- [x] 3.5 Criar a tag `v2.0.0` (produção; requer confirmação explícita).
+- [x] 3.6 Commitar e arquivar (requer confirmação explícita).
 
 > Commits, push, tag e deploy só com confirmação explícita do utilizador.

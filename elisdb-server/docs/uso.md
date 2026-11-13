@@ -29,7 +29,7 @@ medir o desvio do relógio.
 | GET    | `/health` | Verificação de saúde (sem autenticação) |
 
 A gestão de chaves não é feita pela API: usa o menu interativo de
-`python -m app.keys` (criar, listar, remover) dentro do contentor. O endpoint
+`python -m elisdb.keys` (criar, listar, remover) dentro do contentor. O endpoint
 `/api/keys` existe apenas para responder `403` a um cliente autenticado, para
 que uma app comprometida não consiga enumerar as chaves dos outros dispositivos.
 
@@ -48,7 +48,7 @@ que uma app comprometida não consiga enumerar as chaves dos outros dispositivos
 
 | O que aparece / acontece | O que está a acontecer | O que fazer |
 | ------------------------ | ---------------------- | ----------- |
-| `401` ao sincronizar | O telemóvel não tem chave registada (ou a chave está errada) | Emite a chave com `docker compose exec elisdb-server python -m app.keys issue <nome> --server-url <url>` e importa o ficheiro na app (ver [Configuração](configuracao.md)) |
+| `401` ao sincronizar | O telemóvel não tem chave registada (ou a chave está errada) | Emite a chave com `docker compose exec elisdb-server python -m elisdb.keys issue <nome> --server-url <url>` e importa o ficheiro na app (ver [Configuração](configuracao.md)) |
 | `401` com relógio "dessincronizado" | O relógio do telemóvel está fora da janela de ±5 minutos do servidor | Ativa a hora automática no telemóvel (e no servidor) e tenta outra vez |
 | `duplicate` ao enviar | Já existe um cliente com o mesmo nome | Normal — a app funde com o registo existente |
 | `stale` ao enviar | O registo enviado é mais antigo que o guardado | Nada a fazer; o servidor manteve o mais recente |

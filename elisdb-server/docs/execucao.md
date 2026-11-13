@@ -173,7 +173,7 @@ environment:
 ## Emitir a chave de um telemóvel
 
 ```bash
-docker compose exec elisdb-server python -m app.keys issue <nome> --server-url http://<ip-do-host>:8000
+docker compose exec elisdb-server python -m elisdb.keys issue <nome> --server-url http://<ip-do-host>:8000
 ```
 
 O ficheiro `<nome>.config.json` é escrito dentro do contentor; copia-o para a

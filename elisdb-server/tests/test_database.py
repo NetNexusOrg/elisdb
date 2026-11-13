@@ -7,7 +7,7 @@ import sqlite3
 
 import pytest
 
-from app.database import (
+from elisdb.database import (
     Database,
     PhotoQuotaExceeded,
     StaleDeleteError,
@@ -15,7 +15,7 @@ from app.database import (
     _migrate_fotos_upload_metadata,
     connect,
 )
-from app.models import ClienteIn, FotoIn, normalize_nome
+from elisdb.models import ClienteIn, FotoIn, normalize_nome
 
 
 def _cliente(**kwargs) -> ClienteIn:

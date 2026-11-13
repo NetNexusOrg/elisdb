@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from app.provision import validate_server_url
+from elisdb.provision import validate_server_url
 
 COMPOSE = Path(__file__).resolve().parents[1] / "compose.yaml"
 ENTRYPOINT = Path(__file__).resolve().parents[1] / "docker-entrypoint.sh"
@@ -29,7 +29,7 @@ def test_compose_binds_to_loopback_by_default():
 def test_entrypoint_provisions_before_starting_the_server():
     text = ENTRYPOINT.read_text(encoding="utf-8")
 
-    assert text.index("python -m app.provision") < text.index("exec setpriv")
+    assert text.index("python -m elisdb.provision") < text.index("exec setpriv")
 
 
 @pytest.mark.parametrize(

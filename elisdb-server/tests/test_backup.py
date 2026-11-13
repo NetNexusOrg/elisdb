@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from app.backup import BackupError, create_backup, restore_backup, verify_backup
-from app.models import ClienteIn, FotoIn
+from elisdb.backup import BackupError, create_backup, restore_backup, verify_backup
+from elisdb.models import ClienteIn, FotoIn
 
 
 def _seed_photo(db, payload: bytes = b"\xff\xd8\xffphoto"):
@@ -88,7 +88,7 @@ def test_restore_failure_after_database_swap_rolls_back(tmp_path, server, monkey
     _client, db = server
     payload = _seed_photo(db)
     backup = create_backup(db.db_path, db.fotos_dir, str(tmp_path / "backup"))
-    import app.backup as backup_module
+    import elisdb.backup as backup_module
 
     real_replace = backup_module.os.replace
     calls = {"count": 0}

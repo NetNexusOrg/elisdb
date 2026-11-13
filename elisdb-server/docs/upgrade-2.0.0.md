@@ -45,8 +45,8 @@ Guardar também o commit atual (`git rev-parse HEAD`) e a imagem em uso
 ## 2. Criar, verificar e copiar o backup
 
 ```bash
-docker compose exec -T elisdb-server python -m app.backup create /app/data/backups/pre-2.0.0
-docker compose exec -T elisdb-server python -m app.backup verify /app/data/backups/pre-2.0.0
+docker compose exec -T elisdb-server python -m elisdb.backup create /app/data/backups/pre-2.0.0
+docker compose exec -T elisdb-server python -m elisdb.backup verify /app/data/backups/pre-2.0.0
 ```
 
 Copiar o backup para o host e depois para fora da VPS:
@@ -69,7 +69,7 @@ dados reais:
 
 ```bash
 docker compose exec -T elisdb-server sh -c 'rm -rf /tmp/drill && mkdir -p /tmp/drill'
-docker compose exec -T elisdb-server python -m app.backup restore /app/data/backups/pre-2.0.0 --db /tmp/drill/elisdb.db --photos /tmp/drill/photos
+docker compose exec -T elisdb-server python -m elisdb.backup restore /app/data/backups/pre-2.0.0 --db /tmp/drill/elisdb.db --photos /tmp/drill/photos
 docker compose exec -T elisdb-server python - <<'PY'
 import sqlite3
 db = sqlite3.connect("/tmp/drill/elisdb.db")
@@ -114,13 +114,13 @@ descarregar 2–3 fotos pela API com uma credencial nova.
 Emitir novas credenciais para os mesmos utilizadores:
 
 ```bash
-docker compose exec -T elisdb-server python -m app.keys issue <utilizador> --server-url <URL>
+docker compose exec -T elisdb-server python -m elisdb.keys issue <utilizador> --server-url <URL>
 ```
 
 Testar cada credencial nova (sync + foto) antes de revogar as antigas. Só depois:
 
 ```bash
-docker compose exec -T elisdb-server python -m app.keys revoke <utilizador>
+docker compose exec -T elisdb-server python -m elisdb.keys revoke <utilizador>
 ```
 
 A revogação marca `revoked_at` nas chaves antigas (não apaga linhas, para
@@ -149,7 +149,7 @@ Se o upgrade falhar:
    verificado:
 
 ```bash
-docker compose exec -T elisdb-server python -m app.backup restore /app/data/backups/pre-2.0.0
+docker compose exec -T elisdb-server python -m elisdb.backup restore /app/data/backups/pre-2.0.0
 ```
 
 4. Validar contagens, fotos e `/health` antes de reabrir o serviço.

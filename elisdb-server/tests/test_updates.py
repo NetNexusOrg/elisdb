@@ -1,8 +1,8 @@
-"""Discovery of the published Android package (``app/updates.py``)."""
+"""Discovery of the published Android package (``elisdb/updates.py``)."""
 
 import hashlib
 
-from app import updates
+from elisdb import updates
 
 
 def _publish(directory, name, data=b"apk-bytes"):

@@ -36,9 +36,9 @@ def _keypair():
 
 
 def main() -> int:
-    from app import auth
-    from app.database import Database
-    from app.main import create_app
+    from elisdb import auth
+    from elisdb.database import Database
+    from elisdb.main import create_app
 
     tmp = tempfile.mkdtemp(prefix="elisdb-sync-smoke-")
     os.environ["ELISDB_DB"] = os.path.join(tmp, "elisdb.db")

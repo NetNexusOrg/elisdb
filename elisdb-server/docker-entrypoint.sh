@@ -24,6 +24,6 @@ done
 # Provisiona/revoga chaves dos utilizadores declarados em ELISDB_USERS (idempotente).
 # Corre sempre no arranque — se ELISDB_USERS estiver vazio ou ausente, todas as
 # chaves auto-provisionadas são revogadas.
-setpriv --reuid="${PUID}" --regid="${PGID}" --clear-groups python -m app.provision
+setpriv --reuid="${PUID}" --regid="${PGID}" --clear-groups python -m elisdb.provision
 
 exec setpriv --reuid="${PUID}" --regid="${PGID}" --clear-groups "$@"

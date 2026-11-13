@@ -38,7 +38,7 @@ docker compose up -d --build                         # build + start the server
 docker compose logs -f                               # follow logs
 docker compose down                                  # stop (keeps the data volume)
 curl http://localhost:8000/health                    # liveness check
-docker compose exec elisdb-server python -m app.keys issue <user> --server-url <url>  # issue a device key (writes <user>.config.json)
+docker compose exec elisdb-server python -m elisdb.keys issue <user> --server-url <url>  # issue a device key (writes <user>.config.json)
 ```
 
 Tests (needs a venv with `pip install -r requirements-dev.txt`; the server itself is Docker-only):

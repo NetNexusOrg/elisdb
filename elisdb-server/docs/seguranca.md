@@ -50,7 +50,7 @@ incluindo o provisionamento automático de `ELISDB_USERS`; usar `--print-seed` �
 uma escolha explícita para depuração local. Não copies seeds para logs, tickets
 ou capturas de ecrã.
 
-Para rodar uma chave comprometida, remove-a da allowlist (menu de `app.keys`,
+Para rodar uma chave comprometida, remove-a da allowlist (menu de `elisdb.keys`,
 opção `3`), emite uma nova e importa o novo ficheiro no telemóvel. A chave antiga
 deixa de autenticar imediatamente. Nomes de utilizador são validados para evitar
 que um nome com `../` ou separadores escreva ou apague ficheiros fora da pasta
@@ -74,7 +74,7 @@ monitorização do volume.
   partilhes o mesmo servidor entre esses grupos.
 - **Trata qualquer chave como acesso total.** Emitir uma chave é equivalente a
   dar acesso de leitura e escrita a toda a base de dados. Revoga chaves que já
-  não são usadas (menu interativo de `python -m app.keys`, opção `3`).
+  não são usadas (menu interativo de `python -m elisdb.keys`, opção `3`).
 - **Protege o transporte.** O servidor fala HTTP simples. Expõe-no através de
   um proxy com TLS (ver [Nginx Proxy Manager](nginx-proxy-manager.md)) e,
   nesse caso, liga apenas o proxy ao servidor (`ELISDB_BIND_ADDRESS=127.0.0.1`)

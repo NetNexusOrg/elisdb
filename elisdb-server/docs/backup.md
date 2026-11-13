@@ -19,8 +19,8 @@ O servidor inclui um utilitário que cria uma cópia **consistente** da base de
 dados e de todas as fotos referenciadas, com um manifesto de checksums:
 
 ```bash
-docker compose exec -T elisdb-server python -m app.backup create /app/data/backups/2026-11-06
-docker compose exec -T elisdb-server python -m app.backup verify /app/data/backups/2026-11-06
+docker compose exec -T elisdb-server python -m elisdb.backup create /app/data/backups/2026-11-06
+docker compose exec -T elisdb-server python -m elisdb.backup verify /app/data/backups/2026-11-06
 ```
 
 `verify` confirma o SHA-256 da base de dados e de cada foto, corre
@@ -29,7 +29,7 @@ docker compose exec -T elisdb-server python -m app.backup verify /app/data/backu
 
 ```bash
 docker compose stop elisdb-server
-docker compose exec -T elisdb-server python -m app.backup restore /app/data/backups/2026-11-06
+docker compose exec -T elisdb-server python -m elisdb.backup restore /app/data/backups/2026-11-06
 docker compose start elisdb-server
 curl http://localhost:8000/health
 ```
@@ -44,7 +44,7 @@ Agenda a ferramenta integrada no anfitrião (cron ou systemd timer), fora do
 contentor. Exemplo diário às 03:00:
 
 ```cron
-0 3 * * * root cd /srv/elisdb && docker compose exec -T elisdb-server python -m app.backup create /app/data/backups/$(date +\%Y\%m\%d) && docker compose exec -T elisdb-server python -m app.backup verify /app/data/backups/$(date +\%Y\%m\%d)
+0 3 * * * root cd /srv/elisdb && docker compose exec -T elisdb-server python -m elisdb.backup create /app/data/backups/$(date +\%Y\%m\%d) && docker compose exec -T elisdb-server python -m elisdb.backup verify /app/data/backups/$(date +\%Y\%m\%d)
 ```
 
 Copia as cópias para fora do volume (rsync/rclone para outro host) e define uma

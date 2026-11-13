@@ -4,7 +4,7 @@ import base64
 import hashlib
 import time
 
-from app import auth
+from elisdb import auth
 
 from conftest import make_key
 

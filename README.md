@@ -20,7 +20,7 @@ sincroniza ao abrir, ao guardar um cliente e no botão **Sincronizar**.
 1. **Instala e corre o servidor** — guia em [`elisdb-server/docs/`](elisdb-server/docs/index.md).
 2. **Emite a chave de um telemóvel** no servidor:
    ```bash
-   docker compose exec elisdb-server python -m app.keys issue <nome> --server-url <URL-do-servidor>
+   docker compose exec elisdb-server python -m elisdb.keys issue <nome> --server-url <URL-do-servidor>
    ```
 3. **Importa** o `<nome>.config.json` no ecrã **Configuração** da app e carrega em **Sincronizar**.
 

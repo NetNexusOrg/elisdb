@@ -36,4 +36,4 @@ ENTRYPOINT ["docker-entrypoint.sh"]
 # Single uvicorn worker: the anti-replay cache and the rate limiter are held
 # in-process, so running multiple workers would weaken replay protection and
 # make rate limits per-worker. Do NOT add `--workers`.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "elisdb.main:app", "--host", "0.0.0.0", "--port", "8000"]

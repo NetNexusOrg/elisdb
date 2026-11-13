@@ -21,13 +21,13 @@ a importação dessa chave na app.
 No computador do servidor, na pasta `elisdb-server/`:
 
 ```bash
-docker compose exec elisdb-server python -m app.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
+docker compose exec elisdb-server python -m elisdb.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
 ```
 
 Exemplo:
 
 ```bash
-docker compose exec elisdb-server python -m app.keys issue maria --server-url http://192.168.1.10:8000
+docker compose exec elisdb-server python -m elisdb.keys issue maria --server-url http://192.168.1.10:8000
 ```
 
 Isto cria o ficheiro **`maria.config.json`** — o único ficheiro de que a app
@@ -237,7 +237,7 @@ uma nova.
 | ---------------------------------- | ------------------------------------- | ----------- |
 | "Acesso Negado" no arranque | Falta o URL, a chave ou o nome do utilizador | Importa o `<nome>.config.json` na Configuração |
 | "Não configurado" | Falta o URL ou a chave (no ecrã Configuração ou no build) | Importa o `<nome>.config.json` (ou emite um novo no servidor) |
-| "Servidor rejeitou a sincronização (chave não registada)." | A chave pública não está registada no servidor | No servidor: `docker compose exec elisdb-server python -m app.keys issue <nome> --server-url <url>` e importa o ficheiro (ver passo 1) |
+| "Servidor rejeitou a sincronização (chave não registada)." | A chave pública não está registada no servidor | No servidor: `docker compose exec elisdb-server python -m elisdb.keys issue <nome> --server-url <url>` e importa o ficheiro (ver passo 1) |
 | "Relógio do dispositivo dessincronizado. Verifique a hora do dispositivo." | O relógio do telemóvel está fora da janela de ±5 min do servidor | Ativa a hora automática no telemóvel (e no servidor) e sincroniza de novo |
 | "Falha na sincronização. Verifique a ligação." | O servidor não está acessível no URL definido | Confirma a rede e o URL (usa o IP do servidor, não `127.0.0.1`) |
 

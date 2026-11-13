@@ -12,11 +12,11 @@ e a chave privada.
 
 ### Modo interativo (recomendado)
 
-Corre `python -m app.keys` **sem argumentos** (dentro do contentor) e escolhe o
+Corre `python -m elisdb.keys` **sem argumentos** (dentro do contentor) e escolhe o
 número da opção:
 
 ```
-docker compose exec elisdb-server python -m app.keys
+docker compose exec elisdb-server python -m elisdb.keys
 ```
 
 O menu pede, em sequência, o **URL do servidor** e o **nome do utilizador**
@@ -32,13 +32,13 @@ O mesmo menu permite **listar** e **remover** autenticações:
 ### Modo com argumentos (para scripting)
 
 ```bash
-docker compose exec elisdb-server python -m app.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
+docker compose exec elisdb-server python -m elisdb.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
 ```
 
 Exemplo real:
 
 ```bash
-docker compose exec elisdb-server python -m app.keys issue maria --server-url http://192.168.1.10:8000
+docker compose exec elisdb-server python -m elisdb.keys issue maria --server-url http://192.168.1.10:8000
 ```
 
 O que acontece:
@@ -90,7 +90,7 @@ Então:
 | ------------------ | ------------------------------------------------ | -------------- |
 | `ELISDB_DB`        | Caminho do ficheiro de dados (base de dados)      | `data/elisdb.db` |
 | `ELISDB_PHOTOS`    | Pasta para os ficheiros de fotos                   | `data/photos` ao lado da base de dados |
-| `ELISDB_SERVER_URL` | URL pelo qual a app alcança este servidor (usado por `app.keys issue` quando não passas `--server-url`) | — (obrigatória para emitir) |
+| `ELISDB_SERVER_URL` | URL pelo qual a app alcança este servidor (usado por `elisdb.keys issue` quando não passas `--server-url`) | — (obrigatória para emitir) |
 | `ELISDB_USERS`     | Utilizadores a provisionar no arranque (lista separada por vírgulas). Se vazio ou ausente, todas as chaves auto-provisionadas são revogadas. | — |
 | `ELISDB_MAX_PUSH_RECORDS` | Máximo de registos num único `POST /api/push`; acima disto responde `422` | `200` |
 | `ELISDB_MAX_PHOTOS_PER_CLIENT` | Máximo de fotos referenciadas por cliente num push; acima disto responde `422` | `500` |
@@ -117,11 +117,11 @@ environment:
 ```
 
 > Sem `ELISDB_USERS` e `ELISDB_SERVER_URL` o servidor arranca sem contas e sem
-> chaves; emite a primeira com `app.keys issue`. O `compose.yaml` não traz
+> chaves; emite a primeira com `elisdb.keys issue`. O `compose.yaml` não traz
 > utilizadores nem URL de exemplo, e a porta fica publicada apenas em
 > `127.0.0.1` por omissão.
 
-> Usa sempre o mesmo valor de `ELISDB_DB` também nos comandos `app.keys` — as
+> Usa sempre o mesmo valor de `ELISDB_DB` também nos comandos `elisdb.keys` — as
 > chaves registadas vivem nesse mesmo ficheiro de dados.
 
 ## Limites de push e fotos
@@ -267,7 +267,7 @@ Endpoints de diagnóstico (todos exigem chave, exceto `/health`):
   processamento registo a registo.
 - `GET /api/keys` — **só para operadores**: responde sempre `403` a um cliente
   autenticado. A listagem real (id, chave pública, comentário) é feita pela CLI
-  (`python -m app.keys`, opção `2`).
+  (`python -m elisdb.keys`, opção `2`).
 - `GET /api/keys/me` — mostra a chave que está a ser usada neste momento
   (devolve `key_id` e `username` do utilizador autenticado).
 

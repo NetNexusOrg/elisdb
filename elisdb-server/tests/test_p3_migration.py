@@ -2,7 +2,7 @@
 
 import sqlite3
 
-from app.database import Database
+from elisdb.database import Database
 
 
 def test_audit_action_migration_preserves_rows_and_accepts_delete(tmp_path):

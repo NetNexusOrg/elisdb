@@ -2,8 +2,8 @@
 
 import os
 
-from app import provision
-from app.database import Database
+from elisdb import provision
+from elisdb.database import Database
 
 
 def _db(tmp_path) -> Database:

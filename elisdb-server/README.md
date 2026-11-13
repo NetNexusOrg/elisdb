@@ -21,7 +21,7 @@ curl http://localhost:8000/health
 Para ligar um telemóvel, emite a chave dele dentro do contentor:
 
 ```bash
-docker compose exec elisdb-server python -m app.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
+docker compose exec elisdb-server python -m elisdb.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
 ```
 
 Isto cria o ficheiro `<nome>.config.json` — importa-o no ecrã **Configuração** da

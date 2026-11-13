@@ -1,8 +1,8 @@
 """Manage server-issued authentication keys.
 
 Usage:
-    python -m app.keys issue USER_NAME [--server-url URL] [--output PATH] [--print-seed]
-    python -m app.keys revoke USER_NAME
+    python -m elisdb.keys issue USER_NAME [--server-url URL] [--output PATH] [--print-seed]
+    python -m elisdb.keys revoke USER_NAME
 
 ``issue`` generates an ed25519 keypair; ``issue_and_register`` (the CLI flow)
 registers the public key in the allowlist with the user name as comment and
@@ -94,12 +94,12 @@ def issue(user_name: str) -> tuple[str, str, str]:
 
 def _usage() -> None:
     print(
-        "usage: python -m app.keys issue <user-name> "
+        "usage: python -m elisdb.keys issue <user-name> "
         "[--server-url <url>] [--output <path>] [--print-seed]",
         file=sys.stderr,
     )
     print(
-        "       python -m app.keys revoke <user-name>",
+        "       python -m elisdb.keys revoke <user-name>",
         file=sys.stderr,
     )
 

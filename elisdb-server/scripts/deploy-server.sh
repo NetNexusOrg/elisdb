@@ -97,7 +97,7 @@ rsync -az \
 # Back up the running server before the new image runs its startup migrations.
 if ssh "$HOST" "cd '$TARGET' && docker compose ps --status running -q elisdb-server | grep -q ."; then
   echo "A criar backup pré-deploy..."
-  ssh "$HOST" "cd '$TARGET' && docker compose exec -T elisdb-server python -m app.backup create /app/data/backups/pre-deploy-$(date +%s)"
+  ssh "$HOST" "cd '$TARGET' && docker compose exec -T elisdb-server python -m elisdb.backup create /app/data/backups/pre-deploy-$(date +%s)"
 else
   echo "Sem contentor em execução: backup pré-deploy ignorado (primeiro deploy)."
 fi

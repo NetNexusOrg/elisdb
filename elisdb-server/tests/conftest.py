@@ -1,7 +1,7 @@
 """Shared test fixtures: a temp-dir database, an issued key, and a signing client.
 
 The ElisDB server is normally Docker-only; these tests exercise the real modules
-directly. Importing ``app.main`` has module-level side effects (it builds the
+directly. Importing ``elisdb.main`` has module-level side effects (it builds the
 default Database), so the environment is pointed at a throwaway temp directory
 before that import happens.
 """
@@ -13,7 +13,7 @@ import time
 
 import pytest
 
-# Point the module-level Database away from the repo before importing app.main.
+# Point the module-level Database away from the repo before importing elisdb.main.
 _TMP = tempfile.mkdtemp(prefix="elisdb-tests-")
 os.environ.setdefault("ELISDB_DB", os.path.join(_TMP, "import.db"))
 os.environ.setdefault("ELISDB_PHOTOS", os.path.join(_TMP, "import-photos"))
@@ -29,8 +29,8 @@ from cryptography.hazmat.primitives.serialization import (  # noqa: E402
 )
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import auth  # noqa: E402
-from app.database import Database  # noqa: E402
+from elisdb import auth  # noqa: E402
+from elisdb.database import Database  # noqa: E402
 
 
 def make_key() -> tuple[Ed25519PrivateKey, str, str]:
@@ -92,7 +92,7 @@ class SigningClient:
 @pytest.fixture
 def server(tmp_path):
     """A fresh app + database + issued key, exposed through a SigningClient."""
-    from app.main import create_app
+    from elisdb.main import create_app
 
     db = Database(str(tmp_path / "elisdb.db"), fotos_dir=str(tmp_path / "photos"))
     db.init()

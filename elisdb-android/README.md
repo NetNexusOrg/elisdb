@@ -25,7 +25,7 @@ O APK sai em `app/build/outputs/apk/release/app-release.apk`.
 
 Para sincronizar, importa a credencial do utilizador no ecrã **Configuração**:
 1. No servidor (pasta `elisdb-server/`):
-   `docker compose exec elisdb-server python -m app.keys issue <nome> --server-url <URL>`
+   `docker compose exec elisdb-server python -m elisdb.keys issue <nome> --server-url <URL>`
    (cria o `<nome>.config.json`).
 2. Na app: menu (⋮) → **Configuração** → **Importar credencial do utilizador** → escolhe o
    ficheiro e carrega em **Sincronizar** (a app também sincroniza ao abrir e ao

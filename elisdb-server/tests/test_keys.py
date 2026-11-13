@@ -3,8 +3,8 @@
 import json
 import os
 
-from app import keys
-from app.database import Database
+from elisdb import keys
+from elisdb.database import Database
 
 
 def _db(tmp_path) -> Database:

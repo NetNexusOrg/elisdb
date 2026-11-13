@@ -15,8 +15,8 @@ Each test pins one of the failures that could lose or hide data:
 import os
 import sqlite3
 
-from app.database import Database
-from app.models import ClienteIn, FotoIn
+from elisdb.database import Database
+from elisdb.models import ClienteIn, FotoIn
 
 LEGACY_SCHEMA = """
 CREATE TABLE clientes (

@@ -44,7 +44,7 @@ def test_instance_id_is_stable_and_latest_exposes_limits(server):
     assert latest.json()["max_push_records"] == 200
 
     # Opening the same database again (a restart) keeps the identity.
-    from app.database import Database
+    from elisdb.database import Database
 
     reopened = Database(db.db_path, fotos_dir=db.fotos_dir)
     reopened.init()
@@ -52,7 +52,7 @@ def test_instance_id_is_stable_and_latest_exposes_limits(server):
 
 
 def test_instance_id_changes_for_a_new_database(tmp_path):
-    from app.database import Database
+    from elisdb.database import Database
 
     first = Database(str(tmp_path / "first.db"), fotos_dir=str(tmp_path / "photos-1"))
     second = Database(str(tmp_path / "second.db"), fotos_dir=str(tmp_path / "photos-2"))
@@ -203,8 +203,8 @@ def test_photo_quota_rejects_before_writing_the_file(tmp_path, monkeypatch):
 def test_periodic_gc_removes_an_orphan_without_a_push(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
-    from app.database import Database
-    from app.main import create_app
+    from elisdb.database import Database
+    from elisdb.main import create_app
 
     monkeypatch.setenv("ELISDB_PHOTO_GC_INTERVAL_SECONDS", "1")
     db = Database(str(tmp_path / "gc.db"), fotos_dir=str(tmp_path / "photos"))
@@ -248,21 +248,21 @@ def test_push_with_invalid_photo_mime_is_rejected(server):
 
 def test_oversized_photo_is_rejected_with_413(server, monkeypatch):
     client, _db = server
-    monkeypatch.setattr("app.main.MAX_PHOTO_BYTES", 100)
+    monkeypatch.setattr("elisdb.main.MAX_PHOTO_BYTES", 100)
     response = client.put("/api/photos/big", b"x" * 200)
     assert response.status_code == 413
 
 
 def test_oversized_push_body_is_rejected_before_parsing(server, monkeypatch):
     client, _db = server
-    monkeypatch.setattr("app.main.MAX_PUSH_BYTES", 100)
+    monkeypatch.setattr("elisdb.main.MAX_PUSH_BYTES", 100)
     response = client.post("/api/push", b"x" * 200)
     assert response.status_code == 413
 
 
 def test_oversized_chunked_push_body_is_rejected(server, monkeypatch):
     client, _db = server
-    monkeypatch.setattr("app.main.MAX_PUSH_BYTES", 100)
+    monkeypatch.setattr("elisdb.main.MAX_PUSH_BYTES", 100)
 
     def chunks():
         yield b"x" * 80
@@ -321,8 +321,8 @@ def test_client_history_records_the_actor(server):
 def test_rate_limit_returns_429(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
-    from app.database import Database
-    from app.main import create_app
+    from elisdb.database import Database
+    from elisdb.main import create_app
 
     from conftest import SigningClient, make_key
 
@@ -596,8 +596,8 @@ def _fresh_server(tmp_path, monkeypatch, **env):
     """Build an app with env overrides (read at create_app time)."""
     from fastapi.testclient import TestClient
 
-    from app.database import Database
-    from app.main import create_app
+    from elisdb.database import Database
+    from elisdb.main import create_app
 
     from conftest import SigningClient, make_key
 
@@ -685,9 +685,9 @@ def test_x_forwarded_for_is_ignored_without_trust_proxy(tmp_path, monkeypatch):
 
 
 def test_startup_applies_configured_retention(tmp_path, monkeypatch):
-    from app.database import Database, connect
-    from app.main import create_app
-    from app.models import ClienteIn
+    from elisdb.database import Database, connect
+    from elisdb.main import create_app
+    from elisdb.models import ClienteIn
 
     from conftest import make_key
 

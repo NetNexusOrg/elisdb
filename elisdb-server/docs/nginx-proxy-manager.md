@@ -148,7 +148,7 @@ estão todos a funcionar em cadeia.
 Agora usas o domínio HTTPS como URL do servidor. No repositório `elisdb-server/`:
 
 ```bash
-docker compose exec elisdb-server python -m app.keys issue <nome-do-utilizador> --server-url https://db.exemplo.com
+docker compose exec elisdb-server python -m elisdb.keys issue <nome-do-utilizador> --server-url https://db.exemplo.com
 ```
 
 Isto cria o `<nome>.config.json` com o URL `https://db.exemplo.com`. Copia-o do

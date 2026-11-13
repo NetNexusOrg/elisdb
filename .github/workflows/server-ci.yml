@@ -87,4 +87,4 @@ jobs:
             --env ELISDB_DB=/tmp/ci.db \
             --env ELISDB_PHOTOS=/tmp/ci-photos \
             elisdb-server:ci \
-            -c "import app.main, app.auth, app.database, app.ratelimit, app.updates; print('imports ok')"
+            -c "import elisdb.main, elisdb.auth, elisdb.database, elisdb.ratelimit, elisdb.updates; print('imports ok')"

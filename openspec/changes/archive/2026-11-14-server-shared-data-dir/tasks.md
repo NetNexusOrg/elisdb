@@ -46,13 +46,13 @@
 
 - [x] 8.1 `.venv/bin/python -m pytest -q` verde
 - [x] 8.2 `docker build` e confirmar que a imagem não contém `.env`/`configs/`
-- [ ] 8.3 Paridade manual: criar cliente/foto em local e em Docker sobre o mesmo `elisdb-data`, sem `chown`
+- [x] 8.3 Paridade manual: criar cliente/foto em local e em Docker sobre o mesmo `elisdb-data`, sem `chown`
 - [x] 8.4 `openspec validate server-shared-data-dir`
 
 ## 9. Migração da VPS (requer autorização)
 
-- [ ] 9.1 Backup verificado + cópia off-VPS de backup e `configs/`
-- [ ] 9.2 Parar contentor, `cp -a elisdb-data/configs/. configs/`, `chown -R 1001:1001 configs elisdb-data`
-- [ ] 9.3 Criar `.env`, trocar `compose.yaml` host-local, `docker compose config`, `up -d --build`
-- [ ] 9.4 Verificar `/health`, 527 clientes, 197 fotos, 21 tombstones, 7 chaves ativas, uma foto e `stat` 1001
-- [ ] 9.5 Remover o diretório legado `app/` da VPS (com confirmação)
+- [x] 9.1 Backup verificado + cópia off-VPS de backup e `configs/`
+- [x] 9.2 Parar contentor, `cp -a elisdb-data/configs/. configs/`, `chown -R 1001:1001 configs elisdb-data`
+- [x] 9.3 Criar `.env`, trocar `compose.yaml` host-local, `docker compose config`, `up -d --build`
+- [x] 9.4 Verificar `/health`, 527 clientes, 197 fotos, 21 tombstones, 7 chaves ativas, uma foto e `stat` 1001
+- [x] 9.5 Remover o diretório legado `app/` da VPS (com confirmação)

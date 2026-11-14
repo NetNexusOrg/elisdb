@@ -90,7 +90,8 @@ rsync -az \
   --exclude=.venv --exclude=__pycache__ --exclude='*.pyc' --exclude=.pytest_cache \
   --exclude=compose.yaml \
   --exclude='*.db' --exclude='*.db-*' --exclude='*.config.json' \
-  --exclude=photos/ --exclude=data/ --exclude='.env' --exclude='.env.*' \
+  --exclude=photos/ --exclude=data/ --exclude=elisdb-data/ --exclude=configs/ \
+  --exclude='.env' --exclude='.env.*' \
   --exclude='*.log' \
   elisdb-server/ "$HOST:$TARGET/"
 

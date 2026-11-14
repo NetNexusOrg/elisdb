@@ -16,23 +16,24 @@ WORKDIR /app
 
 COPY --from=build /install /usr/local
 
-# O drop de privilégios para PUID/PGID usa `setpriv`, que já vem com o
-# `util-linux` da imagem base (sem instalações adicionais).
+# Only the runtime pieces are copied: no tests, docs, configs, .env or data.
+COPY VERSION ./VERSION
+COPY elisdb ./elisdb
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-ENV ELISDB_DB=data/elisdb.db \
-    ELISDB_PHOTOS=data/photos \
-    ELISDB_VERSION=${VERSION} \
-    PUID=1000 \
-    PGID=1000
+# The container runs as PUID:PGID (set in compose), so it never needs root and
+# never writes root-owned files into the bind mounts.
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    ELISDB_DB=/app/data/elisdb.db \
+    ELISDB_PHOTOS=/app/data/photos \
+    ELISDB_CONFIGS_DIR=/app/data/configs \
+    ELISDB_APK_DIR=/app/data/apk/latest \
+    ELISDB_VERSION=${VERSION}
 
 EXPOSE 8000
 
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-COPY . .
-
-ENTRYPOINT ["docker-entrypoint.sh"]
+ENTRYPOINT ["entrypoint.sh"]
 # Single uvicorn worker: the anti-replay cache and the rate limiter are held
 # in-process, so running multiple workers would weaken replay protection and
 # make rate limits per-worker. Do NOT add `--workers`.

@@ -75,12 +75,12 @@ jobs:
 
       - name: Build image
         working-directory: elisdb-server
-        run: docker build --tag elisdb-server:ci .
+        run: docker build --file docker/Dockerfile --tag elisdb-server:ci .
 
       - name: Import the app inside the image
-        # The entrypoint is bypassed on purpose: it provisions users and drops
-        # privileges to PUID/PGID, which needs a mounted data directory. This
-        # only needs to prove that the image can import every runtime module.
+        # The entrypoint is bypassed on purpose: it creates the runtime
+        # directories and needs a writable data directory. This only needs to
+        # prove that the image can import every runtime module.
         run: |
           docker run --rm \
             --entrypoint python \

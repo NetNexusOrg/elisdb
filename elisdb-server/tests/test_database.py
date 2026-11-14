@@ -122,6 +122,36 @@ def test_gc_orphan_photos_removes_unreferenced(tmp_path):
     assert db.get_photo("orphan") is None
 
 
+def test_gc_orphan_photos_matches_container_paths_by_name(tmp_path):
+    db = _db(tmp_path)
+    db.write_photo("referenced", b"data")
+    db.save_client(_cliente(id="1"), [FotoIn(id="referenced", mime="image/jpeg")])
+
+    # A photo written inside the container and read by a local process: the
+    # stored path is absolute to /app/data, the file sits in the host dir.
+    conn = db._conn()
+    conn.execute(
+        "UPDATE fotos SET caminho = ? WHERE id = ?",
+        ("/app/data/photos/referenced", "referenced"),
+    )
+    conn.commit()
+    conn.close()
+
+    assert db.gc_orphan_photos() == 0
+    assert os.path.exists(os.path.join(db.fotos_dir, "referenced"))
+
+
+def test_gc_orphan_photos_never_wipes_a_foreign_layout(tmp_path):
+    db = _db(tmp_path)
+    db.write_photo("orphan", b"data")
+    db.save_client(_cliente(id="1"), [FotoIn(id="elsewhere", mime="image/jpeg")])
+
+    # No stored name matches anything on disk: the mounted layout is foreign,
+    # so the sweep must keep every file.
+    assert db.gc_orphan_photos() == 0
+    assert os.path.exists(os.path.join(db.fotos_dir, "orphan"))
+
+
 def test_photo_id_path_traversal_rejected(tmp_path):
     db = _db(tmp_path)
     with pytest.raises(ValueError):

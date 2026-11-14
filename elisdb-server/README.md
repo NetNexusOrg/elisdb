@@ -1,42 +1,35 @@
 # ElisDB Server
 
-O **servidor ElisDB** guarda os teus dados (clientes e fotos) e mantém a app
-Android sincronizada. Corre **apenas** em Docker (Docker-only).
+Servidor de sincronização do ElisDB: guarda os clientes e as fotos, com
+autenticação por chave ed25519, e serve a app Android.
 
 ## Início rápido
 
-Na pasta `elisdb-server/`:
-
 ```bash
+# com Docker
 docker compose up -d
-```
-
-Para o dia a dia há uma TUI sem dependências: `python start.py` (estado,
-arrancar/parar em Docker ou local, utilizadores, configuração) — ver
-[`docs/gestao-tui.md`](docs/gestao-tui.md).
-
-O servidor fica em `http://localhost:8000`. Confirma que está vivo:
-
-```bash
 curl http://localhost:8000/health
-# → {"status":"ok","version":"...","api_version":...}
+
+# TUI de operação (estado, arrancar/parar, utilizadores, configuração)
+python start.py
 ```
 
-Para ligar um telemóvel, emite a chave dele dentro do contentor:
+Emitir a chave de um telemóvel:
 
 ```bash
-docker compose exec elisdb-server python -m elisdb.keys issue <nome-do-utilizador> --server-url <URL-do-servidor>
+docker compose exec elisdb-server \
+  python -m elisdb.keys issue <nome> --server-url <URL>
 ```
 
-Isto cria o ficheiro `<nome>.config.json` — importa-o no ecrã **Configuração** da
-app e carrega em **Sincronizar** (a app também sincroniza ao abrir e ao guardar
-um cliente). Ver [Configuração](docs/configuracao.md).
+O ficheiro `configs/<nome>.config.json` aparece no host; importa-o na app.
 
 ## Documentação
 
-Guias práticos (instalação, execução, ligar telemóveis, resolução de problemas,
-[cópia de segurança e restauro](docs/backup.md)): [`docs/`](docs/index.md).
+Toda a documentação vive na raiz do repositório, em [`../docs/`](../docs/index.md):
 
-Antes de partilhares o servidor com outras pessoas, lê
-[Segurança e modelo de confiança](docs/seguranca.md): o dataset é partilhado e
-qualquer chave registada pode ler, editar e apagar todos os clientes e fotos.
+- [Instalar](../docs/usar/instalar-servidor.md) · [Ligar um telemóvel](../docs/usar/ligar-telemovel.md)
+- [Operar](../docs/operar/servidor.md) · [TUI](../docs/operar/tui.md) · [Configuração](../docs/operar/configuracao.md)
+- [Backups](../docs/operar/backup.md) · [Segurança](../docs/operar/seguranca.md) · [Problemas](../docs/operar/problemas.md)
+
+O dataset é partilhado: qualquer chave registada lê, edita e apaga todos os
+clientes. Antes de partilhares o servidor, lê [Segurança](../docs/operar/seguranca.md).

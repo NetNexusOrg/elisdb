@@ -1,5 +1,9 @@
 # Revisão do Sistema de Sincronização (sync-system-review)
 
+> **Documento histórico (agosto de 2026).** Retrato do sync nessa data, não a
+> especificação atual — para o comportamento atual vê
+> [Sincronização](../referencia/sincronizacao.md).
+
 - **Data da análise**: 2026-08-09
 - **Versões avaliadas**: código do repositório `elisdb` (app) e `elisdb-server`, no estado atual da branch de trabalho.
 - **Specs avaliadas**: `openspec/specs/client-sync`, `client-sync-state`, `server-sync`.

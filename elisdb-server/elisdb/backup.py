@@ -21,6 +21,7 @@ from pathlib import Path
 MANIFEST_NAME = "manifest.json"
 DB_NAME = "elisdb.db"
 PHOTOS_DIR = "photos"
+AUTO_PREFIX = "auto-"
 
 
 class BackupError(Exception):
@@ -210,6 +211,89 @@ def restore_backup(backup_dir: str, db_path: str, photos_dir: str) -> None:
         shutil.rmtree(staging, ignore_errors=True)
 
 
+def backup_name(now: float | None = None) -> str:
+    """Return the directory name used for an automatic backup."""
+    stamp = time.gmtime(time.time() if now is None else now)
+    return f"{AUTO_PREFIX}{time.strftime('%Y%m%d-%H%M%S', stamp)}"
+
+
+def list_backups(backup_dir: str | os.PathLike[str]) -> list[Path]:
+    """Return every valid backup under ``backup_dir``, oldest first."""
+    root = Path(backup_dir)
+    if not root.is_dir():
+        return []
+    found = [child for child in root.iterdir() if (child / MANIFEST_NAME).is_file()]
+    return sorted(found, key=lambda path: path.name)
+
+
+def summarize_backups(backup_dir: str | os.PathLike[str]) -> dict[str, object]:
+    """Describe the automatic backups for status screens."""
+    automatic = [
+        path
+        for path in list_backups(backup_dir)
+        if path.name.startswith(AUTO_PREFIX)
+    ]
+    newest = automatic[-1] if automatic else None
+    age = None
+    if newest is not None:
+        age = max(int(time.time() - newest.stat().st_mtime), 0)
+    return {
+        "dir": str(backup_dir),
+        "count": len(automatic),
+        "newest_auto": newest.name if newest else None,
+        "newest_auto_age_seconds": age,
+    }
+
+
+def prune_backups(
+    backup_dir: str | os.PathLike[str], keep: int, *, prefix: str = AUTO_PREFIX
+) -> list[Path]:
+    """Delete the oldest ``prefix`` backups, keeping ``keep`` of them.
+
+    ``keep <= 0`` disables pruning: a scheduled run never deletes every backup.
+    """
+    if keep < 0:
+        raise BackupError("retention cannot be negative")
+    if keep == 0:
+        return []
+    automatic = [
+        path for path in list_backups(backup_dir) if path.name.startswith(prefix)
+    ]
+    removed: list[Path] = []
+    for path in automatic[: max(len(automatic) - keep, 0)]:
+        shutil.rmtree(path)
+        removed.append(path)
+    return removed
+
+
+def estimate_backup_bytes(
+    db_path: str | os.PathLike[str], photos_dir: str | os.PathLike[str]
+) -> int:
+    """Estimate how much space a full backup needs (database plus photos)."""
+    database = Path(db_path)
+    total = database.stat().st_size if database.is_file() else 0
+    root = Path(photos_dir)
+    if root.is_dir():
+        for entry in root.iterdir():
+            if entry.is_file():
+                total += entry.stat().st_size
+    return total
+
+
+def free_space_bytes(path: str | os.PathLike[str]) -> int:
+    """Return the free bytes available on the filesystem that holds ``path``."""
+    return shutil.disk_usage(path).free
+
+
+def _default_backup_dir() -> str:
+    """Backup location used when no flag is given, matching the scheduler."""
+    configured = os.environ.get("ELISDB_BACKUP_DIR")
+    if configured:
+        return configured
+    db_path = os.environ.get("ELISDB_DB", "elisdb.db")
+    return str(Path(db_path).resolve().parent / "backups")
+
+
 def _main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="ElisDB backup/restore")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -227,6 +311,11 @@ def _main(argv: list[str]) -> int:
     restore.add_argument(
         "--photos", default=os.environ.get("ELISDB_PHOTOS", "photos")
     )
+    listing = sub.add_parser("list")
+    listing.add_argument("--dir", default=_default_backup_dir())
+    prune = sub.add_parser("prune")
+    prune.add_argument("--dir", default=_default_backup_dir())
+    prune.add_argument("--keep", type=int, default=3)
     args = parser.parse_args(argv)
     try:
         if args.command == "create":
@@ -235,9 +324,17 @@ def _main(argv: list[str]) -> int:
         elif args.command == "verify":
             manifest = verify_backup(args.backup_dir)
             print(f"backup ok: {len(manifest.get('photos', []))} photos")
-        else:
+        elif args.command == "restore":
             restore_backup(args.backup_dir, args.db, args.photos)
             print(f"backup restored: {args.backup_dir}")
+        elif args.command == "list":
+            for path in list_backups(args.dir):
+                print(path.name)
+        else:
+            removed = prune_backups(args.dir, args.keep)
+            for path in removed:
+                print(f"backup removed: {path.name}")
+            print(f"backup kept: {len(list_backups(args.dir))}")
     except BackupError as exc:
         print(f"backup error: {exc}", file=sys.stderr)
         return 1

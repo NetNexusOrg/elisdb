@@ -105,6 +105,9 @@ Então:
 | `ELISDB_TOMBSTONE_RETENTION_DAYS` | Apaga tombstones mais antigos que N dias (`0` desativa) | `0` (desativado) |
 | `ELISDB_AUDIT_RETENTION_DAYS` | Apaga entradas de auditoria mais antigas que N dias (`0` desativa) | `0` (desativado) |
 | `ELISDB_PHOTO_GC_INTERVAL_SECONDS` | Intervalo mínimo entre limpezas de fotos órfãs depois de um push | `3600` |
+| `ELISDB_BACKUP_INTERVAL_SECONDS` | Intervalo entre backups automáticos verificados (`0` desativa) | `86400` (diário) |
+| `ELISDB_BACKUP_RETENTION` | Quantos backups automáticos (`auto-*`) manter; os mais antigos são apagados | `3` |
+| `ELISDB_BACKUP_DIR` | Pasta onde os backups automáticos são escritos | `<data dir>/backups` |
 | `ELISDB_BIND_ADDRESS` | (só `compose.yaml`) Interface do host onde a porta 8000 é publicada. Por omissão só escuta em loopback; para expor na LAN define o IP explicitamente e usa TLS no proxy | `127.0.0.1` |
 
 Dentro do `compose.yaml`, as variáveis vêm do `.env` (copia `.env.example`).

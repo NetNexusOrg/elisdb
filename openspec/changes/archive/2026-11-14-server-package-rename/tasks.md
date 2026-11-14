@@ -30,6 +30,6 @@
 ## 5. Verificação
 
 - [x] 5.1 `python -m pytest` verde em `elisdb-server/`
-- [ ] 5.2 `docker build` conclui e `import elisdb.main` funciona na imagem
+- [x] 5.2 `docker build` conclui e `import elisdb.main` funciona na imagem
 - [x] 5.3 `grep -rn "app\\." elisdb-server` sem referências ao pacote antigo (exceto `/app/...`)
 - [x] 5.4 `openspec validate server-package-rename`

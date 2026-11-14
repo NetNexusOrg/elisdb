@@ -1,6 +1,8 @@
 services:
   elisdb-server:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     container_name: elisdb-server
     # Reinicia automaticamente após crash/reboot (mas não após `docker compose stop`).
     restart: unless-stopped
@@ -11,11 +13,18 @@ services:
       # ELISDB_BIND_ADDRESS=0.0.0.0 (de preferência com TLS/proxy à frente).
       # Com um proxy TLS à frente, mantém 127.0.0.1 (ver docs/nginx-proxy-manager.md).
       - "${ELISDB_BIND_ADDRESS:-127.0.0.1}:8000:8000"
+    # O contentor corre como o utilizador do host, nunca como root: o entrypoint
+    # só cria diretórios e falha cedo se não puder escrever. Os bind sources
+    # (`elisdb-data/` e `configs/`) têm de pertencer a PUID:PGID antes do `up`.
+    user: "${PUID:-1000}:${PGID:-1000}"
     volumes:
-      - elisdb-data:/app/data
+      # Dados: elisdb.db, photos/, apk/, backups/.
+      - "${ELISDB_DATA_DIR:-./elisdb-data}:/app/data"
+      # Configurações dos dispositivos (seeds privadas). Fica fora do data dir
+      # para o backup da BD/fotos não o arrastar e para ser legível na TUI.
+      - "./configs:/app/data/configs"
     # Impede que um processo dentro do contentor ganhe privilégios extra via
-    # setuid/setgid. O entrypoint continua a poder fazer chown como root antes
-    # de baixar para PUID/PGID.
+    # setuid/setgid.
     security_opt:
       - no-new-privileges:true
     # Limites de recursos e rotação de logs: um contentor comprometido ou com
@@ -30,23 +39,28 @@ services:
     environment:
       ELISDB_DB: /app/data/elisdb.db
       ELISDB_PHOTOS: /app/data/photos
+      ELISDB_CONFIGS_DIR: /app/data/configs
       # Pacote Android servido pela app (Sobre -> Procurar atualizações).
       # Copia o APK para .../elisdb-data/apk/latest/ com o nome
       # elisdb-<versionName>-<versionCode>.apk (ex.: elisdb-1.6.0-11.apk).
       ELISDB_APK_DIR: /app/data/apk/latest
-      # Utilizadores a provisionar no arranque (lista separada por vírgulas).
-      # Vazio por omissão: nenhuma conta é criada sem uma escolha explícita.
-      # Define, por exemplo, ELISDB_USERS=utilizador1,utilizador2 no teu .env/host.
-      ELISDB_USERS: "${ELISDB_USERS:-}"
-      # URL que os telemóveis usam para chegar ao servidor. Obrigatória apenas
-      # quando ELISDB_USERS não está vazio; sem ela o arranque falha com uma
-      # mensagem clara.
+      # URL que os telemóveis usam para chegar ao servidor. Só é exigida ao
+      # emitir uma chave (TUI ou `python -m elisdb.keys issue`).
       ELISDB_SERVER_URL: "${ELISDB_SERVER_URL:-}"
-      # Dono dos dados no arranque (chown feito pelo entrypoint).
-      # Ajusta ao teu utilizador do host se usares um bind mount.
-      PUID: "1000"
-      PGID: "1000"
-    # O servidor corre um único worker uvicorn (ver Dockerfile): o cache
+      ELISDB_LOG_LEVEL: "${ELISDB_LOG_LEVEL:-INFO}"
+      ELISDB_TRUST_PROXY: "${ELISDB_TRUST_PROXY:-false}"
+      ELISDB_MAX_PUSH_RECORDS: "${ELISDB_MAX_PUSH_RECORDS:-200}"
+      ELISDB_MAX_PUSH_BYTES: "${ELISDB_MAX_PUSH_BYTES:-67108864}"
+      ELISDB_MAX_PHOTOS_PER_CLIENT: "${ELISDB_MAX_PHOTOS_PER_CLIENT:-500}"
+      ELISDB_MAX_PHOTO_BYTES: "${ELISDB_MAX_PHOTO_BYTES:-20971520}"
+      ELISDB_MAX_PHOTO_BYTES_PER_KEY: "${ELISDB_MAX_PHOTO_BYTES_PER_KEY:-2147483648}"
+      ELISDB_MAX_PHOTO_BYTES_TOTAL: "${ELISDB_MAX_PHOTO_BYTES_TOTAL:-21474836480}"
+      ELISDB_RATE_LIMIT_REQUESTS: "${ELISDB_RATE_LIMIT_REQUESTS:-300}"
+      ELISDB_RATE_LIMIT_WINDOW_SECONDS: "${ELISDB_RATE_LIMIT_WINDOW_SECONDS:-60}"
+      ELISDB_TOMBSTONE_RETENTION_DAYS: "${ELISDB_TOMBSTONE_RETENTION_DAYS:-0}"
+      ELISDB_AUDIT_RETENTION_DAYS: "${ELISDB_AUDIT_RETENTION_DAYS:-0}"
+      ELISDB_PHOTO_GC_INTERVAL_SECONDS: "${ELISDB_PHOTO_GC_INTERVAL_SECONDS:-3600}"
+    # O servidor corre um único worker uvicorn (ver docker/Dockerfile): o cache
     # anti-replay e o rate limiter são em memória. Não escales com múltiplos
     # workers/réplicas sem um backend partilhado.
     #
@@ -58,6 +72,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-
-volumes:
-  elisdb-data:

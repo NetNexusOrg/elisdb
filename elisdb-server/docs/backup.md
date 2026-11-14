@@ -63,17 +63,18 @@ docker compose exec -T elisdb-server python -c \
   "import sqlite3; s=sqlite3.connect('/app/data/elisdb.db'); d=sqlite3.connect('/app/data/backup-elisdb.db'); s.backup(d); d.close(); s.close()"
 ```
 
-Depois copia a base de dados e as fotos para fora do contentor:
+Depois copia a base de dados e as fotos para fora do contentor — com bind mount
+basta ler os ficheiros no host:
 
 ```bash
-docker cp elisdb-server:/app/data/backup-elisdb.db ./backup-elisdb.db
-docker cp elisdb-server:/app/data/photos ./backup-photos
+cp elisdb-data/backup-elisdb.db ./backup-elisdb.db
+cp -a elisdb-data/photos ./backup-photos
 ```
 
-Por fim, remove o ficheiro temporário de dentro do contentor:
+Por fim, remove o ficheiro temporário:
 
 ```bash
-docker compose exec -T elisdb-server rm /app/data/backup-elisdb.db
+rm elisdb-data/backup-elisdb.db
 ```
 
 Guarda `backup-elisdb.db` e `backup-photos/` juntos, com a data no nome (por
@@ -86,8 +87,8 @@ servidor primeiro:
 
 ```bash
 docker compose stop elisdb-server
-docker cp elisdb-server:/app/data/elisdb.db ./backup-elisdb.db
-docker cp elisdb-server:/app/data/photos ./backup-photos
+cp elisdb-data/elisdb.db ./backup-elisdb.db
+cp -a elisdb-data/photos ./backup-photos
 docker compose start elisdb-server
 ```
 
@@ -99,15 +100,16 @@ docker compose start elisdb-server
    docker compose stop elisdb-server
    ```
 
-2. **Substitui a base de dados e as fotos** dentro do contentor:
+2. **Substitui a base de dados e as fotos** no host:
 
    ```bash
-   docker cp ./backup-elisdb.db elisdb-server:/app/data/elisdb.db
-   docker cp ./backup-photos/. elisdb-server:/app/data/photos/
+   cp ./backup-elisdb.db elisdb-data/elisdb.db
+   cp -a ./backup-photos/. elisdb-data/photos/
    ```
 
    O `/.` no fim copia o **conteúdo** da pasta, sem criar uma subpasta
-   `backup-photos` dentro de `photos/`.
+   `backup-photos` dentro de `photos/`. Ajusta o dono se necessário
+   (`sudo chown -R "$(id -u):$(id -g)" elisdb-data`).
 
 3. **Volta a subir o servidor** e confirma que responde:
 

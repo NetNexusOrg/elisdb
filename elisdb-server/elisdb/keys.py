@@ -23,6 +23,7 @@ import re
 import sys
 import time
 import uuid
+from urllib.parse import urlparse
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import (
@@ -37,6 +38,21 @@ from .database import Database
 
 def _database() -> Database:
     return Database(os.environ.get("ELISDB_DB", "elisdb.db"))
+
+
+def _configs_dir() -> str:
+    """Directory for issued configuration files.
+
+    ``ELISDB_CONFIGS_DIR`` wins; otherwise ``configs/`` next to the database.
+    Never the process CWD: in the container that is ``/app`` (read-only for the
+    unprivileged user), and on the host it would scatter seeds outside the
+    directory the operator expects.
+    """
+    explicit = os.environ.get("ELISDB_CONFIGS_DIR", "").strip()
+    if explicit:
+        return explicit
+    db_path = os.environ.get("ELISDB_DB", "elisdb.db")
+    return os.path.join(os.path.dirname(os.path.abspath(db_path)), "configs")
 
 
 _SAFE_CONFIG_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -61,6 +77,27 @@ def safe_config_path(configs_dir: str, name: str) -> str:
     if not confined:
         raise ValueError(f"configuration path escapes configs directory: {name!r}")
     return candidate
+
+
+def validate_server_url(server_url: str) -> None:
+    """Reject a missing, placeholder, or non-HTTP server URL.
+
+    Issuing a key for an address the phones cannot reach (or an operator forgot
+    to edit) only fails later on the device, so fail fast here instead.
+    """
+    if not server_url:
+        raise ValueError(
+            "a server URL is required (--server-url <url> or ELISDB_SERVER_URL)"
+        )
+    if "<" in server_url or ">" in server_url:
+        raise ValueError(
+            "ELISDB_SERVER_URL still contains a placeholder; set the real URL"
+        )
+    parsed = urlparse(server_url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise ValueError(
+            "ELISDB_SERVER_URL must be an absolute http:// or https:// URL"
+        )
 
 
 def generate() -> tuple[str, str]:
@@ -116,12 +153,14 @@ def issue_and_register(
 
     The private seed is written only to the owner-only configuration file. It is
     printed only when ``print_seed`` is explicitly true (the ``--print-seed``
-    CLI flag or an interactive confirmation), because provisioning runs at
-    container startup and its stdout ends up in container logs.
+    CLI flag or an interactive confirmation), because container stdout ends up
+    in logs.
     """
+    validate_server_url(server_url)
     seed_b64, public_b64, key_id = issue(user)
-    output_path = output or safe_config_path(os.getcwd(), user)
+    output_path = output or safe_config_path(_configs_dir(), user)
     config = {"server_url": server_url, "private_seed": seed_b64, "user_name": user}
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     # The config carries the private seed, so write it owner-only (0600) and
     # re-chmod in case the file already existed with looser permissions.
     fd = os.open(output_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -196,12 +235,10 @@ def _run_args(args: list[str], db: Database) -> int:
         return 2
 
     server_url = server_url or os.environ.get("ELISDB_SERVER_URL", "").strip()
-    if not server_url:
-        print(
-            "error: a server URL is required "
-            "(--server-url <url> or ELISDB_SERVER_URL)",
-            file=sys.stderr,
-        )
+    try:
+        validate_server_url(server_url)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
 
     try:
@@ -246,12 +283,10 @@ def _list_keys(db: Database) -> int:
 def _create_interactive(db: Database) -> int:
     env_url = os.environ.get("ELISDB_SERVER_URL", "").strip()
     server_url = _prompt("URL do servidor", default=env_url)
-    if not server_url:
-        print(
-            "error: a server URL is required "
-            "(--server-url <url> or ELISDB_SERVER_URL)",
-            file=sys.stderr,
-        )
+    try:
+        validate_server_url(server_url)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
     user = _prompt("Nome do utilizador")
     if not user:

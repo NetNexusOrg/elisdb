@@ -142,42 +142,18 @@ Dentro do contentor a pasta é `/app/data/apk/latest` (volume `elisdb-data`);
 com *bind mount* corresponde a `elisdb-data/apk/latest` no host. O caminho pode
 ser mudado com `ELISDB_APK_DIR`.
 
-## Provisionar utilizadores automaticamente
-
-Podes declarar os utilizadores no `compose.yaml` e o contentor cria as chaves
-no arranque, sem entrar no contentor:
-
-```yaml
-environment:
-  ELISDB_USERS: "maria,joao"      # lista separada por vírgulas
-  ELISDB_SERVER_URL: "http://192.168.1.10:8000"   # URL que os telemóveis usam
-```
-
-- No arranque, o contentor emite uma chave para cada utilizador que ainda não
-  tenha chave confiada (não reemite quem já tem — os telemóveis já ligados
-  continuam a funcionar).
-- Os ficheiros de configuração ficam em `/app/data/configs/` dentro do volume.
-  Recupera-os com:
-
-  ```bash
-  docker cp elisdb-server:/app/data/configs/maria.config.json .
-  ```
-
-  (ou monta `/app/data/configs` como *bind mount* para aparecerem no host) e
-  importa cada ficheiro na app — ver [Configuração](configuracao.md).
-
-- Se limpar `ELISDB_USERS` (ou definir vazio), todas as chaves
-  auto-provisionadas são revogadas no arranque seguinte — apenas quem estiver
-  na lista tem acesso. Chaves emitidas manualmente via CLI não são afetadas.
-
 ## Emitir a chave de um telemóvel
 
+Não há provisionamento automático: as chaves são emitidas explicitamente, uma a
+uma, e o ficheiro fica logo visível no host (bind mount `./configs`).
+
 ```bash
-docker compose exec elisdb-server python -m elisdb.keys issue <nome> --server-url http://<ip-do-host>:8000
+docker compose exec elisdb-server python -m elisdb.keys issue <nome> --server-url https://elisdb.exemplo.pt
 ```
 
-O ficheiro `<nome>.config.json` é escrito dentro do contentor; copia-o para a
-máquina e importa-o na app (ver [Configuração](configuracao.md)).
+O ficheiro `configs/<nome>.config.json` (0600, dono `PUID`) aparece na pasta do
+projeto; importa-o na app (ver [Configuração](configuracao.md)). O servidor
+arranca sem chaves se nenhuma tiver sido emitida.
 
 ## Logs e paragem
 

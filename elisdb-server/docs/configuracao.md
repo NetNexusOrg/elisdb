@@ -61,10 +61,11 @@ mesmo usado como comentário da chave na allowlist) e `private_seed` (a chave
 privada ed25519). A app mostra o `user_name` como utilizador associado assim que
 importa o ficheiro, sem consultar o servidor.
 
-O ficheiro é escrito dentro do contentor; copia-o para a tua máquina:
+O ficheiro é escrito em `configs/` no host (bind mount `./configs`), por isso
+aparece logo na pasta do projeto, com modo 0600:
 
 ```bash
-docker cp elisdb-server:/app/maria.config.json .
+ls -l configs/maria.config.json
 ```
 
 Então:
@@ -91,7 +92,8 @@ Então:
 | `ELISDB_DB`        | Caminho do ficheiro de dados (base de dados)      | `data/elisdb.db` |
 | `ELISDB_PHOTOS`    | Pasta para os ficheiros de fotos                   | `data/photos` ao lado da base de dados |
 | `ELISDB_SERVER_URL` | URL pelo qual a app alcança este servidor (usado por `elisdb.keys issue` quando não passas `--server-url`) | — (obrigatória para emitir) |
-| `ELISDB_USERS`     | Utilizadores a provisionar no arranque (lista separada por vírgulas). Se vazio ou ausente, todas as chaves auto-provisionadas são revogadas. | — |
+| `ELISDB_CONFIGS_DIR` | Pasta onde são escritos os `*.config.json` (no contentor: `/app/data/configs`) | `configs/` ao lado da base de dados |
+| `ELISDB_DATA_DIR` | (só `compose.yaml`) Pasta do host montada em `/app/data` | `./elisdb-data` |
 | `ELISDB_MAX_PUSH_RECORDS` | Máximo de registos num único `POST /api/push`; acima disto responde `422` | `200` |
 | `ELISDB_MAX_PHOTOS_PER_CLIENT` | Máximo de fotos referenciadas por cliente num push; acima disto responde `422` | `500` |
 | `ELISDB_MAX_PHOTO_BYTES` | Tamanho máximo de cada upload de foto (bytes) | `20971520` (20 MiB) |
@@ -105,21 +107,20 @@ Então:
 | `ELISDB_PHOTO_GC_INTERVAL_SECONDS` | Intervalo mínimo entre limpezas de fotos órfãs depois de um push | `3600` |
 | `ELISDB_BIND_ADDRESS` | (só `compose.yaml`) Interface do host onde a porta 8000 é publicada. Por omissão só escuta em loopback; para expor na LAN define o IP explicitamente e usa TLS no proxy | `127.0.0.1` |
 
-Dentro do `compose.yaml`, as variáveis vão na secção `environment`. Exemplo:
+Dentro do `compose.yaml`, as variáveis vêm do `.env` (copia `.env.example`).
+Exemplo:
 
-```yaml
-environment:
-  ELISDB_DB: /app/data/elisdb.db
-  ELISDB_PHOTOS: /app/data/photos
-  # Opcional: sem ELISDB_USERS não é criada nenhuma conta no arranque.
-  # ELISDB_USERS: "maria,joao"
-  # ELISDB_SERVER_URL: "https://elisdb.exemplo.pt"
+```dotenv
+ELISDB_DATA_DIR=./elisdb-data
+ELISDB_SERVER_URL=https://elisdb.exemplo.pt
+PUID=1000
+PGID=1000
+ELISDB_BIND_ADDRESS=127.0.0.1
 ```
 
-> Sem `ELISDB_USERS` e `ELISDB_SERVER_URL` o servidor arranca sem contas e sem
-> chaves; emite a primeira com `elisdb.keys issue`. O `compose.yaml` não traz
-> utilizadores nem URL de exemplo, e a porta fica publicada apenas em
-> `127.0.0.1` por omissão.
+> O servidor arranca sem contas e sem chaves; a primeira é emitida com
+> `elisdb.keys issue` (ou pela TUI). O `compose.yaml` não traz utilizadores nem
+> URL de exemplo, e a porta fica publicada apenas em `127.0.0.1` por omissão.
 
 > Usa sempre o mesmo valor de `ELISDB_DB` também nos comandos `elisdb.keys` — as
 > chaves registadas vivem nesse mesmo ficheiro de dados.

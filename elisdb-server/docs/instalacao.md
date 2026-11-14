@@ -37,8 +37,9 @@ docker compose up -d
 ```
 
 Isto constrói a imagem (na primeira vez) e sobe o contentor em segundo plano.
-Os dados ficam guardados num volume Docker (`elisdb-data`), que sobrevive a
-reinícios.
+Os dados ficam guardados em `./elisdb-data/` no host (bind mount), que sobrevive
+a reinícios e é acessível sem `docker cp`. As configurações emitidas ficam em
+`./configs/`.
 
 ## Passo 3 — verificar que ficou tudo certo
 
@@ -54,8 +55,12 @@ Se a resposta contiver `"status":"ok"`, o servidor está vivo e pronto.
 - O servidor **não vem com nenhuma chave pré-registada**: até emitires a chave
   de um telemóvel, os pedidos da app são recusados. Isso é normal — é a medida
   de segurança.
-- Os dados ficam guardados no volume `elisdb-data` (base de dados em
-  `/app/data/elisdb.db` dentro do contentor).
+- Os dados ficam guardados em `./elisdb-data/` no host (base de dados em
+  `elisdb-data/elisdb.db`), com dono `PUID:PGID`.
+- Antes do primeiro `up`, cria `elisdb-data/` e `configs/` e garante que
+  pertencem ao teu `uid:gid` (`mkdir -p elisdb-data configs`). O contentor corre
+  com esse utilizador e recusa arrancar se não puder escrever — nunca faz
+  `chown`.
 
 ## Passo seguinte
 

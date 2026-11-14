@@ -42,13 +42,13 @@ permite **atribuir** uma alteração a um ator, mas **não impede** que esse ato
 altere ou apague dados de outra pessoa. A auditoria é um registo de
 responsabilidade, não um controlo de acesso.
 
-## Segredos e provisionamento
+## Segredos e emissão de chaves
 
 A chave privada de cada telemóvel só existe no ficheiro `<nome>.config.json`,
-escrito com permissões `0600`. A emissão **não imprime a seed por omissão**,
-incluindo o provisionamento automático de `ELISDB_USERS`; usar `--print-seed` é
-uma escolha explícita para depuração local. Não copies seeds para logs, tickets
-ou capturas de ecrã.
+escrito com permissões `0600` em `configs/`. A emissão **não imprime a seed por
+omissão**; usar `--print-seed` é uma escolha explícita para depuração local. Não
+copies seeds para logs, tickets ou capturas de ecrã. Não existe provisionamento
+automático: nenhuma chave é criada ou revogada no arranque.
 
 Para rodar uma chave comprometida, remove-a da allowlist (menu de `elisdb.keys`,
 opção `3`), emite uma nova e importa o novo ficheiro no telemóvel. A chave antiga

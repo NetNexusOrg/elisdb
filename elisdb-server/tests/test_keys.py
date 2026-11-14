@@ -44,6 +44,19 @@ def test_issued_config_file_is_owner_only(tmp_path):
     assert os.stat(output).st_mode & 0o777 == 0o600
 
 
+def test_default_output_goes_to_the_configs_directory(tmp_path, monkeypatch):
+    """Without --output the file lands in ELISDB_CONFIGS_DIR, never the CWD."""
+    db = _db(tmp_path)
+    configs = tmp_path / "configs"
+    monkeypatch.setenv("ELISDB_CONFIGS_DIR", str(configs))
+
+    assert keys.issue_and_register(db, "maria", "https://db.example.com", None) == 0
+
+    output = configs / "maria.config.json"
+    assert output.is_file()
+    assert os.stat(output).st_mode & 0o777 == 0o600
+
+
 def test_issue_does_not_print_the_private_seed_by_default(tmp_path, capsys):
     db = _db(tmp_path)
     output = tmp_path / "maria.config.json"

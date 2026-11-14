@@ -54,5 +54,5 @@
 - [x] 5.2 `openspec validate add-scheduled-backups`.
 - [x] 5.3 Local Docker smoke: interval 60 s, confirm `auto-*` appears, restart
   and confirm no duplicate run inside the interval.
-- [ ] 5.4 VPS: deploy, set the interval in `.env`, confirm one automatic
+- [x] 5.4 VPS: deploy, set the interval in `.env`, confirm one automatic
   backup, retention across two runs, and that `pre-deploy-*` backups survive.

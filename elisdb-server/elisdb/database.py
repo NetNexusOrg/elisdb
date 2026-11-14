@@ -1156,6 +1156,13 @@ class Database:
         ``PUT /api/photos/{id}`` uploads that were never referenced by a push.
         Returns the number of files removed.
 
+        Photo files live directly in the managed photos directory and are
+        named after their photo id, so rows are matched by basename: the
+        ``caminho`` column may hold an absolute path recorded by another
+        instance (``/app/data/photos/<id>`` inside a container versus a host
+        path in local mode). Comparing full paths would make every row look
+        orphaned and delete the whole library.
+
         Only files inside the managed photos directory are considered, and
         temporary ``.tmp`` files are ignored. ``min_age_seconds`` skips files
         modified more recently than that: a periodic sweep can run while an
@@ -1167,22 +1174,29 @@ class Database:
         conn = self._conn()
         try:
             stored = {
-                os.path.abspath(row["caminho"])
+                os.path.basename(row["caminho"])
                 for row in conn.execute("SELECT caminho FROM fotos").fetchall()
             }
         finally:
             conn.close()
-        now = time.time()
-        removed = 0
-        for name in os.listdir(self.fotos_dir):
-            if name.endswith(".tmp"):
-                continue
-            path = os.path.join(self.fotos_dir, name)
+        names = [
+            name
+            for name in os.listdir(self.fotos_dir)
+            if not name.endswith(".tmp")
             # A subdirectory is not an orphaned photo; removing it would also
             # mean deleting a whole tree, which this pass must never do.
-            if not os.path.isfile(path):
-                continue
-            if path in stored:
+            and os.path.isfile(os.path.join(self.fotos_dir, name))
+        ]
+        if stored and names and not (set(names) & stored):
+            # The database references photos that are not in this directory at
+            # all: a different layout is mounted here. Deleting would destroy
+            # files this process cannot see, so leave everything alone.
+            return 0
+        now = time.time()
+        removed = 0
+        for name in names:
+            path = os.path.join(self.fotos_dir, name)
+            if name in stored:
                 continue
             if min_age_seconds > 0:
                 try:

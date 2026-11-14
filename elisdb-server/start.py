@@ -264,6 +264,22 @@ def print_status() -> None:
         f"{counts['tombstones']} tombstones"
     )
     print(f"Chaves         {counts['keys_active']} ativas / {counts['keys_total']} total")
+    backups = state["backups"]
+    newest = backups["newest_auto"]
+    if newest is None:
+        detail = "sem backups automáticos"
+    else:
+        age = backups["newest_auto_age_seconds"] or 0
+        if age >= 48 * 3600:
+            when = f"há {age // 86400} dias"
+        elif age >= 3600:
+            when = f"há {age // 3600} h"
+        else:
+            when = "há menos de 1 h"
+        detail = f"{newest} ({when})"
+    print(
+        f"Backups        {backups['count']} automáticos em {backups['dir']} · {detail}"
+    )
     health = state["health"]
     if health:
         print(f"Servidor       HTTP ok (versão {health.get('version', '?')}, porta {state['port']})")

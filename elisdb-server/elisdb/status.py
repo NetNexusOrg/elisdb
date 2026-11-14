@@ -15,6 +15,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from .backup import summarize_backups
+
 CONTAINER_NAME = "elisdb-server"
 PID_FILE = Path(".run") / "server.pid"
 DEFAULT_PORT = 8000
@@ -165,6 +167,7 @@ def collect(root: Path | None = None) -> dict:
         owner = f"{stat.st_uid}:{stat.st_gid}"
     except OSError:
         owner = None
+    backup_root = Path(os.environ.get("ELISDB_BACKUP_DIR") or (data / "backups"))
     snapshot = {
         "root": str(root),
         "mode": active_mode(root),
@@ -180,6 +183,7 @@ def collect(root: Path | None = None) -> dict:
             "apk": _dir_size(data / "apk"),
         },
         "counts": _counts(db_path),
+        "backups": summarize_backups(backup_root),
         "health": health(),
     }
     return snapshot

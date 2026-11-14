@@ -19,6 +19,17 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from . import auth, updates
+from .backup import (
+    AUTO_PREFIX,
+    BackupError,
+    backup_name,
+    create_backup,
+    estimate_backup_bytes,
+    free_space_bytes,
+    list_backups,
+    prune_backups,
+    verify_backup,
+)
 from .database import (
     Database,
     IdempotencyConflict,
@@ -122,6 +133,38 @@ def _env_bool(name: str, default: bool = False) -> bool:
 # pruning is indexed and runs synchronously but throttled to the same order of
 # magnitude. Startup still performs both unconditionally.
 PHOTO_GC_INTERVAL_SECONDS = 3600
+
+# Scheduled backups. Daily snapshots with a small retention window are enough to
+# recover from a mistake like the 2026-11-14 photo sweep while staying small
+# next to the 20 GiB photo quota; set the interval to 0 to turn them off.
+BACKUP_INTERVAL_SECONDS = 86400
+BACKUP_RETENTION = 3
+BACKUP_STARTUP_DELAY_SECONDS = 60.0
+BACKUP_MIN_FREE_BYTES = 64 * 1024 * 1024
+
+
+def should_run_backup(last: float | None, now: float, interval: int) -> bool:
+    """Whether a scheduled backup is due (pure so tests can drive the clock)."""
+    if interval <= 0:
+        return False
+    if last is None:
+        return True
+    return now - last >= interval
+
+
+def newest_auto_backup(backup_dir: Path) -> float | None:
+    """Modification time of the newest automatic backup, or None."""
+    newest: float | None = None
+    for path in list_backups(backup_dir):
+        if not path.name.startswith(AUTO_PREFIX):
+            continue
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
+        if newest is None or mtime > newest:
+            newest = mtime
+    return newest
 MAINTENANCE_INTERVAL_SECONDS = 3600
 # Periodic sweeps leave recently written files alone: a PUT upload may still be
 # waiting for the push that creates its fotos row.
@@ -331,6 +374,12 @@ def create_app(database: Database | None = None) -> FastAPI:
     max_photo_bytes_per_key = _env_int(
         "ELISDB_MAX_PHOTO_BYTES_PER_KEY", 2 * 1024**3
     )
+    backup_interval = _env_int("ELISDB_BACKUP_INTERVAL_SECONDS", BACKUP_INTERVAL_SECONDS)
+    backup_retention = _env_non_negative_int("ELISDB_BACKUP_RETENTION", BACKUP_RETENTION)
+    backup_dir = Path(
+        os.environ.get("ELISDB_BACKUP_DIR")
+        or Path(store.db_path).resolve().parent / "backups"
+    )
 
     app.state.store = store
     auth_dep = Depends(require_auth)
@@ -430,17 +479,74 @@ def create_app(database: Database | None = None) -> FastAPI:
             finally:
                 gc_lock.release()
 
+    backup_lock = threading.Lock()
+    backup_stop = threading.Event()
+
+    def _run_backup() -> None:
+        """Create, verify, and retain one automatic backup.
+
+        Verification matters more than creation: a backup nobody can restore is
+        not a backup, so a failure is logged and the directory is kept for
+        inspection instead of being pruned away.
+        """
+        if not backup_lock.acquire(blocking=False):
+            return
+        try:
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            estimated = estimate_backup_bytes(store.db_path, store.fotos_dir)
+            free = free_space_bytes(backup_dir)
+            needed = estimated * 2 + BACKUP_MIN_FREE_BYTES
+            if free < needed:
+                logger.warning(
+                    "skipping scheduled backup: %d bytes free, %d needed", free, needed
+                )
+                return
+            target = backup_dir / backup_name()
+            create_backup(store.db_path, store.fotos_dir, target)
+            verify_backup(target)
+            logger.info("scheduled backup created: %s", target.name)
+            if backup_retention > 0:
+                for path in prune_backups(backup_dir, backup_retention):
+                    logger.info("retention removed backup %s", path.name)
+        except Exception:
+            logger.exception("scheduled backup failed")
+        finally:
+            backup_lock.release()
+
+    def _backup_loop() -> None:
+        """Back up once per interval, waiting first so restarts stay cheap."""
+        last = newest_auto_backup(backup_dir)
+        if should_run_backup(last, time.time(), backup_interval):
+            delay = BACKUP_STARTUP_DELAY_SECONDS
+        else:
+            delay = max(
+                BACKUP_STARTUP_DELAY_SECONDS,
+                (last or 0.0) + backup_interval - time.time(),
+            )
+        while not backup_stop.wait(delay):
+            _run_backup()
+            delay = backup_interval
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        thread = threading.Thread(
-            target=_photo_gc_loop, name="elisdb-photo-gc", daemon=True
-        )
-        thread.start()
+        threads = [
+            threading.Thread(
+                target=_photo_gc_loop, name="elisdb-photo-gc", daemon=True
+            )
+        ]
+        if backup_interval > 0:
+            threads.append(
+                threading.Thread(target=_backup_loop, name="elisdb-backup", daemon=True)
+            )
+        for thread in threads:
+            thread.start()
         try:
             yield
         finally:
             photo_gc_stop.set()
-            thread.join(timeout=5)
+            backup_stop.set()
+            for thread in threads:
+                thread.join(timeout=5)
 
     # Assigned after the helper definitions above; routes are added below.
     app.router.lifespan_context = lifespan

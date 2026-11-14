@@ -60,6 +60,11 @@ services:
       ELISDB_TOMBSTONE_RETENTION_DAYS: "${ELISDB_TOMBSTONE_RETENTION_DAYS:-0}"
       ELISDB_AUDIT_RETENTION_DAYS: "${ELISDB_AUDIT_RETENTION_DAYS:-0}"
       ELISDB_PHOTO_GC_INTERVAL_SECONDS: "${ELISDB_PHOTO_GC_INTERVAL_SECONDS:-3600}"
+      # Backups automáticos verificados. `ELISDB_BACKUP_DIR` vazio usa
+      # <data dir>/backups; a retenção só apaga backups `auto-*`.
+      ELISDB_BACKUP_INTERVAL_SECONDS: "${ELISDB_BACKUP_INTERVAL_SECONDS:-86400}"
+      ELISDB_BACKUP_RETENTION: "${ELISDB_BACKUP_RETENTION:-3}"
+      ELISDB_BACKUP_DIR: "${ELISDB_BACKUP_DIR:-}"
     # O servidor corre um único worker uvicorn (ver docker/Dockerfile): o cache
     # anti-replay e o rate limiter são em memória. Não escales com múltiplos
     # workers/réplicas sem um backend partilhado.

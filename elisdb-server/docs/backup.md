@@ -40,18 +40,34 @@ chaves privadas.
 
 ## Backups automáticos
 
-Agenda a ferramenta integrada no anfitrião (cron ou systemd timer), fora do
-contentor. Exemplo diário às 03:00:
+O próprio servidor cria uma cópia automática **verificada** a cada
+`ELISDB_BACKUP_INTERVAL_SECONDS` (omissão: 24 h; `0` desativa). Cada cópia é
+escrita em `ELISDB_BACKUP_DIR` (omissão: `<data dir>/backups`, ou seja
+`elisdb-data/backups`) com o nome `auto-AAAAmmdd-HHMMSS`, e é aceite só depois de
+`verify` passar: se a verificação falhar, a pasta fica no disco para diagnóstico
+mas não conta como cópia válida.
 
-```cron
-0 3 * * * root cd /srv/elisdb && docker compose exec -T elisdb-server python -m elisdb.backup create /app/data/backups/$(date +\%Y\%m\%d) && docker compose exec -T elisdb-server python -m elisdb.backup verify /app/data/backups/$(date +\%Y\%m\%d)
+A retenção (`ELISDB_BACKUP_RETENTION`, omissão `3`) apaga apenas pastas `auto-*`.
+As cópias manuais (`pre-deploy-*`, `pre-migrate-*`, `2026-11-06`, …) nunca são
+tocadas. Antes de arrancar uma cópia o servidor confirma que há espaço livre para
+o dobro do tamanho atual mais 64 MiB; caso contrário regista um aviso e salta
+essa execução em vez de encher o disco.
+
+```bash
+# Listar as cópias existentes (automáticas e manuais)
+docker compose exec -T elisdb-server python -m elisdb.backup list
+
+# Aplicar a retenção agora (por omissão mantém 3 `auto-*`)
+docker compose exec -T elisdb-server python -m elisdb.backup prune --keep 3
 ```
 
-Copia as cópias para fora do volume (rsync/rclone para outro host) e define uma
-retenção explícita — por exemplo 7 diárias e 4 semanais. O `verify` faz parte da
-rotina: uma cópia que nunca foi verificada não conta como recuperável. O
-`scripts/deploy-server.sh` também cria uma cópia `pre-deploy-*` antes de cada
-atualização, quando o servidor está a correr.
+O ecrã **Status** da TUI mostra quantas cópias existem e qual é a mais recente.
+As cópias continuam a viver dentro do volume/bind mount: **copia-as para fora do
+servidor** (rsync/rclone) para protegeres-te da perda do próprio VPS.
+
+Se preferires agendar fora do servidor (por exemplo com cron), continua a poder
+usar-se a ferramenta integrada; nesse caso desliga o agendador interno com
+`ELISDB_BACKUP_INTERVAL_SECONDS=0` para não haver duas cópias à mesma hora.
 
 ## Fazer a cópia manualmente (servidor a correr)
 

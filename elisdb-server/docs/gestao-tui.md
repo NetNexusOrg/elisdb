@@ -24,8 +24,14 @@ python start.py
 
 Mostra o modo ativo (`docker`, `local` ou `parado`), o diretório de dados, o
 dono e se é gravável, os tamanhos de `elisdb.db`, `photos/`, `backups/` e `apk/`,
-as contagens de clientes, fotos e tombstones, as chaves ativas e o `/health`.
-Não escreve nada: lê a base de dados em modo `read-only`.
+as contagens de clientes, fotos e tombstones, as chaves ativas, quantos backups
+existem (e o mais recente) e o `/health`. Não escreve nada: lê a base de dados em
+modo `read-only`.
+
+Os backups automáticos são criados pelo próprio servidor
+(`ELISDB_BACKUP_INTERVAL_SECONDS`, omissão diária) e a retenção
+(`ELISDB_BACKUP_RETENTION`, omissão `3`) só apaga pastas `auto-*`. Ver
+[backup.md](backup.md).
 
 ### Iniciar
 

@@ -106,3 +106,36 @@ def test_safe_config_path_rejects_traversal_and_separators(tmp_path):
 def test_safe_config_path_accepts_a_plain_user_name(tmp_path):
     path = keys.safe_config_path(str(tmp_path), "maria-01")
     assert path == os.path.realpath(str(tmp_path / "maria-01.config.json"))
+
+
+def test_list_json_is_machine_readable(tmp_path, capsys):
+    db = _db(tmp_path)
+    keys.issue_and_register(db, "maria", "https://db.example.com", str(tmp_path / "m.json"))
+    capsys.readouterr()
+
+    assert keys._run_args(["list", "--json"], db) == 0
+
+    rows = json.loads(capsys.readouterr().out)
+    assert len(rows) == 1
+    assert rows[0]["comment"] == "maria"
+    assert rows[0]["revoked_at"] is None
+    assert set(rows[0]) >= {"id", "comment", "created_at", "revoked_at", "provisioned"}
+
+
+def test_revoke_by_id_soft_revokes_and_keeps_the_row(tmp_path, capsys):
+    db = _db(tmp_path)
+    keys.issue_and_register(db, "maria", "https://db.example.com", str(tmp_path / "m.json"))
+    key_id = db.list_keys()[0]["id"]
+
+    assert keys._run_args(["revoke", "--id", key_id], db) == 0
+
+    rows = db.list_keys()
+    assert rows[0]["revoked_at"] is not None
+    assert key_id in capsys.readouterr().out
+
+
+def test_revoke_by_unknown_id_fails(tmp_path, capsys):
+    db = _db(tmp_path)
+
+    assert keys._run_args(["revoke", "--id", "issue-nope"], db) == 1
+    assert "no active key" in capsys.readouterr().err

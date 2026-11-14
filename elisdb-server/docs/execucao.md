@@ -155,6 +155,12 @@ O ficheiro `configs/<nome>.config.json` (0600, dono `PUID`) aparece na pasta do
 projeto; importa-o na app (ver [Configuração](configuracao.md)). O servidor
 arranca sem chaves se nenhuma tiver sido emitida.
 
+## Gestão pela TUI
+
+Para operação corrente (arrancar/parar, ver estado, gerir utilizadores e editar
+configuração) usa `python start.py` — ver [Gestão do servidor (TUI)](gestao-tui.md).
+O arranque local e o Docker partilham o mesmo `elisdb-data/` e `configs/`.
+
 ## Logs e paragem
 
 ```bash

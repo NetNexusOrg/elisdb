@@ -34,6 +34,19 @@ Não escreve nada: lê a base de dados em modo `read-only`.
   O log vai para `.run/server.log` e o PID para `.run/server.pid`.
 - **Docker** — `docker compose up -d --build`.
 
+O modo local precisa das dependências do Python. O interpreter usado é, por
+ordem: `ELISDB_PYTHON`, `.venv/bin/python` (ou `.venv/Scripts/python.exe`) e, por
+último, o Python que executou o `start.py`. Recomendado, com
+[uv](https://docs.astral.sh/uv/):
+
+```bash
+uv venv .venv
+uv pip install -r requirements.txt
+```
+
+Alternativa sem uv: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`.
+Em produção usa o modo Docker — não é preciso instalar nada no host.
+
 Nunca corre os dois ao mesmo tempo: se um modo estiver ativo, o outro é recusado.
 Antes de arrancar, verifica que `elisdb-data/` e `configs/` pertencem ao teu
 uid/gid (o contentor corre com `PUID:PGID`) e que os diretórios são graváveis.

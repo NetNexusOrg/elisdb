@@ -106,3 +106,58 @@ def test_config_path_for_uses_configs_dir():
     path = start._config_path_for("maria")
 
     assert path == Path(start.ROOT) / "configs" / "maria.config.json"
+
+
+def test_config_file_for_searches_subdirs_and_ignores_archived(tmp_path, monkeypatch):
+    monkeypatch.setattr(start, "ROOT", tmp_path)
+    (tmp_path / "configs" / "2.0.0").mkdir(parents=True)
+    (tmp_path / "configs" / "_revogados").mkdir()
+    active = tmp_path / "configs" / "2.0.0" / "maria.config.json"
+    active.write_text("{}", encoding="utf-8")
+    (tmp_path / "configs" / "_revogados" / "maria.config.json").write_text(
+        "{}", encoding="utf-8"
+    )
+
+    assert start._config_file_for("maria") == active
+    assert start._config_file_for("joao") is None
+
+
+def test_local_pid_discards_a_stale_pid_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(start, "PID_FILE", tmp_path / "server.pid")
+    start.PID_FILE.write_text("999999", encoding="utf-8")
+
+    assert start._local_pid() is None
+    assert not start.PID_FILE.exists()
+
+
+def test_start_local_explains_a_missing_uvicorn(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(start, "ROOT", tmp_path)
+    monkeypatch.setattr(start, "_current_mode", lambda: "stopped")
+    monkeypatch.setattr(
+        start, "_server_env", lambda: {"ELISDB_DB": str(tmp_path / "data" / "elisdb.db")}
+    )
+
+    class Result:
+        returncode = 1
+
+    monkeypatch.setattr(start.subprocess, "run", lambda *args, **kwargs: Result())
+
+    assert start.start_local() == 1
+    out = capsys.readouterr().out
+    assert "uvicorn" in out
+    assert "Docker" in out
+
+
+
+def test_python_prefers_the_venv_and_the_env_override(tmp_path, monkeypatch):
+    monkeypatch.setattr(start, "ROOT", tmp_path)
+    monkeypatch.delenv("ELISDB_PYTHON", raising=False)
+    assert start._python() == start.sys.executable
+
+    venv = tmp_path / ".venv" / "bin" / "python"
+    venv.parent.mkdir(parents=True)
+    venv.write_text("", encoding="utf-8")
+    assert start._python() == str(venv)
+
+    monkeypatch.setenv("ELISDB_PYTHON", "/opt/python3")
+    assert start._python() == "/opt/python3"

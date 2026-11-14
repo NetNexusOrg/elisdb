@@ -210,14 +210,28 @@ def _wait_healthy(timeout: float = 15.0) -> bool:
     return False
 
 
+def _pid_is_server(pid: int) -> bool:
+    """True only when `pid` is alive and looks like our uvicorn process."""
+    proc = Path(f"/proc/{pid}/cmdline")
+    if proc.exists():
+        try:
+            return b"uvicorn" in proc.read_bytes()
+        except OSError:
+            return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True  # non-Linux: pid reuse is possible, assume alive
+
+
 def _local_pid() -> int | None:
     try:
         pid = int(PID_FILE.read_text(encoding="utf-8").strip())
     except (OSError, ValueError):
         return None
-    try:
-        os.kill(pid, 0)
-    except OSError:
+    if not _pid_is_server(pid):
+        PID_FILE.unlink(missing_ok=True)
         return None
     return pid
 
@@ -275,6 +289,31 @@ def human_size(value: int | None) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _python() -> str:
+    """Interpreter for local runs: ELISDB_PYTHON, .venv, then the current one."""
+    override = os.environ.get("ELISDB_PYTHON")
+    if override:
+        return override
+    candidates = (
+        ROOT / ".venv" / "bin" / "python",
+        ROOT / ".venv" / "Scripts" / "python.exe",
+    )
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+    return sys.executable
+
+
+def _install_hint(python: str) -> None:
+    print(f"error: {python} não tem o uvicorn instalado.")
+    print("       Cria um ambiente local (recomendado, com uv):")
+    print("         uv venv .venv && uv pip install -r requirements.txt")
+    print("       Ou com o venv da stdlib:")
+    print("         python3 -m venv .venv && .venv/bin/pip install -r requirements.txt")
+    print("       Depois volta a correr o menu.")
+    print("       Em produção usa o modo Docker (Iniciar -> Docker).")
+
+
 def start_local() -> int:
     mode = _current_mode()
     if mode in {"docker", "both"}:
@@ -295,13 +334,19 @@ def start_local() -> int:
         print(f"error: sem permissão de escrita; corre: sudo chown -R {uid}:{gid} {data} {configs}")
         return 1
 
+    python = _python()
+    probe = subprocess.run([python, "-c", "import uvicorn"], capture_output=True, text=True)
+    if probe.returncode != 0:
+        _install_hint(python)
+        return 1
+
     RUN_DIR.mkdir(exist_ok=True)
     port = status.port()
     log = RUN_DIR / "server.log"
     with log.open("ab") as handle:
         process = subprocess.Popen(
             [
-                sys.executable,
+                python,
                 "-m",
                 "uvicorn",
                 "elisdb.main:app",
@@ -386,7 +431,7 @@ def stop_server() -> int:
 def _keys_command(*args: str) -> list[str]:
     if _current_mode() in {"docker", "both"}:
         return _compose("exec", "-T", status.CONTAINER_NAME, "python", "-m", "elisdb.keys", *args)
-    return [sys.executable, "-m", "elisdb.keys", *args]
+    return [_python(), "-m", "elisdb.keys", *args]
 
 
 def _keys_env() -> dict[str, str] | None:
@@ -396,6 +441,18 @@ def _keys_env() -> dict[str, str] | None:
 
 def _keys_run(*args: str, capture: bool = False) -> subprocess.CompletedProcess:
     return _run(_keys_command(*args), capture=capture, env=_keys_env())
+
+
+def _config_file_for(user: str) -> Path | None:
+    """Most recent config file for `user`, ignoring archived ones in _revogados/."""
+    candidates = [
+        path
+        for path in (ROOT / "configs").rglob(f"{user}.config.json")
+        if "_revogados" not in path.parts
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
 def list_users(as_json: bool = False) -> int:
@@ -420,7 +477,7 @@ def list_users(as_json: bool = False) -> int:
     for user in sorted(by_user):
         entries = by_user[user]
         active = [k for k in entries if not k.get("revoked_at")]
-        file_state = "ficheiro ok" if (ROOT / "configs" / f"{user}.config.json").is_file() else "sem ficheiro"
+        file_state = "ficheiro ok" if _config_file_for(user) else "sem ficheiro"
         print(f"{user}: {len(active)} ativa(s) / {len(entries)} · {file_state}")
         for key in entries:
             state = "ativa" if not key.get("revoked_at") else "revogada"
@@ -437,7 +494,7 @@ def add_user(user: str, server_url: str | None = None) -> int:
     existing = _config_path_for(user)
     if existing.exists():
         suggestion = _config_path_for(f"{user}-2")
-        print(f"error: {existing} já existe; escolhe outro nome (ex.: {suggestion.stem})")
+        print(f"error: {existing} já existe; escolhe outro nome (ex.: {suggestion.name})")
         return 1
     url = server_url or read_env().get("ELISDB_SERVER_URL", "")
     if not url:

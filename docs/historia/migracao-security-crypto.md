@@ -1,5 +1,8 @@
 # Migração do security-crypto para Android Keystore
 
+> **Documento histórico.** Descreve a migração já concluída; não é um guia de
+> operação.
+
 ## Estado
 
 Implementada. O `androidx.security:security-crypto` deixou de ser usado para

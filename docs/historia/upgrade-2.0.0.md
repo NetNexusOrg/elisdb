@@ -1,5 +1,9 @@
 # Upgrade do servidor para 2.0.0 (vps01)
 
+> **Documento histórico (14/11/2026).** Registo do upgrade feito na vps01.
+> Alguns caminhos e comandos mudaram desde então — o estado atual está em
+> [Operar o servidor](../operar/servidor.md) e [Deploy](../operar/deploy.md).
+
 Runbook para atualizar o servidor da ElisDB na `vps01` para a versão mais
 recente, preservando a base de dados e as fotos existentes.
 

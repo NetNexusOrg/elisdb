@@ -6,12 +6,18 @@ on:
     paths:
       - "elisdb-server/**"
       - "elisdb-telegram-bot/**"
+      - "docs/**"
+      - "scripts/check-docs.py"
+      - "*.md"
       - ".github/workflows/server-ci.yml"
   pull_request:
     branches: [main]
     paths:
       - "elisdb-server/**"
       - "elisdb-telegram-bot/**"
+      - "docs/**"
+      - "scripts/check-docs.py"
+      - "*.md"
       - ".github/workflows/server-ci.yml"
   workflow_dispatch:
 
@@ -61,6 +67,11 @@ jobs:
       - name: Run telegram bot tests
         working-directory: elisdb-telegram-bot
         run: python -m pytest
+
+      # Documentation is the operator manual: a dead link sends someone down a
+      # blind alley, and the script is stdlib only, so this costs a second.
+      - name: Check documentation links
+        run: python scripts/check-docs.py
 
   docker:
     # The server only reaches production as a container, so a dependency missing

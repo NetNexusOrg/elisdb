@@ -1,47 +1,75 @@
 # ElisDB
 
-Sistema de gestão de clientes **offline-first** para Android: uma app no
-telemóvel que cria e edita clientes, tira fotos e marca localizações — e um
-servidor que guarda os dados e mantém tudo sincronizado entre dispositivos.
+[![Android CI](https://github.com/NetNexusOrg/elisdb/actions/workflows/android-ci.yml/badge.svg)](https://github.com/NetNexusOrg/elisdb/actions/workflows/android-ci.yml)
+[![Server CI](https://github.com/NetNexusOrg/elisdb/actions/workflows/server-ci.yml/badge.svg)](https://github.com/NetNexusOrg/elisdb/actions/workflows/server-ci.yml)
+[![Release](https://img.shields.io/github/v/release/NetNexusOrg/elisdb)](https://github.com/NetNexusOrg/elisdb/releases)
 
-Funciona mesmo sem servidor; quando o servidor está acessível, a app
-sincroniza ao abrir, ao guardar um cliente e no botão **Sincronizar**.
+Gestão de clientes **offline-first** para Android: uma app que cria e edita
+clientes, tira fotos e marca localizações no mapa — e um servidor próprio que
+guarda tudo e sincroniza entre telemóveis.
 
-## De que é feito o projeto
+A app funciona sozinha, sem servidor. Quando há servidor configurado, sincroniza
+ao abrir, ao guardar um cliente e no botão **Sincronizar**.
 
-| Diretório       | O que é                                     | Como começar                                             |
-|-----------------|---------------------------------------------|----------------------------------------------------------|
-| `elisdb-android/` | A app para o telemóvel (Kotlin + Compose)   | [Documentação da app](elisdb-android/docs/index.md)      |
-| `elisdb-server/`  | O servidor de dados (Python + FastAPI)      | [Documentação do servidor](elisdb-server/docs/index.md)  |
-| `openspec/`       | Especificações e histórico de mudanças      | _(apenas para quem desenvolve o projeto)_                |
+## Começar em 3 passos
 
-## Como usar (visão geral)
-
-1. **Instala e corre o servidor** — guia em [`elisdb-server/docs/`](elisdb-server/docs/index.md).
-2. **Emite a chave de um telemóvel** no servidor:
+1. **Subir o servidor** (Docker):
    ```bash
-   docker compose exec elisdb-server python -m elisdb.keys issue <nome> --server-url <URL-do-servidor>
+   cd elisdb-server
+   mkdir -p elisdb-data configs
+   docker compose up -d
+   curl http://localhost:8000/health
    ```
-3. **Importa** o `<nome>.config.json` no ecrã **Configuração** da app e carrega em **Sincronizar**.
+2. **Emitir a chave de um telemóvel**:
+   ```bash
+   docker compose exec elisdb-server \
+     python -m elisdb.keys issue maria --server-url http://192.168.1.10:8000
+   ```
+   Gera `configs/maria.config.json`.
+3. **Importar na app:** menu (⋮) → **Configuração** → **Importar credencial do
+   utilizador** → **Sincronizar**.
 
-Tudo isto está explicado passo a passo na [utilização da app](elisdb-android/docs/uso.md).
+Guia completo: [ligar um telemóvel](docs/usar/ligar-telemovel.md).
+
+## O que está aqui
+
+| Diretório | O que é |
+|---|---|
+| `elisdb-android/` | App Android — Kotlin, Jetpack Compose, Room, Ktor, MapLibre |
+| `elisdb-server/` | Servidor — Python, FastAPI, SQLite, autenticação ed25519 |
+| `elisdb-telegram-bot/` | Bot que anuncia releases no Telegram |
+| `docs/` | Toda a documentação de utilização e operação |
+| `openspec/` | Especificações e histórico de mudanças |
 
 ## Documentação
 
-- **App Android:** [`elisdb-android/README.md`](elisdb-android/README.md) e guias em [`elisdb-android/docs/`](elisdb-android/docs/index.md).
-- **Servidor:** [`elisdb-server/README.md`](elisdb-server/README.md) e guias em [`elisdb-server/docs/`](elisdb-server/docs/index.md).
-- **Cópias de segurança do servidor:** [backup e restauro](elisdb-server/docs/backup.md).
-- **Segurança do servidor:** [modelo de confiança e autorização](elisdb-server/docs/seguranca.md).
+- **[Mapa da documentação](docs/index.md)** — começa aqui.
+- Utilizar: [instalar o servidor](docs/usar/instalar-servidor.md) ·
+  [ligar um telemóvel](docs/usar/ligar-telemovel.md) ·
+  [usar a app](docs/usar/app.md)
+- Operar: [servidor](docs/operar/servidor.md) ·
+  [configuração](docs/operar/configuracao.md) ·
+  [backups](docs/operar/backup.md) ·
+  [segurança](docs/operar/seguranca.md) ·
+  [problemas](docs/operar/problemas.md)
+- Referência: [API](docs/referencia/api.md) ·
+  [sincronização](docs/referencia/sincronizacao.md)
+- Desenvolver: [app](docs/desenvolver/app.md) ·
+  [assinatura](docs/desenvolver/assinatura.md) ·
+  [deploy](docs/operar/deploy.md)
 
 ## Desenvolvimento
 
-O desenvolvimento é assistido por IA (OpenCode + OpenSpec) e gerido por Git/GitHub.
+```bash
+cd elisdb-android && ./gradlew :app:testDebugUnitTest   # testes da app
+cd elisdb-server && .venv/bin/python -m pytest          # testes do servidor
+```
 
-- **Regras do projeto:** [`AGENTS.md`](AGENTS.md) (regras gerais) e skills em `.opencode/skills/` (contexto técnico por área).
-- **Especificações:** alterações significativas começam por uma OpenSpec change (`openspec/`); o contexto do projeto está em [`openspec/config.yaml`](openspec/config.yaml).
-- **Build e testes:**
-  ```bash
-  cd elisdb-android && ./gradlew :app:testDebugUnitTest   # testes unitários
-  ```
-- **Release:** o CI (`.github/workflows/android-ci.yml`) constrói o APK
-  assinado e cria a GitHub Release ao fazer push de uma tag `vX.Y.Z`.
+- Regras do projeto: [`AGENTS.md`](AGENTS.md) e skills em `.opencode/skills/`.
+- Alterações significativas começam por uma OpenSpec change (`openspec/`).
+- Releases: tag `vX.Y.Z` → CI constrói o APK, cria a GitHub Release e publica no
+  servidor ([detalhes](docs/operar/publicar-app.md)).
+
+## Licença
+
+[MIT](LICENSE).

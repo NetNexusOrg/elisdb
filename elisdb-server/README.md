@@ -11,6 +11,10 @@ Na pasta `elisdb-server/`:
 docker compose up -d
 ```
 
+Para o dia a dia há uma TUI sem dependências: `python start.py` (estado,
+arrancar/parar em Docker ou local, utilizadores, configuração) — ver
+[`docs/gestao-tui.md`](docs/gestao-tui.md).
+
 O servidor fica em `http://localhost:8000`. Confirma que está vivo:
 
 ```bash

@@ -1728,3 +1728,15 @@ class Database:
                 return cursor.rowcount
         finally:
             conn.close()
+    def revoke_key(self, key_id: str, now: int | None = None) -> int:
+        """Revokes one active key by id, returning 1 when it changed and 0 otherwise."""
+        conn = self._conn()
+        try:
+            with conn:
+                cursor = conn.execute(
+                    "UPDATE keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
+                    (int(now if now is not None else time.time()), key_id),
+                )
+                return cursor.rowcount
+        finally:
+            conn.close()

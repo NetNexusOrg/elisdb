@@ -136,7 +136,15 @@ def _usage() -> None:
         file=sys.stderr,
     )
     print(
+        "       python -m elisdb.keys list [--json]",
+        file=sys.stderr,
+    )
+    print(
         "       python -m elisdb.keys revoke <user-name>",
+        file=sys.stderr,
+    )
+    print(
+        "       python -m elisdb.keys revoke --id <key-id>",
         file=sys.stderr,
     )
 
@@ -183,10 +191,43 @@ def _run_args(args: list[str], db: Database) -> int:
         _usage()
         return 2
     command = args[0]
+    if command == "list":
+        rows = db.list_keys()
+        if "--json" in args[1:]:
+            payload = [
+                {
+                    "id": row["id"],
+                    "comment": row.get("comment") or "",
+                    "created_at": row.get("created_at"),
+                    "revoked_at": row.get("revoked_at"),
+                    "provisioned": bool(row.get("provisioned")),
+                }
+                for row in rows
+            ]
+            print(json.dumps(payload, indent=2))
+            return 0
+        if not rows:
+            print("nenhuma chave confiada")
+            return 0
+        print(f"{len(rows)} chave(s) confiada(s):")
+        for row in rows:
+            _print_key(row)
+        return 0
     if command == "revoke":
+        if len(args) >= 3 and args[1] in ("--id", "-i"):
+            key_id = args[2].strip()
+            if not key_id:
+                print("error: --id requires a key id", file=sys.stderr)
+                return 2
+            changed = db.revoke_key(key_id)
+            if not changed:
+                print(f"no active key with id '{key_id}'", file=sys.stderr)
+                return 1
+            print(f"revoked key '{key_id}'")
+            return 0
         if len(args) != 2 or not args[1].strip() or args[1].startswith("--"):
             print(
-                "error: exactly one user name is required to revoke keys",
+                "error: exactly one user name or --id <key-id> is required to revoke",
                 file=sys.stderr,
             )
             return 2

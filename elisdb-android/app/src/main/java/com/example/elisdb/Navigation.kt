@@ -82,6 +82,7 @@ private fun MainDestinations(container: AppContainer) {
       entryProvider {
         entry<ClientList> {
           val container = rememberAppContainer()
+          val settings by container.settings.collectAsStateWithLifecycle()
           ClientListScreen(
             viewModel =
               viewModel {
@@ -90,6 +91,7 @@ private fun MainDestinations(container: AppContainer) {
                   viewPreferences = container.clientViewPreferences,
                 )
               },
+            userName = settings.userName,
             onClienteClick = { id -> backStack.add(ClientDetail(id)) },
             onAddClick = { backStack.add(ClientForm()) },
             onConfigClick = { backStack.add(Config) },

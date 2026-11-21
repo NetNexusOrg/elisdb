@@ -2,6 +2,7 @@ package com.example.elisdb.ui.cliente
 
 import android.net.Uri
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -335,8 +336,10 @@ class ClientListScreenTest {
 
   @Test
   fun topbar_mostraMenuEAcoes() {
-    setListContent(clientes)
-    composeTestRule.onNodeWithText("Clientes").assertExists()
+    setListContent(clientes, userName = "Ricardo")
+    composeTestRule
+      .onNodeWithTag("topbar_greeting")
+      .assertTextContains("Ricardo", substring = true)
     composeTestRule.onNodeWithContentDescription("Ver mapa de clientes").assertExists()
     composeTestRule.onNodeWithContentDescription("Mais opções").assertExists()
     composeTestRule.onNodeWithContentDescription("Mais opções").performClick()
@@ -388,6 +391,7 @@ class ClientListScreenTest {
   private fun setListContent(
     clientes: List<ClienteComFotos>,
     onMapClick: () -> Unit = {},
+    userName: String = "",
   ) {
     val repository = FakeListRepository(clientes)
     val viewModel = ClientListViewModel(repository)
@@ -395,6 +399,7 @@ class ClientListScreenTest {
       ElisdbTheme {
         ClientListScreen(
           viewModel = viewModel,
+          userName = userName,
           onClienteClick = {},
           onAddClick = {},
           onMapClick = onMapClick,

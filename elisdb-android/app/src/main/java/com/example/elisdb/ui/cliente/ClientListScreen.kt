@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,12 +62,41 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import java.io.File
+import java.util.Calendar
+import kotlinx.coroutines.delay
+
+private fun currentHour(): Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+
+/** Greeting for the current part of the day, optionally followed by the user name. */
+internal fun greetingFor(hour: Int, userName: String): String {
+  val greeting =
+    when (hour) {
+      in 5..11 -> "Bom dia"
+      in 12..19 -> "Boa tarde"
+      else -> "Boa noite"
+    }
+  val name = userName.trim()
+  return if (name.isEmpty()) greeting else "$greeting, $name"
+}
+
+@Composable
+private fun rememberGreeting(userName: String): String {
+  var hour by remember { mutableStateOf(currentHour()) }
+  LaunchedEffect(Unit) {
+    while (true) {
+      delay(60_000)
+      hour = currentHour()
+    }
+  }
+  return greetingFor(hour, userName)
+}
 
 @Composable
 fun ClientListScreen(
   viewModel: ClientListViewModel,
   onClienteClick: (String) -> Unit,
   onAddClick: () -> Unit,
+  userName: String = "",
   modifier: Modifier = Modifier,
   onConfigClick: () -> Unit = {},
   onAboutClick: () -> Unit = {},
@@ -75,6 +105,7 @@ fun ClientListScreen(
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   ClientListScreen(
     state = state,
+    userName = userName,
     onClienteClick = onClienteClick,
     onAddClick = onAddClick,
     onQueryChange = viewModel::onQueryChange,
@@ -93,6 +124,7 @@ fun ClientListScreen(
 @Composable
 internal fun ClientListScreen(
   state: ClientListUiState,
+  userName: String,
   onClienteClick: (String) -> Unit,
   onAddClick: () -> Unit,
   onQueryChange: (String) -> Unit,
@@ -110,7 +142,14 @@ internal fun ClientListScreen(
     topBar = {
       var menuOpen by remember { mutableStateOf(false) }
       TopAppBar(
-        title = { Text("Clientes") },
+        title = {
+          Text(
+            text = rememberGreeting(userName),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.testTag("topbar_greeting"),
+          )
+        },
         actions = {
           IconButton(onClick = onMapClick) {
             Icon(Icons.Outlined.Map, contentDescription = "Ver mapa de clientes")

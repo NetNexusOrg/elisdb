@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -305,7 +306,9 @@ private fun ClientDetailContent(
     }
 
     if (!cliente.notas.isNullOrBlank()) {
-      Text(cliente.notas, style = MaterialTheme.typography.bodyMedium)
+      SelectionContainer {
+        Text(cliente.notas, style = MaterialTheme.typography.bodyMedium)
+      }
     }
 
     if (data.fotos.isNotEmpty()) {

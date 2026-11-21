@@ -1,6 +1,7 @@
 package com.example.elisdb.ui.cliente
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,6 +25,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -34,9 +37,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
@@ -148,8 +154,32 @@ internal fun ClientListScreen(
           OutlinedTextField(
             value = state.query,
             onValueChange = onQueryChange,
-            placeholder = { Text("Pesquisar clientes…") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            placeholder = {
+              Text(
+                if (state.tagFiltro == null) "Pesquisar clientes…"
+                else "Pesquisar em ${state.tagFiltro}…"
+              )
+            },
+            leadingIcon = {
+              val tag = state.tagFiltro
+              if (tag == null) {
+                Icon(Icons.Default.Search, contentDescription = null)
+              } else {
+                InputChip(
+                  selected = true,
+                  onClick = { onTagFiltroChange(null) },
+                  label = { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                  trailingIcon = {
+                    Icon(
+                      Icons.Default.Close,
+                      contentDescription = "Limpar filtro de tag",
+                      modifier = Modifier.size(16.dp),
+                    )
+                  },
+                  modifier = Modifier.testTag("active_tag_filter").widthIn(max = 150.dp),
+                )
+              }
+            },
             trailingIcon = {
               Row(verticalAlignment = Alignment.CenterVertically) {
                 if (state.query.isNotEmpty()) {
@@ -157,118 +187,15 @@ internal fun ClientListScreen(
                     Icon(Icons.Default.Clear, contentDescription = "Limpar pesquisa")
                   }
                 }
-                var filtroOpen by remember { mutableStateOf(false) }
-                var estadoExpanded by remember { mutableStateOf(false) }
-                var tagsExpanded by remember { mutableStateOf(false) }
-                var ordemExpanded by remember { mutableStateOf(false) }
-                val closeFilters: () -> Unit = {
-                  filtroOpen = false
-                  estadoExpanded = false
-                  tagsExpanded = false
-                  ordemExpanded = false
-                }
-                Box {
-                  IconButton(onClick = { filtroOpen = true }) {
-                    Icon(
-                      Icons.Default.Tune,
-                      contentDescription = "Filtrar e ordenar",
-                      tint =
-                        if (state.filtro == ClientStatusFilter.ALL &&
-                          state.ordem == ClientSortOrder.NAME &&
-                          state.tagFiltro == null
-                        ) {
-                          MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                          MaterialTheme.colorScheme.primary
-                        },
-                    )
-                  }
-                  DropdownMenu(expanded = filtroOpen, onDismissRequest = closeFilters) {
-                    if (state.tagsDisponiveis.isNotEmpty()) {
-                      FilterSectionHeader("Tags", tagsExpanded) {
-                        tagsExpanded = !tagsExpanded
-                      }
-                      if (tagsExpanded) {
-                        DropdownMenuItem(
-                          text = { Text("Todas as tags") },
-                          onClick = {
-                            closeFilters()
-                            onTagFiltroChange(null)
-                          },
-                          modifier = Modifier.testTag("tag_filter_all"),
-                          leadingIcon = {
-                            if (state.tagFiltro == null) {
-                              Icon(Icons.Default.Check, contentDescription = null)
-                            } else {
-                              Spacer(Modifier.size(24.dp))
-                            }
-                          },
-                        )
-                        state.tagsDisponiveis.forEach { tag ->
-                          DropdownMenuItem(
-                            text = { Text(tag) },
-                            onClick = {
-                              closeFilters()
-                              onTagFiltroChange(tag)
-                            },
-                            modifier = Modifier.testTag("tag_filter_$tag"),
-                            leadingIcon = {
-                              if (state.tagFiltro == tag) {
-                                Icon(Icons.Default.Check, contentDescription = null)
-                              } else {
-                                Spacer(Modifier.size(24.dp))
-                              }
-                            },
-                          )
-                        }
-                      }
-                      HorizontalDivider()
-                    }
-                    FilterSectionHeader("Ordenação", ordemExpanded) {
-                      ordemExpanded = !ordemExpanded
-                    }
-                    if (ordemExpanded) {
-                      ClientSortOrder.entries.forEach { option ->
-                        DropdownMenuItem(
-                          text = { Text(option.label()) },
-                          onClick = {
-                            closeFilters()
-                            onOrdemChange(option)
-                          },
-                          leadingIcon = {
-                            if (option == state.ordem) {
-                              Icon(Icons.Default.Check, contentDescription = null)
-                            } else {
-                              Spacer(Modifier.size(24.dp))
-                            }
-                          },
-                        )
-                      }
-                    }
-                    HorizontalDivider()
-                    FilterSectionHeader("Estado", estadoExpanded) {
-                      estadoExpanded = !estadoExpanded
-                    }
-                    if (estadoExpanded) {
-                      ClientStatusFilter.entries.forEach { option ->
-                        DropdownMenuItem(
-                          text = { Text(option.label()) },
-                          onClick = {
-                            closeFilters()
-                            onFiltroChange(option)
-                          },
-                          leadingIcon = {
-                            if (option == state.filtro) {
-                              Icon(Icons.Default.Check, contentDescription = null)
-                            } else {
-                              Spacer(Modifier.size(24.dp))
-                            }
-                          },
-                        )
-                      }
-                    }
-                  }
-                }
+                ClientFiltersButton(
+                  filtro = state.filtro,
+                  ordem = state.ordem,
+                  tagFiltro = state.tagFiltro,
+                  tagsDisponiveis = state.tagsDisponiveis,
+                  onFiltroChange = onFiltroChange,
+                  onOrdemChange = onOrdemChange,
+                  onTagFiltroChange = onTagFiltroChange,
+                )
               }
             },
             singleLine = true,
@@ -295,7 +222,13 @@ internal fun ClientListScreen(
               verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
               items(state.clientes, key = { it.id }) { cliente ->
-                ClientListItemRow(cliente, onClick = { onClienteClick(cliente.id) })
+                ClientListItemRow(
+                  cliente = cliente,
+                  onClick = { onClienteClick(cliente.id) },
+                  onTagClick = { tag ->
+                    onTagFiltroChange(if (state.tagFiltro == tag) null else tag)
+                  },
+                )
               }
             }
           }
@@ -305,7 +238,11 @@ internal fun ClientListScreen(
 }
 
 @Composable
-private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+private fun ClientListItemRow(
+  cliente: ClientListItem,
+  onClick: () -> Unit,
+  onTagClick: (String) -> Unit,
+) {  Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
     Row(
       modifier = Modifier.padding(12.dp),
       verticalAlignment = Alignment.CenterVertically,
@@ -409,10 +346,13 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  C
                       maxLines = 1,
                       modifier =
                         Modifier
+                          .clip(RoundedCornerShape(4.dp))
                           .background(
                             MaterialTheme.colorScheme.secondaryContainer,
                             RoundedCornerShape(4.dp),
                           )
+                          .clickable { onTagClick(tag) }
+                          .testTag("client_tag_$tag")
                           .padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                   }
@@ -423,6 +363,159 @@ private fun ClientListItemRow(cliente: ClientListItem, onClick: () -> Unit) {  C
         }
       }
     }
+  }
+}
+
+private enum class FilterMenuPage { ROOT, SORT, STATUS }
+
+@Composable
+private fun ClientFiltersButton(
+  filtro: ClientStatusFilter,
+  ordem: ClientSortOrder,
+  tagFiltro: String?,
+  tagsDisponiveis: List<String>,
+  onFiltroChange: (ClientStatusFilter) -> Unit,
+  onOrdemChange: (ClientSortOrder) -> Unit,
+  onTagFiltroChange: (String?) -> Unit,
+) {
+  var menuOpen by remember { mutableStateOf(false) }
+  var page by remember { mutableStateOf(FilterMenuPage.ROOT) }
+  val closeMenu: () -> Unit = {
+    menuOpen = false
+    page = FilterMenuPage.ROOT
+  }
+  Box {
+    IconButton(
+      onClick = {
+        page = FilterMenuPage.ROOT
+        menuOpen = true
+      }
+    ) {
+      Icon(
+        Icons.Default.Tune,
+        contentDescription = "Filtrar e ordenar",
+        tint =
+          if (filtro == ClientStatusFilter.ALL &&
+            ordem == ClientSortOrder.NAME &&
+            tagFiltro == null
+          ) {
+            MaterialTheme.colorScheme.onSurfaceVariant
+          } else {
+            MaterialTheme.colorScheme.primary
+          },
+      )
+    }
+    DropdownMenu(expanded = menuOpen, onDismissRequest = closeMenu) {
+      when (page) {
+        FilterMenuPage.ROOT -> {
+          if (tagsDisponiveis.isNotEmpty()) {
+            Text(
+              text = "Tags",
+              style = MaterialTheme.typography.titleSmall,
+              modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            DropdownMenuItem(
+              text = { Text("Todas as tags") },
+              onClick = {
+                closeMenu()
+                onTagFiltroChange(null)
+              },
+              modifier = Modifier.testTag("tag_filter_all"),
+              leadingIcon = { FilterCheckIcon(tagFiltro == null) },
+            )
+            tagsDisponiveis.forEach { tag ->
+              DropdownMenuItem(
+                text = { Text(tag) },
+                onClick = {
+                  closeMenu()
+                  onTagFiltroChange(tag)
+                },
+                modifier = Modifier.testTag("tag_filter_$tag"),
+                leadingIcon = { FilterCheckIcon(tagFiltro == tag) },
+              )
+            }
+            HorizontalDivider()
+          }
+          DropdownMenuItem(
+            text = { Text("Ordenação") },
+            onClick = { page = FilterMenuPage.SORT },
+            trailingIcon = {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                  text = ordem.shortLabel(),
+                  style = MaterialTheme.typography.labelMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Icon(Icons.Default.KeyboardArrowRight, contentDescription = null)
+              }
+            },
+          )
+          DropdownMenuItem(
+            text = { Text("Estado") },
+            onClick = { page = FilterMenuPage.STATUS },
+            trailingIcon = {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                  text = filtro.shortLabel(),
+                  style = MaterialTheme.typography.labelMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Icon(Icons.Default.KeyboardArrowRight, contentDescription = null)
+              }
+            },
+          )
+        }
+        FilterMenuPage.SORT -> {
+          DropdownMenuItem(
+            text = { Text("Ordenação") },
+            onClick = { page = FilterMenuPage.ROOT },
+            leadingIcon = {
+              Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Voltar")
+            },
+          )
+          HorizontalDivider()
+          ClientSortOrder.entries.forEach { option ->
+            DropdownMenuItem(
+              text = { Text(option.label()) },
+              onClick = {
+                closeMenu()
+                onOrdemChange(option)
+              },
+              leadingIcon = { FilterCheckIcon(option == ordem) },
+            )
+          }
+        }
+        FilterMenuPage.STATUS -> {
+          DropdownMenuItem(
+            text = { Text("Estado") },
+            onClick = { page = FilterMenuPage.ROOT },
+            leadingIcon = {
+              Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Voltar")
+            },
+          )
+          HorizontalDivider()
+          ClientStatusFilter.entries.forEach { option ->
+            DropdownMenuItem(
+              text = { Text(option.label()) },
+              onClick = {
+                closeMenu()
+                onFiltroChange(option)
+              },
+              leadingIcon = { FilterCheckIcon(option == filtro) },
+            )
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun FilterCheckIcon(checked: Boolean) {
+  if (checked) {
+    Icon(Icons.Default.Check, contentDescription = null)
+  } else {
+    Spacer(Modifier.size(24.dp))
   }
 }
 
@@ -457,4 +550,19 @@ private fun ClientSortOrder.label(): String =
     ClientSortOrder.TAGS -> "Tags (A–Z)"
     ClientSortOrder.RECENT -> "Mais recentes primeiro"
     ClientSortOrder.UPDATED -> "Última edição primeiro"
+  }
+
+private fun ClientStatusFilter.shortLabel(): String =
+  when (this) {
+    ClientStatusFilter.ALL -> "Todos"
+    ClientStatusFilter.ACTIVE -> "Ativos"
+    ClientStatusFilter.INACTIVE -> "Inativos"
+  }
+
+private fun ClientSortOrder.shortLabel(): String =
+  when (this) {
+    ClientSortOrder.NAME -> "Nome"
+    ClientSortOrder.TAGS -> "Tags"
+    ClientSortOrder.RECENT -> "Recentes"
+    ClientSortOrder.UPDATED -> "Editados"
   }

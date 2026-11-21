@@ -201,7 +201,6 @@ class ClientListScreenTest {
     setListContent(listOf(premium, gold))
 
     composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
-    composeTestRule.onNodeWithText("Tags").performClick()
     composeTestRule.onNodeWithTag("tag_filter_PREMIUM").performClick()
     composeTestRule.waitForIdle()
 
@@ -209,7 +208,6 @@ class ClientListScreenTest {
     composeTestRule.onNodeWithText("João").assertDoesNotExist()
 
     composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
-    composeTestRule.onNodeWithText("Tags").performClick()
     composeTestRule.onNodeWithTag("tag_filter_GOLD").performClick()
     composeTestRule.waitForIdle()
 
@@ -217,12 +215,83 @@ class ClientListScreenTest {
     composeTestRule.onNodeWithText("João").assertExists()
 
     composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
-    composeTestRule.onNodeWithText("Tags").performClick()
     composeTestRule.onNodeWithTag("tag_filter_all").performClick()
     composeTestRule.waitForIdle()
 
     composeTestRule.onNodeWithText("Maria").assertExists()
     composeTestRule.onNodeWithText("João").assertExists()
+  }
+
+  @Test
+  fun lista_tagAtivaApareceNoCampoEPodeSerLimpa() {
+    val premium =
+      ClienteComFotos(
+        cliente = Cliente(id = "1", nome = "Maria", tag = "GOLD;PREMIUM", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        fotos = emptyList(),
+      )
+    val gold =
+      ClienteComFotos(
+        cliente = Cliente(id = "2", nome = "João", tag = "GOLD", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        fotos = emptyList(),
+      )
+    setListContent(listOf(premium, gold))
+
+    composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
+    composeTestRule.onNodeWithTag("tag_filter_PREMIUM").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("active_tag_filter", useUnmergedTree = true).assertExists()
+    composeTestRule.onNodeWithText("Maria").assertExists()
+    composeTestRule.onNodeWithText("João").assertDoesNotExist()
+
+    composeTestRule.onNodeWithTag("active_tag_filter", useUnmergedTree = true).performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("active_tag_filter", useUnmergedTree = true).assertDoesNotExist()
+    composeTestRule.onNodeWithText("Maria").assertExists()
+    composeTestRule.onNodeWithText("João").assertExists()
+  }
+
+  @Test
+  fun lista_tagDoCartaoFiltraClientes() {
+    val premium =
+      ClienteComFotos(
+        cliente = Cliente(id = "1", nome = "Maria", tag = "GOLD;PREMIUM", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        fotos = emptyList(),
+      )
+    val gold =
+      ClienteComFotos(
+        cliente = Cliente(id = "2", nome = "João", tag = "GOLD", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        fotos = emptyList(),
+      )
+    setListContent(listOf(premium, gold))
+
+    composeTestRule.onNodeWithTag("client_tag_PREMIUM", useUnmergedTree = true).performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Maria").assertExists()
+    composeTestRule.onNodeWithText("João").assertDoesNotExist()
+
+    composeTestRule.onNodeWithTag("client_tag_PREMIUM", useUnmergedTree = true).performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("João").assertExists()
+  }
+
+  @Test
+  fun lista_submenuDeOrdenacaoVoltaAoMenuPrincipal() {
+    setListContent(clientes)
+
+    composeTestRule.onNodeWithContentDescription("Filtrar e ordenar").performClick()
+    composeTestRule.onNodeWithText("Ordenação").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("Ordem alfabética").assertExists()
+
+    composeTestRule.onNodeWithContentDescription("Voltar").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Estado").assertExists()
+    composeTestRule.onNodeWithText("Ordem alfabética").assertDoesNotExist()
   }
 
   @Test

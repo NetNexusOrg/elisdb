@@ -8,6 +8,16 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [2.1.0] - 2026-11-21
+
+### Novidades
+
+- **Saudação na lista.** A barra superior mostra Bom dia, Boa tarde ou Boa noite com o nome do utilizador.
+- **Filtros mais diretos.** O menu de filtros da lista mostra as tags de imediato; Ordenação e Estado passam para submenus. O mapa segue o mesmo padrão.
+- **Várias tags ao mesmo tempo.** É possível filtrar por mais do que uma tag — são mostrados os clientes com qualquer uma delas — e a escolha fica guardada entre arranques.
+- **Notas selecionáveis.** O texto das notas no detalhe do cliente pode ser selecionado e copiado.
+- **Servidor.** Gestão por TUI, diretório de dados partilhado entre Docker e execução local, backups agendados com verificação e retenção, e correções de robustez no arranque e na limpeza de fotos órfãs.
+
 ## [2.0.0] - 2026-11-11
 
 ### Novidades

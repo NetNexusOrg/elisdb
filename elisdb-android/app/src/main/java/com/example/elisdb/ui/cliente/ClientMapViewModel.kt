@@ -38,8 +38,8 @@ sealed interface ClientMapUiState {
     val clientes: List<ClientMapItem>,
     val semLocalizacao: Int,
     val totalClientes: Int,
-    /** Selected tag, or null when every tag is shown. */
-    val tagFiltro: String? = null,
+    /** Selected tags; empty when every tag is shown. Clients matching any of them are shown. */
+    val tagsFiltro: Set<String> = emptySet(),
     /** Tags present in the stored clients, uppercase and sorted. */
     val tagsDisponiveis: List<String> = emptyList(),
   ) : ClientMapUiState
@@ -53,8 +53,8 @@ class ClientMapViewModel(
   private val _filtro = MutableStateFlow(viewPreferences.clientMapFilter())
   val filtro: StateFlow<ClientMapFilter> = _filtro.asStateFlow()
 
-  private val _tagFiltro = MutableStateFlow<String?>(null)
-  val tagFiltro: StateFlow<String?> = _tagFiltro.asStateFlow()
+  private val _tagsFiltro = MutableStateFlow(viewPreferences.clientMapTags().toSet())
+  val tagsFiltro: StateFlow<Set<String>> = _tagsFiltro.asStateFlow()
 
   private val _myLocation = MutableStateFlow<Localizacao?>(null)
   val myLocation: StateFlow<Localizacao?> = _myLocation.asStateFlow()
@@ -67,8 +67,15 @@ class ClientMapViewModel(
     viewPreferences.setClientMapFilter(value)
   }
 
-  fun onTagFiltroChange(value: String?) {
-    _tagFiltro.value = value
+  fun onTagToggle(tag: String) {
+    val updated = if (tag in _tagsFiltro.value) _tagsFiltro.value - tag else _tagsFiltro.value + tag
+    _tagsFiltro.value = updated
+    viewPreferences.setClientMapTags(updated)
+  }
+
+  fun onTagsClear() {
+    _tagsFiltro.value = emptySet()
+    viewPreferences.setClientMapTags(emptySet())
   }
 
   /** Refreshes the device location, for example after the permission is granted. */
@@ -89,14 +96,17 @@ class ClientMapViewModel(
   }
 
   val uiState: StateFlow<ClientMapUiState> =
-    combine(repository.clientes, filtro, tagFiltro) { clientes, filtro, tag ->
+    combine(repository.clientes, filtro, tagsFiltro) { clientes, filtro, tags ->
         val tagsDisponiveis = clientes.flatMap { tagsOf(it.tag) }.distinct().sorted()
-        // A tag that no longer exists is treated as "all tags", so the filter
-        // never gets stuck showing an empty map.
-        val tagSelecionada = tag?.takeIf { it in tagsDisponiveis }
+        // Tags that no longer exist are ignored, so the filter never gets stuck
+        // showing an empty map.
+        val tagsSelecionadas = tags.filter { it in tagsDisponiveis }.toSet()
         val porTag =
-          if (tagSelecionada == null) clientes
-          else clientes.filter { tagsOf(it.tag).contains(tagSelecionada) }
+          if (tagsSelecionadas.isEmpty()) clientes
+          else
+            clientes.filter { cliente ->
+              tagsOf(cliente.tag).any { it in tagsSelecionadas }
+            }
         val comLocalizacao =
           porTag.mapNotNull { cliente ->
             val latitude = cliente.latitude
@@ -129,7 +139,7 @@ class ClientMapViewModel(
           // empty state should talk about the filter rather than "no location".
           semLocalizacao = porTag.size - comLocalizacao.size,
           totalClientes = clientes.size,
-          tagFiltro = tagSelecionada,
+          tagsFiltro = tagsSelecionadas,
           tagsDisponiveis = tagsDisponiveis,
         )
       }

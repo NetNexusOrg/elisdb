@@ -236,7 +236,7 @@ class ClientListViewModelTest {
   }
 
   @Test
-  fun uiState_filtroDeTagMostraSoClientesComATag() = runTest(dispatcher) {
+  fun uiState_filtroDeTagsMostraClientesComQualquerTag() = runTest(dispatcher) {
     val repo =
       FakeClientRepository(
         clientesComFotosFlow =
@@ -256,16 +256,25 @@ class ClientListViewModelTest {
     val viewModel = ClientListViewModel(repo)
     viewModel.uiState.first { it is ClientListUiState.Success }
 
-    viewModel.onTagFiltroChange("PREMIUM")
+    viewModel.onTagToggle("PREMIUM")
     var state =
-      viewModel.uiState.first { it is ClientListUiState.Success && it.tagFiltro == "PREMIUM" }
-        as ClientListUiState.Success
+      viewModel.uiState.first {
+        it is ClientListUiState.Success && it.tagsFiltro == setOf("PREMIUM")
+      } as ClientListUiState.Success
     assertEquals(listOf("Maria"), state.clientes.map { it.nome })
 
-    viewModel.onTagFiltroChange(null)
+    viewModel.onTagToggle("GOLD")
     state =
-      viewModel.uiState.first { it is ClientListUiState.Success && it.tagFiltro == null }
-        as ClientListUiState.Success
+      viewModel.uiState.first {
+        it is ClientListUiState.Success && it.tagsFiltro == setOf("PREMIUM", "GOLD")
+      } as ClientListUiState.Success
+    assertEquals(listOf("João", "Maria"), state.clientes.map { it.nome })
+
+    viewModel.onTagsClear()
+    state =
+      viewModel.uiState.first {
+        it is ClientListUiState.Success && it.tagsFiltro.isEmpty()
+      } as ClientListUiState.Success
     assertEquals(listOf("João", "Maria"), state.clientes.map { it.nome })
   }
 
@@ -423,12 +432,46 @@ class ClientListViewModelTest {
     assertEquals(ClientStatusFilter.INACTIVE, preferences.listFilter)
     assertEquals(ClientSortOrder.UPDATED, preferences.sortOrder)
   }
+
+  @Test
+  fun uiState_inicialUsaTagsGuardadas() = runTest(dispatcher) {
+    val preferences = FakeClientViewPreferences(listTags = setOf("PREMIUM"))
+    val viewModel = ClientListViewModel(FakeClientRepository(), preferences)
+
+    viewModel.uiState.first { it is ClientListUiState.Success }
+
+    assertEquals(setOf("PREMIUM"), viewModel.tagsFiltro.value)
+  }
+
+  @Test
+  fun alteracoesDeTagsSaoGuardadas() = runTest(dispatcher) {
+    val preferences = FakeClientViewPreferences()
+    val viewModel = ClientListViewModel(FakeClientRepository(), preferences)
+    viewModel.uiState.first { it is ClientListUiState.Success }
+
+    viewModel.onTagToggle("PREMIUM")
+    assertEquals(setOf("PREMIUM"), preferences.listTags)
+
+    viewModel.onTagToggle("GOLD")
+    assertEquals(setOf("PREMIUM", "GOLD"), preferences.listTags)
+
+    viewModel.onTagToggle("PREMIUM")
+    assertEquals(setOf("GOLD"), preferences.listTags)
+
+    val reopened = ClientListViewModel(FakeClientRepository(), preferences)
+    assertEquals(setOf("GOLD"), reopened.tagsFiltro.value)
+
+    reopened.onTagsClear()
+    assertEquals(emptySet<String>(), preferences.listTags)
+  }
 }
 
 private class FakeClientViewPreferences(
   var listFilter: ClientStatusFilter = ClientStatusFilter.ALL,
   var sortOrder: ClientSortOrder = ClientSortOrder.NAME,
   var mapFilter: ClientMapFilter = ClientMapFilter.ACTIVE,
+  var listTags: Set<String> = emptySet(),
+  var mapTags: Set<String> = emptySet(),
 ) : ClientViewPreferences {
   override fun clientListFilter(): ClientStatusFilter = listFilter
 
@@ -442,10 +485,22 @@ private class FakeClientViewPreferences(
     sortOrder = value
   }
 
+  override fun clientListTags(): Set<String> = listTags
+
+  override fun setClientListTags(value: Set<String>) {
+    listTags = value
+  }
+
   override fun clientMapFilter(): ClientMapFilter = mapFilter
 
   override fun setClientMapFilter(value: ClientMapFilter) {
     mapFilter = value
+  }
+
+  override fun clientMapTags(): Set<String> = mapTags
+
+  override fun setClientMapTags(value: Set<String>) {
+    mapTags = value
   }
 }
 

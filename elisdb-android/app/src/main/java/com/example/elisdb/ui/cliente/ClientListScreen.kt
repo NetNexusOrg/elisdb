@@ -1,7 +1,6 @@
 package com.example.elisdb.ui.cliente
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,7 +23,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -37,9 +34,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -86,7 +80,8 @@ fun ClientListScreen(
     onQueryChange = viewModel::onQueryChange,
     onFiltroChange = viewModel::onFiltroChange,
     onOrdemChange = viewModel::onOrdemChange,
-    onTagFiltroChange = viewModel::onTagFiltroChange,
+    onTagToggle = viewModel::onTagToggle,
+    onTagsClear = viewModel::onTagsClear,
     onConfigClick = onConfigClick,
     onAboutClick = onAboutClick,
     onMapClick = onMapClick,
@@ -103,7 +98,8 @@ internal fun ClientListScreen(
   onQueryChange: (String) -> Unit,
   onFiltroChange: (ClientStatusFilter) -> Unit,
   onOrdemChange: (ClientSortOrder) -> Unit,
-  onTagFiltroChange: (String?) -> Unit,
+  onTagToggle: (String) -> Unit,
+  onTagsClear: () -> Unit,
   onConfigClick: () -> Unit,
   onAboutClick: () -> Unit,
   onMapClick: () -> Unit,
@@ -156,30 +152,14 @@ internal fun ClientListScreen(
             onValueChange = onQueryChange,
             placeholder = {
               Text(
-                if (state.tagFiltro == null) "Pesquisar clientes…"
-                else "Pesquisar em ${state.tagFiltro}…"
+                when {
+                  state.tagsFiltro.isEmpty() -> "Pesquisar clientes…"
+                  state.tagsFiltro.size == 1 -> "Pesquisar em ${state.tagsFiltro.first()}…"
+                  else -> "Pesquisar em ${state.tagsFiltro.size} tags…"
+                }
               )
             },
-            leadingIcon = {
-              val tag = state.tagFiltro
-              if (tag == null) {
-                Icon(Icons.Default.Search, contentDescription = null)
-              } else {
-                InputChip(
-                  selected = true,
-                  onClick = { onTagFiltroChange(null) },
-                  label = { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                  trailingIcon = {
-                    Icon(
-                      Icons.Default.Close,
-                      contentDescription = "Limpar filtro de tag",
-                      modifier = Modifier.size(16.dp),
-                    )
-                  },
-                  modifier = Modifier.testTag("active_tag_filter").widthIn(max = 150.dp),
-                )
-              }
-            },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
               Row(verticalAlignment = Alignment.CenterVertically) {
                 if (state.query.isNotEmpty()) {
@@ -190,11 +170,12 @@ internal fun ClientListScreen(
                 ClientFiltersButton(
                   filtro = state.filtro,
                   ordem = state.ordem,
-                  tagFiltro = state.tagFiltro,
+                  tagsFiltro = state.tagsFiltro,
                   tagsDisponiveis = state.tagsDisponiveis,
                   onFiltroChange = onFiltroChange,
                   onOrdemChange = onOrdemChange,
-                  onTagFiltroChange = onTagFiltroChange,
+                  onTagToggle = onTagToggle,
+                  onTagsClear = onTagsClear,
                 )
               }
             },
@@ -209,7 +190,7 @@ internal fun ClientListScreen(
               Text(
                 when {
                   state.query.isNotBlank() -> "Nenhum cliente corresponde à pesquisa."
-                  state.filtro != ClientStatusFilter.ALL || state.tagFiltro != null ->
+                  state.filtro != ClientStatusFilter.ALL || state.tagsFiltro.isNotEmpty() ->
                     "Nenhum cliente corresponde ao filtro."
                   else -> "Ainda não há clientes guardados."
                 }
@@ -225,9 +206,6 @@ internal fun ClientListScreen(
                 ClientListItemRow(
                   cliente = cliente,
                   onClick = { onClienteClick(cliente.id) },
-                  onTagClick = { tag ->
-                    onTagFiltroChange(if (state.tagFiltro == tag) null else tag)
-                  },
                 )
               }
             }
@@ -241,8 +219,8 @@ internal fun ClientListScreen(
 private fun ClientListItemRow(
   cliente: ClientListItem,
   onClick: () -> Unit,
-  onTagClick: (String) -> Unit,
-) {  Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+) {
+  Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
     Row(
       modifier = Modifier.padding(12.dp),
       verticalAlignment = Alignment.CenterVertically,
@@ -351,8 +329,6 @@ private fun ClientListItemRow(
                             MaterialTheme.colorScheme.secondaryContainer,
                             RoundedCornerShape(4.dp),
                           )
-                          .clickable { onTagClick(tag) }
-                          .testTag("client_tag_$tag")
                           .padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                   }
@@ -372,11 +348,12 @@ private enum class FilterMenuPage { ROOT, SORT, STATUS }
 private fun ClientFiltersButton(
   filtro: ClientStatusFilter,
   ordem: ClientSortOrder,
-  tagFiltro: String?,
+  tagsFiltro: Set<String>,
   tagsDisponiveis: List<String>,
   onFiltroChange: (ClientStatusFilter) -> Unit,
   onOrdemChange: (ClientSortOrder) -> Unit,
-  onTagFiltroChange: (String?) -> Unit,
+  onTagToggle: (String) -> Unit,
+  onTagsClear: () -> Unit,
 ) {
   var menuOpen by remember { mutableStateOf(false) }
   var page by remember { mutableStateOf(FilterMenuPage.ROOT) }
@@ -397,7 +374,7 @@ private fun ClientFiltersButton(
         tint =
           if (filtro == ClientStatusFilter.ALL &&
             ordem == ClientSortOrder.NAME &&
-            tagFiltro == null
+            tagsFiltro.isEmpty()
           ) {
             MaterialTheme.colorScheme.onSurfaceVariant
           } else {
@@ -418,20 +395,17 @@ private fun ClientFiltersButton(
               text = { Text("Todas as tags") },
               onClick = {
                 closeMenu()
-                onTagFiltroChange(null)
+                onTagsClear()
               },
               modifier = Modifier.testTag("tag_filter_all"),
-              leadingIcon = { FilterCheckIcon(tagFiltro == null) },
+              leadingIcon = { FilterCheckIcon(tagsFiltro.isEmpty()) },
             )
             tagsDisponiveis.forEach { tag ->
               DropdownMenuItem(
                 text = { Text(tag) },
-                onClick = {
-                  closeMenu()
-                  onTagFiltroChange(tag)
-                },
+                onClick = { onTagToggle(tag) },
                 modifier = Modifier.testTag("tag_filter_$tag"),
-                leadingIcon = { FilterCheckIcon(tagFiltro == tag) },
+                leadingIcon = { FilterCheckIcon(tag in tagsFiltro) },
               )
             }
             HorizontalDivider()
@@ -511,30 +485,12 @@ private fun ClientFiltersButton(
 }
 
 @Composable
-private fun FilterCheckIcon(checked: Boolean) {
+internal fun FilterCheckIcon(checked: Boolean) {
   if (checked) {
     Icon(Icons.Default.Check, contentDescription = null)
   } else {
     Spacer(Modifier.size(24.dp))
   }
-}
-
-@Composable
-internal fun FilterSectionHeader(
-  title: String,
-  expanded: Boolean,
-  onToggle: () -> Unit,
-) {
-  DropdownMenuItem(
-    text = { Text(title, style = MaterialTheme.typography.titleSmall) },
-    onClick = onToggle,
-    trailingIcon = {
-      Icon(
-        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-        contentDescription = if (expanded) "Recolher $title" else "Expandir $title",
-      )
-    },
-  )
 }
 
 private fun ClientStatusFilter.label(): String =

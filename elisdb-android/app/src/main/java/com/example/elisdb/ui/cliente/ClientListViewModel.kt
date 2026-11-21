@@ -56,8 +56,8 @@ sealed interface ClientListUiState {
     val query: String = "",
     val filtro: ClientStatusFilter = ClientStatusFilter.ALL,
     val ordem: ClientSortOrder = ClientSortOrder.NAME,
-    /** Selected tag, or null when every tag is shown. */
-    val tagFiltro: String? = null,
+    /** Selected tags; empty when every tag is shown. Clients matching any of them are listed. */
+    val tagsFiltro: Set<String> = emptySet(),
     /** Tags present in the stored clients, uppercase and sorted. */
     val tagsDisponiveis: List<String> = emptyList(),
   ) : ClientListUiState
@@ -77,8 +77,8 @@ class ClientListViewModel(
   private val _ordem = MutableStateFlow(viewPreferences.clientSortOrder())
   val ordem: StateFlow<ClientSortOrder> = _ordem.asStateFlow()
 
-  private val _tagFiltro = MutableStateFlow<String?>(null)
-  val tagFiltro: StateFlow<String?> = _tagFiltro.asStateFlow()
+  private val _tagsFiltro = MutableStateFlow(viewPreferences.clientListTags().toSet())
+  val tagsFiltro: StateFlow<Set<String>> = _tagsFiltro.asStateFlow()
 
   fun onQueryChange(value: String) {
     _query.value = value
@@ -94,17 +94,24 @@ class ClientListViewModel(
     viewPreferences.setClientSortOrder(value)
   }
 
-  fun onTagFiltroChange(value: String?) {
-    _tagFiltro.value = value
+  fun onTagToggle(tag: String) {
+    val updated = if (tag in _tagsFiltro.value) _tagsFiltro.value - tag else _tagsFiltro.value + tag
+    _tagsFiltro.value = updated
+    viewPreferences.setClientListTags(updated)
+  }
+
+  fun onTagsClear() {
+    _tagsFiltro.value = emptySet()
+    viewPreferences.setClientListTags(emptySet())
   }
 
   val uiState: StateFlow<ClientListUiState> =
-    combine(repository.clientesComFotos, query, filtro, ordem, tagFiltro) { clientes, q, f, o, tag ->
+    combine(repository.clientesComFotos, query, filtro, ordem, tagsFiltro) { clientes, q, f, o, tags ->
         val tagsDisponiveis =
           clientes.flatMap { tagsOf(it.cliente.tag) }.distinct().sorted()
-        // A tag that no longer exists is treated as "all tags", so the filter
-        // never gets stuck showing an empty list.
-        val tagSelecionada = tag?.takeIf { it in tagsDisponiveis }
+        // Tags that no longer exist are ignored, so the filter never gets stuck
+        // showing an empty list.
+        val tagsSelecionadas = tags.filter { it in tagsDisponiveis }.toSet()
         val byStatus =
           when (f) {
             ClientStatusFilter.ALL -> clientes
@@ -112,8 +119,11 @@ class ClientListViewModel(
             ClientStatusFilter.INACTIVE -> clientes.filterNot { it.cliente.ativo }
           }
         val byTag =
-          if (tagSelecionada == null) byStatus
-          else byStatus.filter { tagsOf(it.cliente.tag).contains(tagSelecionada) }
+          if (tagsSelecionadas.isEmpty()) byStatus
+          else
+            byStatus.filter { cliente ->
+              tagsOf(cliente.cliente.tag).any { it in tagsSelecionadas }
+            }
         val filtered = if (q.isBlank()) byTag else byTag.filter { matchesQuery(it, q) }
         // Names are stored uppercase, but sorting here (not only in the DAO query)
         // keeps the order deterministic when the user switches it at runtime.
@@ -159,7 +169,7 @@ class ClientListViewModel(
           query = q,
           filtro = f,
           ordem = o,
-          tagFiltro = tagSelecionada,
+          tagsFiltro = tagsSelecionadas,
           tagsDisponiveis = tagsDisponiveis,
         )
       }

@@ -12,12 +12,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,7 +61,7 @@ fun ClientMapScreen(
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   val filtro by viewModel.filtro.collectAsStateWithLifecycle()
-  val tagFiltro by viewModel.tagFiltro.collectAsStateWithLifecycle()
+  val tagsFiltro by viewModel.tagsFiltro.collectAsStateWithLifecycle()
   val myLocation by viewModel.myLocation.collectAsStateWithLifecycle()
   val locationResolved by viewModel.locationResolved.collectAsStateWithLifecycle()
   val context = LocalContext.current
@@ -86,11 +87,12 @@ fun ClientMapScreen(
   ClientMapScreen(
     state = state,
     filtro = filtro,
-    tagFiltro = tagFiltro,
+    tagsFiltro = tagsFiltro,
     myLocation = myLocation,
     userLocationPending = !locationResolved,
     onFiltroChange = viewModel::onFiltroChange,
-    onTagFiltroChange = viewModel::onTagFiltroChange,
+    onTagToggle = viewModel::onTagToggle,
+    onTagsClear = viewModel::onTagsClear,
     onClienteClick = onClienteClick,
     onBack = onBack,
     modifier = modifier,
@@ -102,9 +104,10 @@ fun ClientMapScreen(
 internal fun ClientMapScreen(
   state: ClientMapUiState,
   filtro: ClientMapFilter,
-  tagFiltro: String?,
+  tagsFiltro: Set<String>,
   onFiltroChange: (ClientMapFilter) -> Unit,
-  onTagFiltroChange: (String?) -> Unit,
+  onTagToggle: (String) -> Unit,
+  onTagsClear: () -> Unit,
   onClienteClick: (String) -> Unit,
   onBack: () -> Unit,
   myLocation: Localizacao? = null,
@@ -126,75 +129,90 @@ internal fun ClientMapScreen(
         },
         actions = {
           var menuOpen by remember { mutableStateOf(false) }
-          var tagsExpanded by remember { mutableStateOf(false) }
-          var estadoExpanded by remember { mutableStateOf(false) }
+          var page by remember { mutableStateOf(MapFilterMenuPage.ROOT) }
           val closeMenu: () -> Unit = {
             menuOpen = false
-            tagsExpanded = false
-            estadoExpanded = false
+            page = MapFilterMenuPage.ROOT
           }
-          IconButton(onClick = { menuOpen = true }) {
-            Icon(Icons.Default.Menu, contentDescription = "Filtrar clientes")
+          IconButton(
+            onClick = {
+              page = MapFilterMenuPage.ROOT
+              menuOpen = true
+            }
+          ) {
+            Icon(
+              Icons.Default.Tune,
+              contentDescription = "Filtrar clientes",
+              tint =
+                if (filtro == ClientMapFilter.ACTIVE && tagsFiltro.isEmpty()) {
+                  MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                  MaterialTheme.colorScheme.primary
+                },
+            )
           }
           DropdownMenu(expanded = menuOpen, onDismissRequest = closeMenu) {
-            val tags = (state as? ClientMapUiState.Success)?.tagsDisponiveis.orEmpty()
-            if (tags.isNotEmpty()) {
-              FilterSectionHeader("Tags", tagsExpanded) {
-                tagsExpanded = !tagsExpanded
-              }
-              if (tagsExpanded) {
-                DropdownMenuItem(
-                  text = { Text("Todas as tags") },
-                  onClick = {
-                    closeMenu()
-                    onTagFiltroChange(null)
-                  },
-                  leadingIcon = {
-                    if (tagFiltro == null) {
-                      Icon(Icons.Default.Check, contentDescription = null)
-                    } else {
-                      Spacer(Modifier.size(24.dp))
-                    }
-                  },
-                )
-                tags.forEach { tag ->
+            when (page) {
+              MapFilterMenuPage.ROOT -> {
+                val tags = (state as? ClientMapUiState.Success)?.tagsDisponiveis.orEmpty()
+                if (tags.isNotEmpty()) {
+                  Text(
+                    text = "Tags",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                  )
                   DropdownMenuItem(
-                    text = { Text(tag) },
+                    text = { Text("Todas as tags") },
                     onClick = {
                       closeMenu()
-                      onTagFiltroChange(tag)
+                      onTagsClear()
                     },
-                    leadingIcon = {
-                      if (tagFiltro == tag) {
-                        Icon(Icons.Default.Check, contentDescription = null)
-                      } else {
-                        Spacer(Modifier.size(24.dp))
-                      }
-                    },
+                    leadingIcon = { FilterCheckIcon(tagsFiltro.isEmpty()) },
                   )
+                  tags.forEach { tag ->
+                    DropdownMenuItem(
+                      text = { Text(tag) },
+                      onClick = { onTagToggle(tag) },
+                      leadingIcon = { FilterCheckIcon(tag in tagsFiltro) },
+                    )
+                  }
+                  HorizontalDivider()
                 }
-              }
-              HorizontalDivider()
-            }
-            FilterSectionHeader("Estado", estadoExpanded) {
-              estadoExpanded = !estadoExpanded
-            }
-            if (estadoExpanded) {
-              ClientMapFilter.entries.forEach { option ->
                 DropdownMenuItem(
-                  text = { Text(option.label) },
-                  onClick = {
-                    closeMenu()
-                    onFiltroChange(option)
-                  },
-                  leadingIcon = {
-                    if (option == filtro) {
-                      Icon(Icons.Default.Check, contentDescription = null)
-                    } else {
-                      Spacer(Modifier.size(24.dp))
+                  text = { Text("Estado") },
+                  onClick = { page = MapFilterMenuPage.STATUS },
+                  trailingIcon = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                      Text(
+                        text = filtro.shortLabel(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                      )
+                      Icon(Icons.Default.KeyboardArrowRight, contentDescription = null)
                     }
                   },
                 )
+              }
+              MapFilterMenuPage.STATUS -> {
+                DropdownMenuItem(
+                  text = { Text("Estado") },
+                  onClick = { page = MapFilterMenuPage.ROOT },
+                  modifier = Modifier.testTag("filter_menu_back"),
+                  leadingIcon = {
+                    Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Voltar")
+                  },
+                )
+                HorizontalDivider()
+                ClientMapFilter.entries.forEach { option ->
+                  DropdownMenuItem(
+                    text = { Text(option.label) },
+                    onClick = {
+                      closeMenu()
+                      onFiltroChange(option)
+                    },
+                    leadingIcon = { FilterCheckIcon(option == filtro) },
+                  )
+                }
               }
             }
           }
@@ -287,6 +305,15 @@ private fun emptyMapMessage(totalClientes: Int, semLocalizacao: Int): String =
     totalClientes == 0 -> "Ainda não há clientes."
     semLocalizacao == totalClientes -> "Nenhum cliente tem localização definida."
     else -> "Nenhum cliente corresponde ao filtro."
+  }
+
+private enum class MapFilterMenuPage { ROOT, STATUS }
+
+private fun ClientMapFilter.shortLabel(): String =
+  when (this) {
+    ClientMapFilter.ALL -> "Todos"
+    ClientMapFilter.ACTIVE -> "Ativos"
+    ClientMapFilter.INACTIVE -> "Inativos"
   }
 
 @Composable

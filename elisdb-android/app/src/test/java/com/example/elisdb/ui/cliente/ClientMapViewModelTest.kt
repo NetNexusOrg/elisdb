@@ -149,23 +149,33 @@ class ClientMapViewModelTest {
       )
     viewModel.uiState.first { it is ClientMapUiState.Success }
 
-    viewModel.onTagFiltroChange("PREMIUM")
+    viewModel.onTagToggle("PREMIUM")
     dispatcher.scheduler.advanceUntilIdle()
 
     var state =
-      viewModel.uiState.first { it is ClientMapUiState.Success && it.tagFiltro == "PREMIUM" }
-        as ClientMapUiState.Success
+      viewModel.uiState.first {
+        it is ClientMapUiState.Success && it.tagsFiltro == setOf("PREMIUM")
+      } as ClientMapUiState.Success
     assertEquals(listOf("Maria"), state.clientes.map { it.nome })
-    assertEquals("PREMIUM", state.tagFiltro)
+    assertEquals(setOf("PREMIUM"), state.tagsFiltro)
 
-    viewModel.onTagFiltroChange(null)
+    viewModel.onTagToggle("GOLD")
+    dispatcher.scheduler.advanceUntilIdle()
+
+    state =
+      viewModel.uiState.first {
+        it is ClientMapUiState.Success && it.tagsFiltro == setOf("PREMIUM", "GOLD")
+      } as ClientMapUiState.Success
+    assertEquals(listOf("João", "Maria"), state.clientes.map { it.nome })
+
+    viewModel.onTagsClear()
     dispatcher.scheduler.advanceUntilIdle()
 
     state =
       viewModel.uiState.first { it is ClientMapUiState.Success && it.clientes.size == 2 }
         as ClientMapUiState.Success
     assertEquals(listOf("João", "Maria"), state.clientes.map { it.nome })
-    assertEquals(null, state.tagFiltro)
+    assertEquals(emptySet<String>(), state.tagsFiltro)
   }
 
   @Test
@@ -224,12 +234,58 @@ class ClientMapViewModelTest {
 
     assertEquals(ClientMapFilter.ALL, preferences.mapFilter)
   }
+
+  @Test
+  fun tagsIniciaisVemDasPreferencias() = runTest(dispatcher) {
+    val preferences = FakeMapClientViewPreferences(mapTags = setOf("PREMIUM"))
+    val viewModel =
+      ClientMapViewModel(
+        FakeMapRepository(flowOf(emptyList())),
+        viewPreferences = preferences,
+      )
+
+    viewModel.uiState.first { it is ClientMapUiState.Success }
+
+    assertEquals(setOf("PREMIUM"), viewModel.tagsFiltro.value)
+  }
+
+  @Test
+  fun alteracoesDeTagsDoMapaSaoGuardadas() = runTest(dispatcher) {
+    val preferences = FakeMapClientViewPreferences()
+    val viewModel =
+      ClientMapViewModel(
+        FakeMapRepository(flowOf(emptyList())),
+        viewPreferences = preferences,
+      )
+    viewModel.uiState.first { it is ClientMapUiState.Success }
+
+    viewModel.onTagToggle("PREMIUM")
+    assertEquals(setOf("PREMIUM"), preferences.mapTags)
+
+    viewModel.onTagToggle("GOLD")
+    assertEquals(setOf("PREMIUM", "GOLD"), preferences.mapTags)
+
+    viewModel.onTagToggle("PREMIUM")
+    assertEquals(setOf("GOLD"), preferences.mapTags)
+
+    val reopened =
+      ClientMapViewModel(
+        FakeMapRepository(flowOf(emptyList())),
+        viewPreferences = preferences,
+      )
+    assertEquals(setOf("GOLD"), reopened.tagsFiltro.value)
+
+    reopened.onTagsClear()
+    assertEquals(emptySet<String>(), preferences.mapTags)
+  }
 }
 
 private class FakeMapClientViewPreferences(
   var listFilter: ClientStatusFilter = ClientStatusFilter.ALL,
   var sortOrder: ClientSortOrder = ClientSortOrder.NAME,
   var mapFilter: ClientMapFilter = ClientMapFilter.ACTIVE,
+  var listTags: Set<String> = emptySet(),
+  var mapTags: Set<String> = emptySet(),
 ) : ClientViewPreferences {
   override fun clientListFilter(): ClientStatusFilter = listFilter
 
@@ -243,10 +299,22 @@ private class FakeMapClientViewPreferences(
     sortOrder = value
   }
 
+  override fun clientListTags(): Set<String> = listTags
+
+  override fun setClientListTags(value: Set<String>) {
+    listTags = value
+  }
+
   override fun clientMapFilter(): ClientMapFilter = mapFilter
 
   override fun setClientMapFilter(value: ClientMapFilter) {
     mapFilter = value
+  }
+
+  override fun clientMapTags(): Set<String> = mapTags
+
+  override fun setClientMapTags(value: Set<String>) {
+    mapTags = value
   }
 }
 

@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.example.elisdb.data.ClienteDraft
@@ -57,12 +58,44 @@ class ClientMapScreenTest {
     )
 
     composeTestRule.onNodeWithContentDescription("Filtrar clientes").performClick()
-    composeTestRule.onNodeWithText("Tags").performClick()
     composeTestRule.waitForIdle()
 
+    composeTestRule.onNodeWithText("Tags").assertExists()
     composeTestRule.onNodeWithText("Todas as tags").assertExists()
     composeTestRule.onNodeWithText("GOLD").assertExists()
     composeTestRule.onNodeWithText("PREMIUM").assertExists()
+  }
+
+  @Test
+  fun mapa_selecionarTagMantemMenuAberto() {
+    setMapContent(
+      listOf(
+        Cliente(id = "1", nome = "Maria", tag = "PREMIUM", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0),
+        Cliente(id = "2", nome = "João", tag = "GOLD", latitude = 3.0, longitude = 4.0, dataCriacao = 0, updatedAt = 0),
+      )
+    )
+
+    composeTestRule.onNodeWithContentDescription("Filtrar clientes").performClick()
+    composeTestRule.onNodeWithText("PREMIUM").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("GOLD").assertExists()
+    composeTestRule.onNodeWithText("Estado").assertExists()
+    composeTestRule.onNodeWithText("Todas as tags").assertExists()
+  }
+
+  @Test
+  fun mapa_voltarDoSubmenuEstadoMostraMenuPrincipal() {
+    setMapContent(emptyList())
+
+    composeTestRule.onNodeWithContentDescription("Filtrar clientes").performClick()
+    composeTestRule.onNodeWithText("Estado").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("filter_menu_back").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Estado").assertExists()
+    composeTestRule.onNodeWithText("Apenas ativos").assertDoesNotExist()
   }
 
   @Test
@@ -102,14 +135,15 @@ class ClientMapScreenTest {
     composeTestRule.setContent {
       val state by viewModel.uiState.collectAsStateWithLifecycle()
       val filtro by viewModel.filtro.collectAsStateWithLifecycle()
-      val tagFiltro by viewModel.tagFiltro.collectAsStateWithLifecycle()
+      val tagsFiltro by viewModel.tagsFiltro.collectAsStateWithLifecycle()
       ElisdbTheme {
         ClientMapScreen(
           state = state,
           filtro = filtro,
-          tagFiltro = tagFiltro,
+          tagsFiltro = tagsFiltro,
           onFiltroChange = viewModel::onFiltroChange,
-          onTagFiltroChange = viewModel::onTagFiltroChange,
+          onTagToggle = viewModel::onTagToggle,
+          onTagsClear = viewModel::onTagsClear,
           onClienteClick = {},
           onBack = {},
         )

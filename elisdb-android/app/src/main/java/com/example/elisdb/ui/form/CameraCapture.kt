@@ -4,7 +4,6 @@ import android.content.Context
 import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
-import android.view.Surface
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -67,8 +66,11 @@ fun CameraCapture(
     cameraProvider = provider
     val preview =
       Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-    imageCapture.targetRotation =
-      previewView.display?.rotation ?: Surface.ROTATION_0
+    // The PreviewView may not be attached yet, so `display` can be null here.
+    // Let CameraX keep its default rotation until the view is laid out instead
+    // of forcing ROTATION_0, which would tag a landscape capture as portrait.
+    previewView.syncTargetRotation(imageCapture)
+    previewView.post { previewView.syncTargetRotation(imageCapture) }
     runCatching {
       provider.unbindAll()
       provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
@@ -103,6 +105,9 @@ fun CameraCapture(
 
     Button(
       onClick = {
+        // Re-check just before capturing in case the view was attached or the
+        // display rotated after the initial bind.
+        previewView.syncTargetRotation(imageCapture)
         val outputFile = createOutputFile()
         val outputOptions = ImageCapture.OutputFileOptions.Builder(outputFile).build()
         imageCapture.takePicture(
@@ -133,6 +138,10 @@ fun CameraCapture(
 
     errorMessage?.let { Text(it, modifier = Modifier.align(Alignment.Center).padding(16.dp)) }
   }
+}
+
+private fun PreviewView.syncTargetRotation(imageCapture: ImageCapture) {
+  display?.let { imageCapture.targetRotation = it.rotation }
 }
 
 private suspend fun Context.getCameraProvider(): ProcessCameraProvider =

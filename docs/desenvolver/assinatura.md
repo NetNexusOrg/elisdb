@@ -8,8 +8,8 @@ servidor. Só a última precisa de atenção regular.
 Fonte única: `elisdb-android/gradle.properties`.
 
 ```properties
-app.versionCode=20
-app.versionName=2.0.0
+app.versionCode=21
+app.versionName=2.1.0
 ```
 
 Altera sempre aqui, nunca em `app/build.gradle.kts`. O release do GitHub usa
@@ -54,9 +54,10 @@ keytool -genkeypair -keystore elisdb.keystore -storepass <pass> -alias elisdb \
 
 ## Ligação ao servidor
 
-A app precisa de **URL do servidor** e **chave de assinatura**. Há duas formas:
+A app precisa de **URL do servidor**, **chave de assinatura** e **nome de
+utilizador**. Há duas formas:
 
-**1. Em tempo de execução (recomendado).** Menu ⋮ → **Configuração** →
+**1. Em tempo de execução (recomendado).** Menu ≡ → **Configuração** →
 **Importar credencial do utilizador** e escolhe `<nome>.config.json`. URL, chave
 e utilizador ficam preenchidos de uma vez. O cartão de sincronização é só de
 leitura. Ver [Ligar um telemóvel](../usar/ligar-telemovel.md).
@@ -74,9 +75,11 @@ ELISDB_PRIVATE_KEY="<seed base64 de 32 bytes>" \
 ./gradlew :app:assembleRelease
 ```
 
-Sem estes valores a app funciona offline; a sincronização só liga quando houver
-URL e chave. Se existir uma credencial importada no ecrã Configuração, **ela
-sobrepõe-se** à do build.
+O build só preenche URL e chave. O nome de utilizador tem de vir de uma
+credencial importada ou, com rede, de `/api/keys/me`. Sem credencial completa a
+app não passa do ecrã **Acesso Negado**; depois de configurada funciona offline.
+Se existir uma credencial importada no ecrã Configuração, **ela sobrepõe-se** à
+do build.
 
 > `ELISDB_PRIVATE_KEY` é um segredo: nunca a coloques no repositório nem em logs
 > de CI. A mesma seed não deve ser partilhada entre telemóveis.

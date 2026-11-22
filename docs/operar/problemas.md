@@ -5,10 +5,11 @@
 | O que aparece | Causa | O que fazer |
 |---|---|---|
 | **Acesso Negado** no arranque | Falta URL, chave ou nome de utilizador | Importa o `<nome>.config.json` ([ligar um telemóvel](../usar/ligar-telemovel.md)) |
-| **Não configurado** | Falta URL ou chave | Importa a credencial, ou emite uma nova no servidor |
+| **Não configurado** | Falta URL, chave ou nome de utilizador | Importa a credencial, ou emite uma nova no servidor |
 | "Servidor rejeitou a sincronização (chave não registada)" | A chave foi revogada ou não existe no servidor | Emite uma chave nova e importa o ficheiro |
 | "Relógio do dispositivo dessincronizado" | Mais de ±5 min de diferença | Ativa a hora automática no telemóvel e no servidor; usa **Corrigir** |
 | "Falha na sincronização. Verifique a ligação." | Servidor inacessível no URL definido | Confirma a rede e o URL (IP do servidor, não `127.0.0.1`) |
+| **Não foi possível carregar as alterações.** | Servidor antigo sem `/api/history`, ou servidor inacessível | Atualiza o servidor; confirma a rede e o URL; usa **Tentar novamente** |
 | "Registo «X» foi fundido com um registo existente." | Já havia um cliente com o mesmo nome no servidor | Nada a fazer — o teu registo foi mantido e reenviado |
 
 ## No servidor

@@ -1,7 +1,18 @@
 # ElisDB — app Android
 
-Caderno de clientes para o telemóvel: lista, ficha, mapa e fotos, com
-sincronização com o servidor ElisDB quando está configurado. Funciona offline.
+Caderno de clientes para o telemóvel: lista com pesquisa e filtros, ficha, mapa,
+fotos com escolha da foto de perfil, histórico por cliente e página global de
+alterações. Sincroniza com o servidor ElisDB; depois de configurada, funciona
+offline.
+
+## Funcionalidades
+
+- Clientes com contrato, notas, tags e estado ativo/inativo.
+- Pesquisa, filtros por estado e tags, e ordenação.
+- Foto de perfil escolhida entre as fotos do cliente.
+- Mapa com pins, filtros, localização atual e navegação.
+- Histórico por cliente e **Logs** global.
+- App offline-first, com sincronização entre dispositivos e atualizações.
 
 ## Início rápido
 
@@ -20,7 +31,7 @@ scripts/build-release.sh
 
 ## Ligar ao servidor
 
-No servidor, emite `configs/<nome>.config.json`; na app, menu ⋮ →
+No servidor, emite `configs/<nome>.config.json`; na app, menu ≡ →
 **Configuração** → **Importar credencial do utilizador**. Passo a passo em
 [Ligar um telemóvel](../docs/usar/ligar-telemovel.md).
 

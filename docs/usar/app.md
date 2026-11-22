@@ -4,28 +4,40 @@ Para ligar o telemóvel ao servidor pela primeira vez, começa em
 [ligar um telemóvel](ligar-telemovel.md). Este guia assume que a app já está
 configurada.
 
-A app é **offline-first**: tudo funciona sem rede. A sincronização é um extra.
+A app é **offline-first**: depois de configurada, tudo funciona sem rede. A
+sincronização é um extra.
 
 ## Lista de clientes
 
-É o ecrã inicial. Cada cartão mostra o nome, o contrato por baixo e as tags à
-direita (em maiúsculas, passando para a linha seguinte quando não cabem).
-Clientes inativos têm a etiqueta **Inativo** e texto atenuado.
+É o ecrã inicial. No topo aparece uma saudação com o nome do utilizador. Cada
+cartão mostra o nome, o contrato por baixo e as tags à direita (em maiúsculas);
+quando não cabem, as tags deslizam horizontalmente. Se o cliente tiver fotos, o
+cartão mostra a foto de perfil; sem fotos, um avatar genérico. Clientes inativos
+têm a etiqueta **Inativo** e texto atenuado.
 
-- **Pesquisa** — filtra enquanto escreves.
-- **Controlos** (ícone dentro da caixa de pesquisa) — estado (**Todos**, **Só
-  ativos**, **Só inativos**), tag e ordem: **alfabética** (predefinição), **mais
-  recentes** ou **última edição**. Com um filtro ativo, o ícone fica destacado.
+- **Pesquisa** — filtra enquanto escreves. Com tags escolhidas, a pesquisa
+  limita-se a esses clientes.
+- **Controlos** (ícone dentro da caixa de pesquisa) — estado (**Todos os
+  clientes**, **Só clientes ativos**, **Só clientes inativos**), **tags** (podes
+  escolher várias) e ordem: **alfabética** (predefinição), **tags (A–Z)**,
+  **mais recentes** ou **última edição**. Os filtros e a ordem ficam guardados
+  entre visitas; com um filtro ativo, o ícone fica destacado.
+- **Menu (≡)** — **Novo**, **Logs**, **Configuração** e **Sobre**. O ícone de
+  mapa na barra superior abre o mapa.
 
 ## Criar e editar
 
 Formulário com nome, contrato, notas, tags, coordenadas e o interruptor
-**Cliente ativo**.
+**Cliente ativo**. O **Nome** é obrigatório.
 
 - **Tags:** toca em **Adicionar tag**, escreve e confirma. Cada tag é um chip
   removível. Máximo 10, guardadas em maiúsculas e por ordem alfabética.
 - **Localização:** escolhe no mapa ou usa a posição atual (ver abaixo).
-- **Fotos:** captura ou escolhe imagens; vê-as em ecrã inteiro.
+- **Fotos:** **Foto** abre a câmara e **Galeria** escolhe imagens. Cada foto tem
+  um **×** no canto superior direito para a remover e uma **estrela** no canto
+  superior esquerdo: a estrela preenchida marca a foto de perfil; toca na
+  estrela de outra foto para a escolher. Ao remover a foto de perfil, a primeira
+  foto restante passa automaticamente a ser a de perfil.
 
 ## Mapa
 
@@ -45,11 +57,31 @@ O ícone de mapa na barra superior abre o mapa dos clientes com localização.
 Nome com as tags, mapa, navegação, notas e fotos.
 
 - O mapa em ecrã inteiro centra-se no cliente e mostra também a tua posição.
-- O menu (≡) permite **editar**, **apagar** e abrir o **Log**.
+- O menu (≡) permite **Editar**, **Log** e **Apagar**, por esta ordem.
 - O **Log** mostra o histórico agrupado por dia: quem alterou, a que horas, que
   campos mudaram (valor antigo e novo), ativações/desativações e fotos
   adicionadas, removidas ou reordenadas. Carrega por páginas; **Carregar mais**
-  continua.
+  continua. Tal como no **Logs** global, só aparecem alterações confirmadas pelo
+  servidor.
+
+## Logs (alterações)
+
+No menu da lista, **Logs** abre a página **Alterações**, com o histórico global
+de todas as alterações aceites pelo servidor.
+
+- As entradas aparecem por ordem cronológica inversa (mais recentes primeiro) e
+  agrupadas por dia.
+- Cada entrada mostra o cliente, o autor, a ação (criou, editou, apagou), a hora
+  e os detalhes: campos alterados, tags e fotos. Quando disponíveis, as fotos
+  adicionadas aparecem em miniatura.
+- Toca no nome de um cliente existente para abrir a ficha. Clientes apagados
+  aparecem com o nome guardado no momento da eliminação e não são clicáveis.
+- **Carregar mais** continua para as entradas anteriores; no fim deixa de
+  aparecer.
+- Só aparecem alterações confirmadas pelo servidor. Edições feitas offline
+  surgem depois de sincronizar.
+- Precisa de um servidor atualizado com `GET /api/history`. Num servidor antigo
+  aparece **Não foi possível carregar as alterações.** com **Tentar novamente**.
 
 ## Configuração
 
@@ -78,7 +110,8 @@ O detalhe técnico (lotes, idempotência, conflitos) está em
 
 ## Atualizar a app
 
-Em **Sobre** → **Procurar atualizações**:
+Em **Sobre** aparece a versão instalada; no cartão **Atualizações**, toca em
+**Procurar atualizações**:
 
 1. Se houver versão nova, **Transferir** descarrega com progresso.
 2. **Instalar** abre o instalador do Android.

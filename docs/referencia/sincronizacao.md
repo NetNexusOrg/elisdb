@@ -62,6 +62,11 @@ Consequências úteis ao diagnosticar:
   WebP.
 - Uma foto escolhida no formulário fica *staged* até ser guardada; o varrimento
   de órfãos ignora-a.
+- A foto de perfil é o campo `preferida` de cada foto; o servidor normaliza para
+  no máximo uma por cliente. Mudar a foto de perfil sincroniza apenas esse
+  metadado — os bytes da imagem não são reenviados.
+- Servidores antigos não enviam `preferida`; nesse caso o pull preserva a
+  escolha local em vez de a limpar.
 
 ## Rede e retentativas
 

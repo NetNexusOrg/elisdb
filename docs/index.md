@@ -13,8 +13,8 @@ ficheiro.
 1. [Instalar o servidor](usar/instalar-servidor.md) — Docker, primeira subida.
 2. [Ligar um telemóvel](usar/ligar-telemovel.md) — emitir a chave, importar na
    app, primeira sincronização. **É o guia central; os outros apontam para aqui.**
-3. [Usar a app](usar/app.md) — criar clientes, fotos, mapa, sincronização
-   automática, atualizações.
+3. [Usar a app](usar/app.md) — clientes, tags, fotos e foto de perfil, mapa,
+   histórico por cliente e **Logs** global, sincronização e atualizações.
 
 ## Quero operar o servidor
 
@@ -28,11 +28,12 @@ ficheiro.
 | [Expor com HTTPS](operar/nginx.md) | Nginx Proxy Manager |
 | [Publicar uma versão da app](operar/publicar-app.md) | Tag, APK, segredos do CI |
 | [Deploy do servidor](operar/deploy.md) | `deploy-server.sh`, VPS |
-| [Problemas](operar/problemas.md) | 401, 429, duplicados, sincronização |
+| [Problemas](operar/problemas.md) | 401, 429, duplicados, sincronização, logs |
 
 ## Quero entender o funcionamento
 
-- [API HTTP](referencia/api.md) — endpoints, autenticação, observabilidade.
+- [API HTTP](referencia/api.md) — endpoints, autenticação, histórico por
+  cliente e global, observabilidade.
 - [Sincronização](referencia/sincronizacao.md) — `updated_at`, `delivery_ts`,
   conflitos, tombstones, fotos.
 

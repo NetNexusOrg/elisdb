@@ -10,9 +10,9 @@ contra a lista de chaves registadas. Uma assinatura válida prova apenas que o
 pedido veio de **alguma** chave registada: **não existe ownership**.
 
 Qualquer chave registada pode ler todos os clientes e fotos, criar/editar/apagar
-qualquer cliente, substituir fotos e consultar o histórico. É isso que permite
-ter o mesmo dataset em vários telemóveis — e é o risco a assumir. O isolamento
-faz-se por **servidor**, não por chave.
+qualquer cliente, substituir fotos e consultar o histórico por cliente e global.
+É isso que permite ter o mesmo dataset em vários telemóveis — e é o risco a
+assumir. O isolamento faz-se por **servidor**, não por chave.
 
 ## O que a auditoria faz (e não faz)
 
@@ -22,7 +22,8 @@ campos alterados. As eliminações guardam também uma cópia dos dados
 (`details.deleted_client`), na mesma transação do tombstone.
 
 Serve para **atribuir** alterações a um ator. Não impede que esse ator altere ou
-apague dados de outros.
+apague dados de outros. A app mostra estes registos na ficha de cada cliente e
+na página **Logs**.
 
 ## Segredos e chaves
 

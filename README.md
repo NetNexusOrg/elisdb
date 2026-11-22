@@ -4,14 +4,29 @@
 [![Server CI](https://github.com/NetNexusOrg/elisdb/actions/workflows/server-ci.yml/badge.svg)](https://github.com/NetNexusOrg/elisdb/actions/workflows/server-ci.yml)
 [![Release](https://img.shields.io/github/v/release/NetNexusOrg/elisdb)](https://github.com/NetNexusOrg/elisdb/releases)
 
-Gestão de clientes **offline-first** para Android: uma app que cria e edita
-clientes, tira fotos e marca localizações no mapa — e um servidor próprio que
-guarda tudo e sincroniza entre telemóveis.
+Gestão de clientes **offline-first** para técnicos de controlo de pragas: uma
+app Android que cria e edita clientes, organiza tags, tira fotos e marca
+localizações no mapa — e um servidor próprio que guarda tudo e sincroniza entre
+telemóveis.
 
-A app funciona sozinha, sem servidor. Quando há servidor configurado, sincroniza
-ao abrir, ao guardar um cliente e no botão **Sincronizar**.
+É uma ferramenta de apoio ao trabalho no terreno, não um CRM/ERP nem um sistema
+completo de gestão de controlo de pragas.
+
+A app exige uma credencial completa (URL, chave e utilizador) para arrancar.
+Depois de configurada funciona **sem rede**; quando há servidor, sincroniza ao
+abrir, ao guardar um cliente e no botão **Sincronizar**.
 
 Porque existe e para quem: [apresentação](docs/apresentacao.md).
+
+## Funcionalidades
+
+- Clientes com contrato, notas, tags e estado ativo/inativo.
+- Pesquisa, filtros por estado e tags, e ordenação por nome, tags, criação ou
+  última edição.
+- Fotografias por cliente, com escolha da foto de perfil.
+- Mapa com pins, filtros, localização atual e navegação.
+- Histórico de alterações por cliente e página global **Logs**.
+- App offline-first, com sincronização entre dispositivos e atualizações.
 
 ## Começar em 3 passos
 
@@ -28,7 +43,7 @@ Porque existe e para quem: [apresentação](docs/apresentacao.md).
      python -m elisdb.keys issue maria --server-url http://192.168.1.10:8000
    ```
    Gera `configs/maria.config.json`.
-3. **Importar na app:** menu (⋮) → **Configuração** → **Importar credencial do
+3. **Importar na app:** menu (≡) → **Configuração** → **Importar credencial do
    utilizador** → **Sincronizar**.
 
 Guia completo: [ligar um telemóvel](docs/usar/ligar-telemovel.md).

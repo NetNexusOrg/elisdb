@@ -1,7 +1,9 @@
 # ElisDB Server
 
 Servidor de sincronização do ElisDB: guarda os clientes e as fotos, com
-autenticação por chave ed25519, e serve a app Android.
+autenticação por chave ed25519, e serve a app Android. Regista ainda a auditoria
+de cada alteração e expõe o histórico por cliente e a página global
+(`GET /api/history`).
 
 ## Início rápido
 

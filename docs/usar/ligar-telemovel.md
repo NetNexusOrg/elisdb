@@ -45,7 +45,7 @@ sítios públicos: quem tiver o ficheiro tem acesso total aos dados.
 
 ## 3. Importar na app
 
-Na app: menu (⋮) → **Configuração** → **Importar credencial do utilizador** →
+Na app: menu (≡) → **Configuração** → **Importar credencial do utilizador** →
 escolhe `maria.config.json`.
 
 O URL, a chave e o nome do utilizador ficam preenchidos de uma vez. O cartão

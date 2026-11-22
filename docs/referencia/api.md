@@ -35,7 +35,8 @@ MÉTODO\nCAMINHO?QUERY\nSHA256(corpo)\nTIMESTAMP
 | POST | `/api/push` | ✓ | Enviar clientes e fotos |
 | GET | `/api/pull` | ✓ | Receber alterações desde `since` |
 | GET | `/api/clients` | ✓ | Listar clientes (sem fotos) |
-| GET | `/api/clients/{id}/history` | ✓ | Histórico de auditoria |
+| GET | `/api/history` | ✓ | Histórico global de alterações |
+| GET | `/api/clients/{id}/history` | ✓ | Histórico de auditoria do cliente |
 | DELETE | `/api/clients/{id}` | ✓ | Apagar cliente e fotos |
 | GET | `/api/photos/{id}` | ✓ | Descarregar foto |
 | PUT | `/api/photos/{id}` | ✓ | Enviar foto (só se já referenciada) |
@@ -75,11 +76,25 @@ MÉTODO\nCAMINHO?QUERY\nSHA256(corpo)\nTIMESTAMP
   telemóvel ([detalhe](sincronizacao.md)).
 - Clientes e fotos são lidos em lote por página, não registo a registo.
 
-## Histórico
+## Histórico por cliente
 
 `GET /api/clients/{id}/history` devolve a lista completa (até 200) por
 compatibilidade. Com `limit` (1–200) e/ou `after_id` devolve
 `{entries, next_after_id}`; continua enquanto `next_after_id` não for `null`.
+
+## Histórico global
+
+`GET /api/history?limit=<n>&before_id=<id>` devolve as alterações de todos os
+clientes, **mais recentes primeiro**.
+
+- `limit` é 1–200 (50 por omissão); `before_id` pagina para trás.
+- Resposta: `{entries, next_before_id}`. `next_before_id` só é preenchido quando
+  há mais entradas; na última página é `null`.
+- Cada entrada tem `action`, `username`, `key_id`, `ts`, `details`, `cliente_id`
+  e `cliente_nome`.
+- `cliente_nome` é o nome atual do cliente. Para clientes apagados usa o nome
+  guardado em `details.deleted_client`; se não existir, usa o `cliente_id`.
+- Entradas antigas sem detalhes são devolvidas com `details: null`.
 
 ## Observabilidade
 

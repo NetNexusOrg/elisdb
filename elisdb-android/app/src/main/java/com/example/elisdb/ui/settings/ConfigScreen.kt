@@ -29,7 +29,6 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -63,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.elisdb.sync.ServerAvailability
 import com.example.elisdb.sync.SyncStatus
+import com.example.elisdb.ui.components.DecisionDialog
 import com.example.elisdb.ui.components.InfoCard
 import com.example.elisdb.ui.components.StatTile
 import kotlinx.coroutines.Dispatchers
@@ -279,73 +279,35 @@ fun ConfigScreen(
   }
 
   if (showReplaceLocalDialog) {
-    AlertDialog(
+    DecisionDialog(
+      title = "Substituir dados locais?",
+      text =
+        "A app vai criar primeiro uma cópia de segurança local da base de dados e das fotos. " +
+          "Depois, os registos que o servidor não tem (incluindo os marcados como apenas locais) " +
+          "serão apagados deste dispositivo. Esta ação não pode ser desfeita sem restaurar a cópia.",
+      confirmLabel = "Substituir",
+      confirmColor = MaterialTheme.colorScheme.error,
+      onConfirm = {
+        showReplaceLocalDialog = false
+        syncViewModel.replaceLocalWithServer()
+      },
       onDismissRequest = { showReplaceLocalDialog = false },
-      title = {
-        Text(
-          "Substituir dados locais?",
-          textAlign = TextAlign.Center,
-          modifier = Modifier.fillMaxWidth(),
-        )
-      },
-      text = {
-        Text(
-          "A app vai criar primeiro uma cópia de segurança local da base de dados e das fotos. " +
-            "Depois, os registos que o servidor não tem (incluindo os marcados como apenas locais) " +
-            "serão apagados deste dispositivo. Esta ação não pode ser desfeita sem restaurar a cópia.",
-          textAlign = TextAlign.Center,
-          modifier = Modifier.fillMaxWidth(),
-        )
-      },
-      confirmButton = {
-        TextButton(
-          onClick = {
-            showReplaceLocalDialog = false
-            syncViewModel.replaceLocalWithServer()
-          }
-        ) {
-          Text("Substituir")
-        }
-      },
-      dismissButton = {
-        TextButton(onClick = { showReplaceLocalDialog = false }) { Text("Cancelar") }
-      },
     )
   }
 
   if (showClearConfigDialog) {
-    AlertDialog(
+    DecisionDialog(
+      title = "Remover credencial?",
+      text =
+        "A credencial (servidor, utilizador e chave) será removida " +
+          "deste dispositivo. Terás de importar novamente o ficheiro para sincronizar.",
+      confirmLabel = "Remover",
+      confirmColor = MaterialTheme.colorScheme.error,
+      onConfirm = {
+        showClearConfigDialog = false
+        serverViewModel.clearConfig()
+      },
       onDismissRequest = { showClearConfigDialog = false },
-      title = {
-        Text(
-          "Remover credencial?",
-          textAlign = TextAlign.Center,
-          modifier = Modifier.fillMaxWidth(),
-        )
-      },
-      text = {
-        Text(
-          "A credencial (servidor, utilizador e chave) será removida " +
-            "deste dispositivo. Terás de importar novamente o ficheiro para sincronizar.",
-          textAlign = TextAlign.Center,
-          modifier = Modifier.fillMaxWidth(),
-        )
-      },
-      confirmButton = {
-        TextButton(
-          onClick = {
-            showClearConfigDialog = false
-            serverViewModel.clearConfig()
-          }
-        ) {
-          Text("Remover")
-        }
-      },
-      dismissButton = {
-        TextButton(onClick = { showClearConfigDialog = false }) {
-          Text("Cancelar")
-        }
-      },
     )
   }
 }

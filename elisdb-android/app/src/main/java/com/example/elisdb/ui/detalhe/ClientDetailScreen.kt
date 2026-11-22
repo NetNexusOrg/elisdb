@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Navigation
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -35,7 +34,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -60,6 +58,7 @@ import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.data.local.tagsOf
+import com.example.elisdb.ui.components.DecisionDialog
 import com.example.elisdb.ui.map.ElisMap
 import java.io.File
 import org.maplibre.android.geometry.LatLng
@@ -205,16 +204,13 @@ fun ClientDetailScreen(
   }
 
   if (state.showDeleteConfirmation) {
-    AlertDialog(
+    DecisionDialog(
+      title = "Apagar cliente",
+      text = "Tens a certeza de que queres apagar este cliente e as suas fotos?",
+      confirmLabel = "Apagar",
+      confirmColor = MaterialTheme.colorScheme.error,
+      onConfirm = viewModel::deleteCliente,
       onDismissRequest = viewModel::dismissDeleteConfirmation,
-      title = { Text("Apagar cliente") },
-      text = { Text("Tens a certeza de que queres apagar este cliente e as suas fotos?") },
-      confirmButton = {
-        Button(onClick = viewModel::deleteCliente) { Text("Apagar") }
-      },
-      dismissButton = {
-        OutlinedButton(onClick = viewModel::dismissDeleteConfirmation) { Text("Cancelar") }
-      },
     )
   }
 }

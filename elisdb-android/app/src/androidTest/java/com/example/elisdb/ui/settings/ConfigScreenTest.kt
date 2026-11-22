@@ -110,8 +110,7 @@ class ConfigScreenTest {
     composeTestRule.onNodeWithText("Alterações por receber").assertDoesNotExist()
     composeTestRule.onNodeWithText("Na app").assertExists()
     composeTestRule.onNodeWithText("No servidor").assertExists()
-    composeTestRule.onNodeWithText("0").assertExists()
-    composeTestRule.onNodeWithText("—").assertExists()
+    composeTestRule.onAllNodesWithText("—").assertCountEquals(2)
   }
 
   @Test
@@ -141,8 +140,7 @@ class ConfigScreenTest {
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("Na app").assertExists()
     composeTestRule.onNodeWithText("No servidor").assertExists()
-    composeTestRule.onNodeWithText("0").assertExists()
-    composeTestRule.onNodeWithText("—").assertExists()
+    composeTestRule.onAllNodesWithText("—").assertCountEquals(2)
     gate.complete(Unit)
     run.join()
   }
@@ -294,6 +292,21 @@ class ConfigScreenTest {
     composeTestRule.onNodeWithText("Remover credencial").assertDoesNotExist()
     assertEquals("", store.settings().baseUrl)
     assertEquals("", store.settings().signingKey)
+  }
+
+  @Test
+  fun config_cancelarRemocaoMantemCredencial() {
+    val store = store()
+    configure(store)
+    setContent(store)
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("Remover credencial").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("Remover credencial?").assertExists()
+    composeTestRule.onNodeWithText("Cancelar").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("Remover credencial?").assertDoesNotExist()
+    assertEquals("https://db.example.com", store.settings().baseUrl)
   }
 
   @Test

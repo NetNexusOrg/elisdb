@@ -1,8 +1,6 @@
 package com.example.elisdb.ui.about
 
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -10,8 +8,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.luminance
 import com.example.elisdb.BuildConfig
 import com.example.elisdb.sync.ServerAvailability
+import com.example.elisdb.theme.UpdateGreenDark
+import com.example.elisdb.theme.UpdateGreenLight
+import com.example.elisdb.ui.components.DecisionDialog
 import kotlinx.coroutines.flow.StateFlow
 
 /** Sentinel stored while no version has been postponed or opened this launch. */
@@ -50,30 +52,25 @@ fun AppUpdatePrompt(
 
   if (isAboutOpen || !shouldShowUpdatePrompt(phase, dismissedVersionCode)) return
   val release = (phase as UpdatePhase.Available).release
+  val confirmColor =
+    if (MaterialTheme.colorScheme.surfaceContainerHigh.luminance() > 0.5f) {
+      UpdateGreenLight
+    } else {
+      UpdateGreenDark
+    }
 
-  AlertDialog(
+  DecisionDialog(
+    title = "Atualização disponível",
+    text =
+      "A versão ${release.versionName} está disponível. " +
+        "Tem a versão ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) instalada.",
+    confirmLabel = "Atualizar",
+    confirmColor = confirmColor,
+    dismissLabel = "Adiar",
+    onConfirm = {
+      dismissedVersionCode = release.versionCode
+      onUpdate()
+    },
     onDismissRequest = { dismissedVersionCode = release.versionCode },
-    title = { Text("Atualização disponível") },
-    text = {
-      Text(
-        "A versão ${release.versionName} está disponível. " +
-          "Tem a versão ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) instalada.",
-      )
-    },
-    confirmButton = {
-      TextButton(
-        onClick = {
-          dismissedVersionCode = release.versionCode
-          onUpdate()
-        },
-      ) {
-        Text("Atualizar")
-      }
-    },
-    dismissButton = {
-      TextButton(onClick = { dismissedVersionCode = release.versionCode }) {
-        Text("Adiar")
-      }
-    },
   )
 }

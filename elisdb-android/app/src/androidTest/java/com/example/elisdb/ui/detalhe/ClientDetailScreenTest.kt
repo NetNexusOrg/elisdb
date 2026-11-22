@@ -163,6 +163,36 @@ class ClientDetailScreenTest {
   }
 
   @Test
+  fun detalhe_dialogoApagarCancelarFechaSemEliminar() {
+    val cliente = Cliente(id = "21", nome = "Rita", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
+    val repository = FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = emptyList()))
+    setDetailContent(cliente, repository)
+
+    composeTestRule.onNodeWithContentDescription("Mais opções").performClick()
+    composeTestRule.onNodeWithText("Apagar").performClick()
+
+    composeTestRule.onNodeWithText("Apagar cliente").assertExists()
+    composeTestRule.onNodeWithText("Cancelar").assertExists().performClick()
+    composeTestRule.onNodeWithText("Apagar cliente").assertDoesNotExist()
+    assertEquals(0, repository.deleteCalls)
+  }
+
+  @Test
+  fun detalhe_dialogoApagarConfirmaEliminacao() {
+    val cliente = Cliente(id = "22", nome = "Rita", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
+    val repository = FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = emptyList()))
+    setDetailContent(cliente, repository)
+
+    composeTestRule.onNodeWithContentDescription("Mais opções").performClick()
+    composeTestRule.onNodeWithText("Apagar").performClick()
+    composeTestRule.onNodeWithText("Apagar cliente").assertExists()
+    composeTestRule.onNodeWithText("Apagar").performClick()
+
+    composeTestRule.waitUntil(2_000) { repository.deleteCalls == 1 }
+    assertEquals(1, repository.deleteCalls)
+  }
+
+  @Test
   fun detalhe_tocarFotoAbreViewerComIndiceCorreto() {
     val cliente = Cliente(id = "9", nome = "Gustavo", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
     val fotos =
@@ -336,8 +366,11 @@ class ClientDetailScreenTest {
     )
   }
 
-  private fun setDetailContent(cliente: Cliente) {
-    val repository = FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = emptyList()))
+  private fun setDetailContent(
+    cliente: Cliente,
+    repository: FakeDetailRepository =
+      FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = emptyList())),
+  ) {
     val viewModel = ClientDetailViewModel(repository, cliente.id)
     composeTestRule.setContent {
       ElisdbTheme {
@@ -358,6 +391,7 @@ class ClientDetailScreenTest {
 private class FakeDetailRepository(
   private val data: ClienteComFotos,
 ) : ClienteRepository {
+  var deleteCalls = 0
   override val clientes: Flow<List<Cliente>> = flowOf(emptyList())
 
   override val clientesComFotos: Flow<List<ClienteComFotos>> = flowOf(emptyList())
@@ -374,7 +408,9 @@ private class FakeDetailRepository(
 
   override suspend fun save(draft: ClienteDraft): String = error("Not used in this test")
 
-  override suspend fun deleteCliente(id: String) = Unit
+  override suspend fun deleteCliente(id: String) {
+    deleteCalls += 1
+  }
 
   override val syncStatus = flowOf(SyncStatus.IDLE)
 

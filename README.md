@@ -11,6 +11,8 @@ guarda tudo e sincroniza entre telemóveis.
 A app funciona sozinha, sem servidor. Quando há servidor configurado, sincroniza
 ao abrir, ao guardar um cliente e no botão **Sincronizar**.
 
+Porque existe e para quem: [apresentação](docs/apresentacao.md).
+
 ## Começar em 3 passos
 
 1. **Subir o servidor** (Docker):

@@ -3,6 +3,11 @@
 Tudo o que existe para ler está aqui. Escolhe pela intenção, não pelo nome do
 ficheiro.
 
+## Quero conhecer o projeto
+
+- [Apresentação](apresentacao.md) — porque nasceu a ElisDB e que problemas
+  resolve.
+
 ## Quero instalar e usar
 
 1. [Instalar o servidor](usar/instalar-servidor.md) — Docker, primeira subida.

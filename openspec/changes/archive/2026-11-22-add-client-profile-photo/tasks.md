@@ -9,8 +9,8 @@
 
 ## 2. Android: modelo e migração
 
-- [ ] 2.1 Adicionar `preferida: Boolean = false` a `Foto` (`data/local/Foto.kt`), subir `AppDatabase` para a versão 13, criar `MIGRATION_12_13` (`ALTER TABLE fotos ADD COLUMN preferida INTEGER NOT NULL DEFAULT 0`) e registá-la em `AppContainer.kt`; verificar que o schema exportado é atualizado e que `AppDatabaseMigrationTest` passa (`./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.elisdb.data.AppDatabaseMigrationTest`).
-- [ ] 2.2 Normalizar a foto preferida em `ClienteRepositoryImpl.save()` (primeira marcada ou, na falta dela, a primeira do draft), sem alterar `ordem`; verificar com teste unitário que: uma marcada fica marcada, nenhuma marcada escolhe a primeira, e várias marcadas deixam só uma.
+- [x] 2.1 Adicionar `preferida: Boolean = false` a `Foto` (`data/local/Foto.kt`), subir `AppDatabase` para a versão 13, criar `MIGRATION_12_13` (`ALTER TABLE fotos ADD COLUMN preferida INTEGER NOT NULL DEFAULT 0`) e registá-la em `AppContainer.kt`; verificar que o schema exportado é atualizado e que `AppDatabaseMigrationTest` passa (`./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.elisdb.data.AppDatabaseMigrationTest`).
+- [x] 2.2 Normalizar a foto preferida em `ClienteRepositoryImpl.save()` (primeira marcada ou, na falta dela, a primeira do draft), sem alterar `ordem`; verificar com teste unitário que: uma marcada fica marcada, nenhuma marcada escolhe a primeira, e várias marcadas deixam só uma.
 
 ## 3. Android: edição e lista
 

@@ -6,6 +6,28 @@ mantém a app Android sincronizada. A versão de release vive em
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-22
+
+### Added
+
+- Gestão por TUI (`start.py`) para arrancar, parar e ver o estado do servidor
+  em Docker ou local, incluindo chaves e backups.
+- Diretório de dados partilhado entre Docker e execução local (`elisdb-data/`,
+  `configs/`), com validação de donos e permissões.
+- Backups agendados com verificação de integridade e retenção configurável.
+- Metadado `preferida` por foto, persistido e sincronizado, com
+  compatibilidade para clientes antigos.
+- Endpoint autenticado `GET /api/history` com o histórico global de alterações,
+  paginado por cursor.
+
+### Changed
+
+- Pacote Python renomeado de `app` para `elisdb`.
+- Arranque local e leitura dos ficheiros de utilizador endurecidos, com
+  caminhos validados e confinados.
+- A limpeza de fotos órfãs passa a corresponder as linhas pelo nome do ficheiro.
+- FastAPI atualizado para 0.163.x e testes do servidor passam a usar `httpx2`.
+
 ## [1.5.0] - 2026-11-06
 
 ### Added

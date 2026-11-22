@@ -8,8 +8,8 @@ servidor. Só a última precisa de atenção regular.
 Fonte única: `elisdb-android/gradle.properties`.
 
 ```properties
-app.versionCode=21
-app.versionName=2.1.0
+app.versionCode=22
+app.versionName=2.2.0
 ```
 
 Altera sempre aqui, nunca em `app/build.gradle.kts`. O release do GitHub usa

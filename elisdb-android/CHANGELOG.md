@@ -8,6 +8,19 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [2.2.0] - 2026-11-22
+
+### Novidades
+
+- **Foto de perfil.** Na edição, a estrela em cada foto escolhe a imagem mostrada na lista; ao remover a foto escolhida, a primeira foto restante assume o lugar.
+- **Logs de toda a equipa.** Nova página **Logs** no menu da lista, com as alterações aceites pelo servidor por ordem cronológica, agrupadas por dia e com paginação. Cada entrada mostra o cliente, o autor, a ação e o que mudou; tocar num cliente existente abre a ficha.
+- **Servidor 1.6.0.** O histórico global fica disponível em `/api/history` e a escolha da foto de perfil sincroniza entre dispositivos.
+
+### Correções
+
+- Fotos tiradas com o telemóvel na horizontal deixam de aparecer rodadas.
+- Os diálogos de confirmação passam a ter as ações na mesma ordem em todos os ecrãs.
+
 ## [2.1.0] - 2026-11-21
 
 ### Novidades

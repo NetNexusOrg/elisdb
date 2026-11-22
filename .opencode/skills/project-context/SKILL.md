@@ -1,6 +1,6 @@
 ---
 name: project-context
-description: Authoritative reference for the ElisDB project's real stack, architecture, layout and conventions. Use when starting any task in this repo, or when another skill needs project facts (paths, versions, naming, secrets model). Read this before android-development, api-backend, database, gradle-build, or android-release.
+description: Authoritative reference for the ElisDB project's target audience, product scope, stack, architecture, layout and conventions. Use when starting any task in this repo, or when another skill needs project facts (paths, versions, naming, secrets model). Read this before android-development, api-backend, database, gradle-build, or android-release.
 ---
 
 # ElisDB — Project Context
@@ -8,6 +8,41 @@ description: Authoritative reference for the ElisDB project's real stack, archit
 Single source of truth for the repo. Other skills in `.opencode/skills/` assume
 this file and must not restate it. If anything here looks stale, verify against
 the code rather than trusting memory.
+
+## Target audience and product scope
+
+ElisDB is a field-support and information tool for **pest-control technicians**
+working on customer sites. It is **not** a generic CRM/ERP and **not** a complete
+pest-control management suite: the goal is to support the technician in the
+field, not to run administration, scheduling or billing.
+
+Technicians work across restaurants, hotels and commercial kitchens; warehouses
+and distribution centres; factories and industrial facilities; offices and
+commercial buildings; residential properties; and outdoor areas. Connectivity is
+often limited or absent.
+
+Core needs:
+
+- quick access to customer and site information;
+- navigation between customer locations;
+- site photographs, floor plans and visual references;
+- monitoring devices, traps and inspection points;
+- technical notes and observations;
+- sharing information with other technicians;
+- continuity between visits and across team members.
+
+Product principles:
+
+1. **Field-first** — prioritise mobile workflows used during field operations.
+2. **Offline-first** — core functionality must work without an Internet connection.
+3. **Simple and efficient** — minimise steps, data entry and interface complexity.
+4. **Shared knowledge** — information must not depend on one technician or device.
+5. **Practicality over complexity** — solve real operational problems; avoid
+   unnecessary enterprise functionality.
+6. **Technician-centric UX** — design for a smartphone in difficult field conditions.
+
+Evaluate every product decision, feature proposal and UX change against this
+audience and these principles.
 
 ## Repo layout (monorepo, one Git repo, branch `main`)
 

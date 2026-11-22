@@ -4,6 +4,23 @@ context: |
   ElisDB is an offline-first client management system: an Android app plus a
   self-hosted sync server. Single-repo monorepo.
 
+  Audience: pest-control field technicians working across restaurants, hotels,
+  warehouses, factories, offices, homes and outdoor sites, often with limited or
+  no connectivity.
+
+  Product scope: ElisDB is a field-support and information tool for the technician,
+  not a generic CRM/ERP and not a complete pest-control management suite. Do not
+  add administrative, scheduling or billing scope unless explicitly requested.
+
+  Core needs: quick access to customer and site information; navigation between
+  customer locations; site photos, floor plans and visual references; monitoring
+  devices, traps and inspection points; technical notes; sharing information with
+  other technicians; continuity between visits and across team members.
+
+  Principles: field-first, offline-first, simple and efficient, shared knowledge,
+  practicality over complexity, technician-centric UX. Evaluate product decisions,
+  feature proposals and UX changes against this audience and these principles.
+
   Components:
   - elisdb-android/ — Android app. Kotlin 2.4.20 + Jetpack Compose (Material 3),
     Navigation 3, Room 2.8.5 (KSP), Ktor 3 client, WorkManager, CameraX, Coil.
@@ -37,6 +54,8 @@ rules:
   proposal:
     - Keep proposals concise and focused on why/what, not how.
     - List new vs modified capabilities explicitly; do not invent requirements.
+    - Check the proposal against the target audience and product principles; do
+      not add CRM/ERP, scheduling or billing scope unless explicitly requested.
   tasks:
     - Break work into small, verifiable steps.
 

@@ -11,6 +11,12 @@ Jetpack Compose) + servidor de sync (Python + FastAPI + SQLite). Monorepo:
 `elisdb-android/`, `elisdb-server/`, `elisdb-telegram-bot/`,
 `openspec/`.
 
+**Público-alvo:** técnicos de controlo de pragas a trabalhar no terreno. A ElisDB
+é uma ferramenta de informação e apoio ao técnico, **não** um CRM/ERP genérico
+nem um sistema completo de gestão de controlo de pragas. Evitar funcionalidades
+administrativas, de agendamento ou faturação sem pedido explícito. Contexto
+detalhado em `.opencode/skills/project-context/SKILL.md`.
+
 ## Regras gerais
 
 - Analisa o código e a arquitetura existentes **antes** de alterar qualquer coisa.

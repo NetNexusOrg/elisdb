@@ -85,7 +85,7 @@ class ClientFormViewModel(
           ativo = data?.cliente?.ativo ?: true,
           latitude = data?.cliente?.latitude,
           longitude = data?.cliente?.longitude,
-          fotos = data?.fotos.orEmpty(),
+          fotos = normalizeProfilePhotos(data?.fotos.orEmpty()),
         )
       }
     }
@@ -177,7 +177,9 @@ class ClientFormViewModel(
   fun onPhotoPicked(uri: Uri) {
     viewModelScope.launch {
       runCatching { repository.stagePhoto(uri) }
-        .onSuccess { foto -> _uiState.update { it.copy(fotos = it.fotos + foto) } }
+        .onSuccess { foto ->
+          _uiState.update { it.copy(fotos = normalizeProfilePhotos(it.fotos + foto)) }
+        }
         .onFailure { _uiState.update { it.copy(message = "Não foi possível guardar a imagem.") } }
     }
   }
@@ -185,7 +187,11 @@ class ClientFormViewModel(
   fun onPhotoCaptured(file: File) {
     viewModelScope.launch {
       runCatching { repository.stagePhoto(Uri.fromFile(file)) }
-        .onSuccess { foto -> _uiState.update { it.copy(fotos = it.fotos + foto, showCamera = false) } }
+        .onSuccess { foto ->
+          _uiState.update {
+            it.copy(fotos = normalizeProfilePhotos(it.fotos + foto), showCamera = false)
+          }
+        }
         .onFailure { _uiState.update { it.copy(showCamera = false, message = "Não foi possível guardar a imagem.") } }
       // stagePhoto re-encodes to a new .webp; the original capture file is no
       // longer referenced, so remove it instead of leaving an orphan on disk.
@@ -196,9 +202,23 @@ class ClientFormViewModel(
   }
 
   fun onRemoveFoto(foto: Foto) {
-    _uiState.update { it.copy(fotos = it.fotos - foto) }
+    _uiState.update {
+      it.copy(fotos = normalizeProfilePhotos(it.fotos - foto))
+    }
     if (foto.id.isEmpty()) {
       viewModelScope.launch { repository.deletePhotoFile(foto) }
+    }
+  }
+
+  fun onSetProfilePhoto(foto: Foto) {
+    _uiState.update { state ->
+      state.copy(
+        fotos =
+          state.fotos.map {
+            if (it.uriLocal == foto.uriLocal) it.copy(preferida = true)
+            else it.copy(preferida = false)
+          }
+      )
     }
   }
 
@@ -265,5 +285,18 @@ class ClientFormViewModel(
         orphanPhotos.forEach { runCatching { repository.deletePhotoFile(it) } }
       }
     }
+  }
+}
+
+/**
+ * Exactly one photo is the profile photo: the first marked one or the first of
+ * the gallery when nothing is marked (photos saved before the flag existed).
+ */
+internal fun normalizeProfilePhotos(fotos: List<Foto>): List<Foto> {
+  if (fotos.isEmpty()) return fotos
+  val preferred = fotos.indexOfFirst { it.preferida }.takeIf { it >= 0 } ?: 0
+  return fotos.mapIndexed { index, foto ->
+    val isPreferred = index == preferred
+    if (foto.preferida == isPreferred) foto else foto.copy(preferida = isPreferred)
   }
 }

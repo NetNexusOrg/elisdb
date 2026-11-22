@@ -461,6 +461,32 @@ class ApiClient(
     return response.body()
   }
 
+  /** Fetches a page of the global activity log, newest first. */
+  override suspend fun fetchActivityPage(
+    limit: Int,
+    beforeId: Int?,
+    timestamp: Long,
+  ): ActivityPageDto {
+    val query = buildString {
+      append("?limit=").append(limit)
+      if (beforeId != null) append("&before_id=").append(beforeId)
+    }
+    val path = "/api/history$query"
+    val response = execute(timestamp) { ts ->
+      client.get("$baseUrl$path") {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
+      }
+    }
+    if (response.status != HttpStatusCode.OK) {
+      throw ServerException(
+        "activity page fetch failed HTTP ${response.status}",
+        response.status.value,
+      )
+    }
+    return response.body()
+  }
+
   /** Downloads a photo's raw bytes by id. */
   override suspend fun downloadPhoto(id: String, timestamp: Long): ByteArray {
     val path = "/api/photos/$id"

@@ -51,6 +51,9 @@ class FotoIn(BaseModel):
     id: str
     mime: str
     ordem: int = 0
+    # None means the push predates the profile-photo flag; the stored value is
+    # preserved instead of being cleared.
+    preferida: bool | None = None
 
     @field_validator("id")
     @classmethod
@@ -101,6 +104,7 @@ class FotoOut(BaseModel):
     id: str
     mime: str
     ordem: int = 0
+    preferida: bool = False
     hash: str | None = None
     # False when the metadata row exists but the server has lost the bytes.
     # Clients must keep their local copy instead of treating it as a deletion.
@@ -183,6 +187,19 @@ class AuditEntryOut(BaseModel):
 class HistoryPageOut(BaseModel):
     entries: list[AuditEntryOut]
     next_after_id: int | None = None
+
+
+class ActivityEntryOut(AuditEntryOut):
+    """An audit entry in the global activity log, which names its client."""
+
+    cliente_id: str
+    cliente_nome: str | None = None
+
+
+class ActivityPageOut(BaseModel):
+    entries: list[ActivityEntryOut]
+    # Cursor for the next (older) page; absent on the last page.
+    next_before_id: int | None = None
 
 
 class PushResult(BaseModel):

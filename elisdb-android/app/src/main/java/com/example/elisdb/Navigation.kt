@@ -27,6 +27,8 @@ import com.example.elisdb.ui.cliente.ClientMapScreen
 import com.example.elisdb.ui.cliente.ClientMapViewModel
 import com.example.elisdb.ui.detalhe.ClientDetailScreen
 import com.example.elisdb.ui.detalhe.ClientDetailViewModel
+import com.example.elisdb.ui.detalhe.ActivityLogScreen
+import com.example.elisdb.ui.detalhe.ActivityLogViewModel
 import com.example.elisdb.ui.detalhe.ClientLogScreen
 import com.example.elisdb.ui.detalhe.ClientLogViewModel
 import com.example.elisdb.ui.detalhe.MapFullscreenScreen
@@ -97,6 +99,7 @@ private fun MainDestinations(container: AppContainer) {
             onConfigClick = { backStack.add(Config) },
             onAboutClick = { backStack.add(About) },
             onMapClick = { backStack.add(ClientMap) },
+            onLogsClick = { backStack.add(ActivityLog) },
           )
         }
         entry<ClientMap> {
@@ -182,6 +185,33 @@ private fun MainDestinations(container: AppContainer) {
                 )
               },
             onBack = { backStack.removeLastOrNull() },
+          )
+        }
+        entry<ActivityLog> {
+          val container = rememberAppContainer()
+          ActivityLogScreen(
+            viewModel =
+              viewModel {
+                ActivityLogViewModel(
+                  fetchPage = { limit, beforeId ->
+                    container.withApiClient { api ->
+                      api.fetchActivityPage(
+                        limit,
+                        beforeId,
+                        timestamp = container.normalizedEpochSeconds(),
+                      )
+                    }
+                  },
+                  photosByIds = { ids ->
+                    container.database.fotoDao().getUrisByIds(ids).associate { it.id to it.uriLocal }
+                  },
+                  findExistingClienteIds = { ids ->
+                    container.database.clienteDao().getExistingIds(ids).toSet()
+                  },
+                )
+              },
+            onBack = { backStack.removeLastOrNull() },
+            onClienteClick = { id -> backStack.add(ClientDetail(id)) },
           )
         }
         entry<PhotoViewer> { key ->

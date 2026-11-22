@@ -575,6 +575,53 @@ class ApiClientTest {
   }
 
   @Test
+  fun fetchActivityPageSendsSignedRequestAndDecodesThePage() = runBlocking {
+    var requestedUrl = ""
+    val api = client(MockEngine { request ->
+      requestedUrl = request.url.toString()
+      assertTrue(request.headers[AuthHeaders.TIMESTAMP] != null)
+      assertTrue(request.headers[AuthHeaders.SIGNATURE] != null)
+      okJson(
+        """{"entries":[{"action":"edit","username":"Joao","key_id":"k","ts":100,
+           "cliente_id":"c1","cliente_nome":"ANA SILVA"}],"next_before_id":42}"""
+          .trimIndent()
+      )
+    })
+
+    val page = api.fetchActivityPage(limit = 20, beforeId = 99, timestamp = 1_700_000_000L)
+
+    assertTrue(requestedUrl.contains("/api/history?limit=20&before_id=99"))
+    assertEquals("ANA SILVA", page.entries.single().clienteNome)
+    assertEquals(42, page.nextBeforeId)
+  }
+
+  @Test
+  fun fetchActivityPageOmitsTheCursorOnTheFirstPage() = runBlocking {
+    var requestedUrl = ""
+    val api = client(MockEngine { request ->
+      requestedUrl = request.url.toString()
+      okJson("""{"entries":[],"next_before_id":null}""")
+    })
+
+    api.fetchActivityPage(limit = 50, beforeId = null, timestamp = 1_700_000_000L)
+
+    assertTrue(requestedUrl.contains("/api/history?limit=50"))
+    assertTrue(!requestedUrl.contains("before_id"))
+  }
+
+  @Test
+  fun fetchActivityPage_nonOkThrowsServerExceptionWithStatus() = runBlocking {
+    val api = client(MockEngine { respond("boom", HttpStatusCode.InternalServerError) })
+
+    try {
+      api.fetchActivityPage(limit = 50, beforeId = null, timestamp = 1_700_000_000L)
+      throw AssertionError("expected ServerException")
+    } catch (e: ServerException) {
+      assertEquals(500, e.status)
+    }
+  }
+
+  @Test
   fun downloadReleaseDeletesACorruptedPackage() = runBlocking {
     val bytes = "apk-bytes".toByteArray()
     val release = AppReleaseDto("1.6.0", 11, bytes.size.toLong(), "not-the-sha", "elisdb-1.6.0-11.apk")

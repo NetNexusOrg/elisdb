@@ -343,6 +343,61 @@ def test_rate_limit_returns_429(tmp_path, monkeypatch):
     assert client.get("/api/latest", timestamp=now + 2).status_code == 429
 
 
+def test_global_history_is_newest_first_and_paginates(server):
+    client, _db = server
+    for index, name in enumerate(["Ana", "Bea", "Caio"]):
+        client.post(
+            "/api/push",
+            _body([_record(id=str(index + 1), nome=name, updated_at=1000 + index)]),
+        )
+
+    first = client.get("/api/history?limit=2")
+    assert first.status_code == 200
+    page = first.json()
+    assert [entry["cliente_nome"] for entry in page["entries"]] == ["CAIO", "BEA"]
+    assert [entry["cliente_id"] for entry in page["entries"]] == ["3", "2"]
+    assert page["next_before_id"] is not None
+
+    second = client.get(f"/api/history?limit=2&before_id={page['next_before_id']}")
+    assert second.status_code == 200
+    older = second.json()
+    assert [entry["cliente_nome"] for entry in older["entries"]] == ["ANA"]
+    assert older["next_before_id"] is None
+
+
+def test_global_history_names_deleted_clients_on_every_entry(server):
+    client, _db = server
+    client.post("/api/push", _body([_record(id="1", nome="Ana", updated_at=1000)]))
+    client.post("/api/push", _body([_record(id="1", nome="Ana Silva", updated_at=1100)]))
+    assert client.delete("/api/clients/1?deleted_at=1200").status_code == 204
+
+    entries = client.get("/api/history").json()["entries"]
+
+    assert [entry["action"] for entry in entries] == ["delete", "edit", "create"]
+    assert {entry["cliente_nome"] for entry in entries} == {"ANA SILVA"}
+
+
+def test_global_history_requires_authentication(server):
+    client, _db = server
+    assert client.client.get("/api/history").status_code == 401
+
+
+def test_global_history_rejects_an_invalid_limit(server):
+    client, _db = server
+    assert client.get("/api/history?limit=0").status_code == 422
+    assert client.get("/api/history?limit=201").status_code == 422
+
+
+def test_global_history_keeps_entries_without_details(server):
+    client, _db = server
+    client.post("/api/push", _body([_record(id="1", nome="Ana", updated_at=1000)]))
+
+    entries = client.get("/api/history").json()["entries"]
+
+    assert entries[0]["action"] == "create"
+    assert entries[0]["details"] is None
+
+
 def test_client_history_carries_the_recorded_changes(server):
     client, _db = server
     client.post("/api/push", _body([_record(id="1", nome="Ana", updated_at=1000)]))
@@ -432,6 +487,7 @@ def test_push_reports_photos_missing_on_the_server(server):
             "id": "never-uploaded",
             "mime": "image/jpeg",
             "ordem": 0,
+            "preferida": False,
             "hash": None,
             "available": False,
         }

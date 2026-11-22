@@ -2,6 +2,7 @@ package com.example.elisdb.sync
 
 import com.example.elisdb.remote.AuditEntryDto
 import com.example.elisdb.remote.ClienteComFotosDto
+import com.example.elisdb.remote.ActivityPageDto
 import com.example.elisdb.remote.HistoryPageDto
 import com.example.elisdb.remote.PullResponseDto
 import com.example.elisdb.remote.PushResultDto
@@ -45,6 +46,13 @@ interface SyncApi {
     afterId: Int?,
     timestamp: Long = System.currentTimeMillis() / 1000,
   ): HistoryPageDto
+
+  /** Fetches a page of the global activity log, newest first. */
+  suspend fun fetchActivityPage(
+    limit: Int,
+    beforeId: Int?,
+    timestamp: Long = System.currentTimeMillis() / 1000,
+  ): ActivityPageDto
 
   /** Downloads a photo's raw bytes by id. */
   suspend fun downloadPhoto(id: String, timestamp: Long = System.currentTimeMillis() / 1000): ByteArray

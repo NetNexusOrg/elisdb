@@ -376,7 +376,8 @@ class SyncCoordinator(
         item.record.fotos.forEach { foto ->
           append(foto.id).append('\u001e')
           append(foto.mime).append('\u001e')
-          append(foto.ordem).append('\u001d')
+          append(foto.ordem).append('\u001e')
+          append(foto.preferida).append('\u001d')
         }
         append('\u001c')
       }
@@ -480,7 +481,10 @@ class SyncCoordinator(
         continue
       }
       when (val m = materializer.materialize(existing, fotoDto, download = { downloadPhoto(it) })) {
-        is MaterializeResult.Keep -> Unit
+        is MaterializeResult.Keep ->
+          if (existing != null && fotoDto.preferida != null && fotoDto.preferida != existing.preferida) {
+            canonicalUpserts += existing.copy(preferida = fotoDto.preferida)
+          }
         is MaterializeResult.Repointed -> {
           canonicalUpserts +=
             Foto(
@@ -489,6 +493,7 @@ class SyncCoordinator(
               uriLocal = m.uriLocal,
               mime = fotoDto.mime,
               ordem = fotoDto.ordem,
+              preferida = fotoDto.preferida ?: existing?.preferida ?: false,
             )
           if (existing != null) {
             filesToDeleteAfterCommit += existing.uriLocal
@@ -811,12 +816,23 @@ class SyncCoordinator(
       if (!fotoDto.available) {
         // The server still knows the photo but has lost the bytes. Preserve the
         // local copy; do not download or treat it as removed.
-        if (existing != null) keptIds += existing.id
+        if (existing != null) {
+          keptIds += existing.id
+          if (fotoDto.preferida != null && fotoDto.preferida != existing.preferida) {
+            upserts += existing.copy(preferida = fotoDto.preferida)
+          }
+        }
         continue
       }
       when (val result = materializer.materialize(existing, fotoDto, download = { downloadPhoto(it) })) {
         is MaterializeResult.Keep ->
-          if (existing != null) keptIds += existing.id
+          if (existing != null) {
+            keptIds += existing.id
+            // Metadata-only change: update the row without touching the file.
+            if (fotoDto.preferida != null && fotoDto.preferida != existing.preferida) {
+              upserts += existing.copy(preferida = fotoDto.preferida)
+            }
+          }
         is MaterializeResult.Repointed -> {
           upserts +=
             Foto(
@@ -825,6 +841,7 @@ class SyncCoordinator(
               uriLocal = result.uriLocal,
               mime = fotoDto.mime,
               ordem = fotoDto.ordem,
+              preferida = fotoDto.preferida ?: existing?.preferida ?: false,
             )
           if (existing != null) {
             keptIds += existing.id

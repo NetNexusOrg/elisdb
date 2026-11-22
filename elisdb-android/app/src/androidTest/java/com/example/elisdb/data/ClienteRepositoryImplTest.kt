@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.elisdb.data.local.AppDatabase
+import com.example.elisdb.data.local.Foto
 import com.example.elisdb.sync.ClockOffsetStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -142,6 +143,61 @@ class ClienteRepositoryImplTest {
     } catch (e: ClienteRemovidoException) {
       assertEquals("apagado-entretanto", e.clienteId)
     }
+  }
+
+  @Test
+  fun saveKeepsTheChosenProfilePhoto() = runBlocking {
+    val id =
+      repository.save(
+        ClienteDraft(
+          nome = "Ana",
+          fotos =
+            listOf(
+              Foto(id = "", clienteId = "", uriLocal = "/tmp/a.webp"),
+              Foto(id = "", clienteId = "", uriLocal = "/tmp/b.webp", preferida = true),
+            ),
+        )
+      )
+
+    val fotos = repository.getCliente(id)!!.fotos
+    assertEquals(listOf(false, true), fotos.map { it.preferida })
+  }
+
+  @Test
+  fun saveFallsBackToTheFirstPhotoWhenNoneIsChosen() = runBlocking {
+    val id =
+      repository.save(
+        ClienteDraft(
+          nome = "Ana",
+          fotos =
+            listOf(
+              Foto(id = "", clienteId = "", uriLocal = "/tmp/a.webp"),
+              Foto(id = "", clienteId = "", uriLocal = "/tmp/b.webp"),
+            ),
+        )
+      )
+
+    val fotos = repository.getCliente(id)!!.fotos
+    assertEquals(listOf(true, false), fotos.map { it.preferida })
+  }
+
+  @Test
+  fun saveKeepsOnlyTheFirstMarkedPhoto() = runBlocking {
+    val id =
+      repository.save(
+        ClienteDraft(
+          nome = "Ana",
+          fotos =
+            listOf(
+              Foto(id = "", clienteId = "", uriLocal = "/tmp/a.webp"),
+              Foto(id = "", clienteId = "", uriLocal = "/tmp/b.webp", preferida = true),
+              Foto(id = "", clienteId = "", uriLocal = "/tmp/c.webp", preferida = true),
+            ),
+        )
+      )
+
+    val fotos = repository.getCliente(id)!!.fotos
+    assertEquals(listOf(false, true, false), fotos.map { it.preferida })
   }
 
   @Test

@@ -153,6 +153,7 @@ def test_push_reports_photos_missing_on_the_server(tmp_path):
             "id": "absent",
             "mime": "image/jpeg",
             "ordem": 0,
+            "preferida": False,
             "hash": None,
             "available": False,
         }

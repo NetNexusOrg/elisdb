@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS fotos (
     mime TEXT NOT NULL,
     caminho TEXT NOT NULL,
     ordem INTEGER NOT NULL DEFAULT 0,
+    preferida INTEGER NOT NULL DEFAULT 0,
     hash TEXT,
     uploaded_by_key TEXT,
     size_bytes INTEGER NOT NULL DEFAULT 0
@@ -118,6 +119,17 @@ def _migrate_fotos_hash(conn: sqlite3.Connection) -> None:
     columns = [row["name"] for row in conn.execute("PRAGMA table_info(fotos)").fetchall()]
     if "hash" not in columns:
         conn.execute("ALTER TABLE fotos ADD COLUMN hash TEXT")
+
+
+def _migrate_fotos_preferida(conn: sqlite3.Connection) -> None:
+    """Idempotently add the fotos.preferida profile-photo flag.
+
+    Existing photos default to 0 (not the profile photo); the app falls back to
+    the first photo by gallery order, so no data needs backfilling.
+    """
+    columns = [row["name"] for row in conn.execute("PRAGMA table_info(fotos)").fetchall()]
+    if "preferida" not in columns:
+        conn.execute("ALTER TABLE fotos ADD COLUMN preferida INTEGER NOT NULL DEFAULT 0")
 
 
 def _migrate_fotos_upload_metadata(conn: sqlite3.Connection) -> None:
@@ -534,6 +546,7 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     _migrate_clients_created_at(conn)
     _migrate_clients_tag(conn)
     _migrate_fotos_hash(conn)
+    _migrate_fotos_preferida(conn)
     _migrate_fotos_upload_metadata(conn)
     # delivery_ts must exist before the coordinate rebuild, which copies it.
     _migrate_delivery_ts(conn)
@@ -964,14 +977,22 @@ class Database:
         incoming = sorted(fotos, key=lambda f: f.ordem)
         kept_ids: list[str] = []
         missing_ids: list[str] = []
+        preferidas: dict[str, int] = {}
         for foto in incoming:
             owner = conn.execute(
-                "SELECT cliente_id FROM fotos WHERE id = ?", (foto.id,)
+                "SELECT cliente_id, preferida FROM fotos WHERE id = ?", (foto.id,)
             ).fetchone()
             if owner is not None and owner["cliente_id"] != cliente_id:
                 raise ValueError(
                     f"photo id {foto.id} already belongs to another client"
                 )
+            # A missing flag comes from a client that predates this feature; keep
+            # the stored value instead of clearing the choice.
+            if foto.preferida is not None:
+                preferida = int(foto.preferida)
+            else:
+                preferida = int(owner["preferida"]) if owner is not None else 0
+            preferidas[foto.id] = preferida
             kept_ids.append(foto.id)
             if not os.path.exists(self._foto(foto.id)):
                 missing_ids.append(foto.id)
@@ -1004,12 +1025,35 @@ class Database:
             path = self._foto(foto.id)
             digest = self._hash_file(path)
             conn.execute(
-                "INSERT INTO fotos (id, cliente_id, mime, caminho, ordem, hash) "
-                "VALUES (?, ?, ?, ?, ?, ?) "
+                "INSERT INTO fotos (id, cliente_id, mime, caminho, ordem, preferida, hash) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(id) DO UPDATE SET "
-                "cliente_id=excluded.cliente_id, mime=excluded.mime, caminho=excluded.caminho, ordem=excluded.ordem, hash=excluded.hash",
-                (foto.id, cliente_id, foto.mime, path, foto.ordem, digest),
+                "cliente_id=excluded.cliente_id, mime=excluded.mime, caminho=excluded.caminho, ordem=excluded.ordem, "
+                "preferida=excluded.preferida, hash=excluded.hash",
+                (
+                    foto.id,
+                    cliente_id,
+                    foto.mime,
+                    path,
+                    foto.ordem,
+                    preferidas[foto.id],
+                    digest,
+                ),
             )
+
+        # Keep the invariant of at most one profile photo per client. Pushes
+        # from older clients leave every flag untouched (None), so normalizing
+        # here also fixes duplicates introduced before this feature.
+        preferred = conn.execute(
+            "SELECT id FROM fotos WHERE cliente_id = ? AND preferida = 1 "
+            "ORDER BY ordem, id LIMIT 1",
+            (cliente_id,),
+        ).fetchone()
+        conn.execute(
+            "UPDATE fotos SET preferida = 0 "
+            "WHERE cliente_id = ? AND preferida = 1 AND id != ?",
+            (cliente_id, preferred["id"] if preferred is not None else ""),
+        )
         return kept_ids, missing_ids, files_to_remove
 
     def _foto(self, foto_id: str) -> str:
@@ -1385,6 +1429,81 @@ class Database:
             history.append(entry)
         return history, next_after_id
 
+    def activity_page(
+        self,
+        limit: int,
+        before_id: int | None = None,
+    ) -> tuple[list[dict], int | None]:
+        """Return one global activity page, newest first, plus the next cursor.
+
+        Entries are read from ``client_audit`` with the client's current name.
+        For clients that no longer exist, the name is recovered from the most
+        recent delete snapshot in a single extra query scoped to the page.
+        """
+        conn = self._conn()
+        try:
+            if before_id is None:
+                rows = conn.execute(
+                    "SELECT a.id, a.cliente_id, a.action, a.username, a.key_id, a.ts, "
+                    "a.details, c.nome AS cliente_nome "
+                    "FROM client_audit a LEFT JOIN clientes c ON c.id = a.cliente_id "
+                    "ORDER BY a.id DESC LIMIT ?",
+                    (limit + 1,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT a.id, a.cliente_id, a.action, a.username, a.key_id, a.ts, "
+                    "a.details, c.nome AS cliente_nome "
+                    "FROM client_audit a LEFT JOIN clientes c ON c.id = a.cliente_id "
+                    "WHERE a.id < ? ORDER BY a.id DESC LIMIT ?",
+                    (before_id, limit + 1),
+                ).fetchall()
+            has_more = len(rows) > limit
+            kept = rows[:limit]
+            next_before_id = kept[-1]["id"] if has_more and kept else None
+
+            missing_names = [row["cliente_id"] for row in kept if not row["cliente_nome"]]
+            deleted_names: dict[str, str] = {}
+            if missing_names:
+                placeholders = ",".join("?" * len(missing_names))
+                snapshots = conn.execute(
+                    "SELECT cliente_id, details FROM client_audit "
+                    f"WHERE action = 'delete' AND cliente_id IN ({placeholders}) "
+                    "ORDER BY id DESC",
+                    missing_names,
+                ).fetchall()
+                for snapshot in snapshots:
+                    cliente_id = snapshot["cliente_id"]
+                    if cliente_id in deleted_names:
+                        continue
+                    raw = snapshot["details"]
+                    if not raw:
+                        continue
+                    try:
+                        details = json.loads(raw)
+                    except (TypeError, ValueError):
+                        continue
+                    name = (details.get("deleted_client") or {}).get("nome")
+                    if name:
+                        deleted_names[cliente_id] = name
+        finally:
+            conn.close()
+
+        history = []
+        for row in kept:
+            entry = dict(row)
+            entry.pop("id", None)
+            cliente_id = entry["cliente_id"]
+            entry["cliente_nome"] = (
+                entry.get("cliente_nome")
+                or deleted_names.get(cliente_id)
+                or cliente_id
+            )
+            raw = entry.get("details")
+            entry["details"] = json.loads(raw) if raw else None
+            history.append(entry)
+        return history, next_before_id
+
     def list_clients(self) -> list[dict]:
         conn = self._conn()
         try:
@@ -1436,7 +1555,7 @@ class Database:
             ).fetchall()
             clients.update({row["id"]: row for row in rows})
             for row in conn.execute(
-                "SELECT cliente_id, id, mime, caminho, ordem, hash FROM fotos "
+                "SELECT cliente_id, id, mime, caminho, ordem, preferida, hash FROM fotos "
                 f"WHERE cliente_id IN ({placeholders}) "
                 "ORDER BY cliente_id, ordem, id",
                 chunk,
@@ -1467,6 +1586,7 @@ class Database:
                         "mime": f["mime"],
                         "hash": digest,
                         "ordem": f["ordem"],
+                        "preferida": bool(f["preferida"]),
                         "available": available,
                     }
                 )
@@ -1497,7 +1617,7 @@ class Database:
         if row is None:
             return None
         fotos = conn.execute(
-            "SELECT id, mime, caminho, ordem, hash FROM fotos WHERE cliente_id = ? ORDER BY ordem",
+            "SELECT id, mime, caminho, ordem, preferida, hash FROM fotos WHERE cliente_id = ? ORDER BY ordem",
             (cliente_id,),
         ).fetchall()
         foto_out = []
@@ -1522,6 +1642,7 @@ class Database:
                     "mime": f["mime"],
                     "hash": digest,
                     "ordem": f["ordem"],
+                    "preferida": bool(f["preferida"]),
                     "available": available,
                 }
             )

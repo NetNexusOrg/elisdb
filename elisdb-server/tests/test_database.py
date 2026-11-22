@@ -12,6 +12,7 @@ from elisdb.database import (
     PhotoQuotaExceeded,
     StaleDeleteError,
     _apply_schema,
+    _migrate_fotos_preferida,
     _migrate_fotos_upload_metadata,
     connect,
 )
@@ -506,6 +507,7 @@ def test_pull_reports_missing_photo_file_as_unavailable(tmp_path):
             "id": "p1",
             "mime": "image/jpeg",
             "ordem": 0,
+            "preferida": False,
             "hash": None,
             "available": False,
         }
@@ -952,3 +954,131 @@ def test_apply_schema_adds_revoked_at_idempotently(tmp_path):
     # Running it again must not fail on the already-present column.
     _apply_schema(conn)
     conn.close()
+
+
+def test_fotos_preferida_migration_preserves_existing_rows(tmp_path):
+    conn = sqlite3.connect(tmp_path / "legacy.db")
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        "CREATE TABLE fotos ("
+        "id TEXT PRIMARY KEY, cliente_id TEXT, mime TEXT, caminho TEXT, "
+        "ordem INTEGER, hash TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO fotos (id, cliente_id, mime, caminho, ordem, hash) "
+        "VALUES ('p1', '1', 'image/jpeg', '/tmp/p1.jpg', 0, NULL)"
+    )
+    conn.commit()
+
+    _migrate_fotos_preferida(conn)
+
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(fotos)")}
+    assert "preferida" in columns
+    row = conn.execute(
+        "SELECT id, mime, ordem, preferida FROM fotos WHERE id = 'p1'"
+    ).fetchone()
+    assert tuple(row) == ("p1", "image/jpeg", 0, 0)
+    # Running it again must not fail on the already-present column.
+    _migrate_fotos_preferida(conn)
+    conn.close()
+
+
+def test_push_sets_preserves_and_clears_preferred_photo(tmp_path):
+    db = _db(tmp_path)
+    db.write_photo("p1", b"1")
+    db.write_photo("p2", b"2")
+
+    db.save_client(
+        _cliente(id="a", updated_at=1000),
+        [
+            FotoIn(id="p1", mime="image/jpeg"),
+            FotoIn(id="p2", mime="image/jpeg", ordem=1, preferida=True),
+        ],
+    )
+    assert [
+        f["preferida"] for f in db.get_client_with_photos("a")["fotos"]
+    ] == [False, True]
+
+    # An older client omits the flag: the stored choice survives.
+    db.save_client(
+        _cliente(id="a", updated_at=1001),
+        [
+            FotoIn(id="p1", mime="image/jpeg"),
+            FotoIn(id="p2", mime="image/jpeg", ordem=1),
+        ],
+    )
+    assert [
+        f["preferida"] for f in db.get_client_with_photos("a")["fotos"]
+    ] == [False, True]
+
+    # Explicit false clears it.
+    db.save_client(
+        _cliente(id="a", updated_at=1002),
+        [
+            FotoIn(id="p1", mime="image/jpeg", preferida=False),
+            FotoIn(id="p2", mime="image/jpeg", ordem=1, preferida=False),
+        ],
+    )
+    assert [
+        f["preferida"] for f in db.get_client_with_photos("a")["fotos"]
+    ] == [False, False]
+
+    # Multiple marks normalize to the first by gallery order.
+    db.save_client(
+        _cliente(id="a", updated_at=1003),
+        [
+            FotoIn(id="p2", mime="image/jpeg", preferida=True),
+            FotoIn(id="p1", mime="image/jpeg", ordem=1, preferida=True),
+        ],
+    )
+    stored = {
+        f["id"]: f["preferida"] for f in db.get_client_with_photos("a")["fotos"]
+    }
+    assert stored == {"p2": True, "p1": False}
+
+
+def test_pull_includes_the_preferred_photo_flag(tmp_path):
+    db = _db(tmp_path)
+    db.write_photo("p1", b"1")
+    db.save_client(
+        _cliente(id="a"),
+        [FotoIn(id="p1", mime="image/jpeg", preferida=True)],
+    )
+
+    records, _tombstones, _since, _since_id = db.pull_all()
+
+    assert records[0]["fotos"][0]["preferida"] is True
+
+
+def test_activity_page_is_newest_first_and_paginates(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    for index, name in enumerate(["Ana", "Bea", "Caio"]):
+        db.save_client(
+            _cliente(id=str(index + 1), nome=name, updated_at=1000 + index),
+            [],
+            actor,
+        )
+
+    entries, next_before_id = db.activity_page(2)
+    assert [entry["cliente_nome"] for entry in entries] == ["CAIO", "BEA"]
+    assert [entry["action"] for entry in entries] == ["create", "create"]
+    assert next_before_id is not None
+
+    older, last_cursor = db.activity_page(2, before_id=next_before_id)
+    assert [entry["cliente_nome"] for entry in older] == ["ANA"]
+    assert last_cursor is None
+
+
+def test_activity_page_keeps_deleted_client_name_on_every_entry(tmp_path):
+    db = _db(tmp_path)
+    actor = {"id": "key-1", "comment": "Joao"}
+    db.save_client(_cliente(id="b", nome="Bea", updated_at=1000), [], actor)
+    db.save_client(_cliente(id="b", nome="Bea Silva", updated_at=1100), [], actor)
+    assert db.delete_client("b", deleted_at=1200, actor=actor) is True
+
+    entries, _cursor = db.activity_page(10)
+
+    assert [entry["action"] for entry in entries] == ["delete", "edit", "create"]
+    assert {entry["cliente_nome"] for entry in entries} == {"BEA SILVA"}
+    assert entries[-1]["details"] is None

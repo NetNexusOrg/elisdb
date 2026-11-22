@@ -266,6 +266,8 @@ private class FakeAndroidClienteDao : com.example.elisdb.data.local.ClienteDao {
   override suspend fun getById(id: String): Cliente? = clients.value.find { it.id == id }
   override suspend fun getPending(): List<Cliente> = clients.value.filter { it.pending }
   override suspend fun getPendingDeletions(): List<Cliente> = clients.value.filter { it.deletePending }
+  override suspend fun getExistingIds(ids: List<String>): List<String> =
+    clients.value.filter { !it.deletePending && it.id in ids }.map { it.id }
   override suspend fun insert(cliente: Cliente) = Unit
   override suspend fun upsert(cliente: Cliente) = Unit
   override suspend fun update(cliente: Cliente) = Unit

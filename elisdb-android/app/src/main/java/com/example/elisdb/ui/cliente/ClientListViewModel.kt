@@ -160,7 +160,9 @@ class ClientListViewModel(
               ClientListItem(
                 id = it.cliente.id,
                 nome = it.cliente.nome,
-                primeiraFotoUri = it.fotos.firstOrNull()?.uriLocal,
+                primeiraFotoUri =
+                  (it.fotos.firstOrNull { foto -> foto.preferida } ?: it.fotos.firstOrNull())
+                    ?.uriLocal,
                 contrato = it.cliente.contrato,
                 tags = tagsOf(it.cliente.tag),
                 ativo = it.cliente.ativo,

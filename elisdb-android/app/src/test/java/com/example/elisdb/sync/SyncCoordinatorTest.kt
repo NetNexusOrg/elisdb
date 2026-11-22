@@ -121,6 +121,35 @@ class SyncCoordinatorTest {
   }
 
   @Test
+  fun `push changes the idempotency key when only the profile flag changes`() = runBlocking {
+    val photo =
+      Foto(
+        id = "f1",
+        clienteId = "1",
+        uriLocal = "file:/a.jpg",
+        mime = "image/jpeg",
+        ordem = 0,
+        preferida = false,
+      )
+    val fotoDao = FakeFotoDao(listOf(photo))
+    val photoStore = FakePhotoStore().apply { stage("file:/a.jpg", "aGk=") }
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, updatedAt = 100)))
+    val api =
+      FakeSyncApi().apply {
+        pushResult = { records -> records.map { PushResultDto(it.client.id, "error") } }
+      }
+    val c = coord(dao, fotoDao = fotoDao, api = api, photoStore = photoStore)
+
+    c.sync()
+    val firstKey = api.pushIdempotencyKeys.single()
+    fotoDao.data[0] = fotoDao.data[0].copy(preferida = true)
+    c.sync()
+    val secondKey = api.pushIdempotencyKeys.last()
+
+    assertNotEquals("a metadata-only edit must change the pushed content", firstKey, secondKey)
+  }
+
+  @Test
   fun `offline push keeps data and reports error`() = runBlocking {
     val dao = FakeClienteDao(listOf(cliente("1", pending = true)))
     val api = FakeSyncApi().apply { failWith = java.io.IOException("offline") }
@@ -767,6 +796,133 @@ class SyncCoordinatorTest {
     assertEquals("unchanged photo not rewritten", 0, photoStore.storeCalls)
     assertTrue("row still points at the original file", fotoDao.data.any { it.id == "f1" && it.uriLocal == "file:/keep.jpg" })
     assertEquals("file content untouched", "aGk=", photoStore.contentB64("file:/keep.jpg"))
+  }
+
+  @Test
+  fun `pull applies the profile flag without rewriting the photo`() = runBlocking {
+    val dao = FakeClienteDao()
+    val fotoDao = FakeFotoDao(listOf(Foto("f1", "s1", "file:/keep.jpg", "image/jpeg", 0)))
+    val photoStore = FakePhotoStore().apply { stage("file:/keep.jpg", "aGk=") }
+    val api =
+      FakeSyncApi().apply {
+        pullResponse =
+          pullResponseOf(
+            serverItem(
+              id = "s1",
+              fotos =
+                listOf(
+                  FotoOutDto(
+                    id = "f1",
+                    mime = "image/jpeg",
+                    hash = sha256Of("aGk="),
+                    ordem = 0,
+                    preferida = true,
+                  )
+                ),
+            )
+          )
+      }
+    val c = coord(clienteDao = dao, fotoDao = fotoDao, api = api, photoStore = photoStore)
+
+    c.sync()
+
+    assertTrue("flag applied", fotoDao.data.single { it.id == "f1" }.preferida)
+    assertEquals("no download for a metadata-only change", 0, photoStore.storeCalls)
+    assertTrue("file kept", "file:/keep.jpg" in photoStore.files)
+  }
+
+  @Test
+  fun `pull keeps the local profile choice when the server omits the flag`() = runBlocking {
+    val dao = FakeClienteDao()
+    val fotoDao =
+      FakeFotoDao(
+        listOf(Foto("f1", "s1", "file:/keep.jpg", "image/jpeg", 0, false, preferida = true))
+      )
+    val photoStore = FakePhotoStore().apply { stage("file:/keep.jpg", "aGk=") }
+    val api =
+      FakeSyncApi().apply {
+        pullResponse =
+          pullResponseOf(
+            serverItem(
+              id = "s1",
+              fotos =
+                listOf(FotoOutDto(id = "f1", mime = "image/jpeg", hash = sha256Of("aGk="), ordem = 0)),
+            )
+          )
+      }
+    val c = coord(clienteDao = dao, fotoDao = fotoDao, api = api, photoStore = photoStore)
+
+    c.sync()
+
+    assertTrue("old server must not clear the choice", fotoDao.data.single { it.id == "f1" }.preferida)
+    assertEquals(0, photoStore.storeCalls)
+  }
+
+  @Test
+  fun `pull clears the profile flag when the server says false`() = runBlocking {
+    val dao = FakeClienteDao()
+    val fotoDao =
+      FakeFotoDao(
+        listOf(Foto("f1", "s1", "file:/keep.jpg", "image/jpeg", 0, false, preferida = true))
+      )
+    val photoStore = FakePhotoStore().apply { stage("file:/keep.jpg", "aGk=") }
+    val api =
+      FakeSyncApi().apply {
+        pullResponse =
+          pullResponseOf(
+            serverItem(
+              id = "s1",
+              fotos =
+                listOf(
+                  FotoOutDto(
+                    id = "f1",
+                    mime = "image/jpeg",
+                    hash = sha256Of("aGk="),
+                    ordem = 0,
+                    preferida = false,
+                  )
+                ),
+            )
+          )
+      }
+    val c = coord(clienteDao = dao, fotoDao = fotoDao, api = api, photoStore = photoStore)
+
+    c.sync()
+
+    assertFalse("explicit false clears the flag", fotoDao.data.single { it.id == "f1" }.preferida)
+    assertEquals(0, photoStore.storeCalls)
+  }
+
+  @Test
+  fun `changed photo keeps the profile flag from the server`() = runBlocking {
+    val dao = FakeClienteDao()
+    val fotoDao = FakeFotoDao(listOf(Foto("f1", "s1", "file:/old.jpg", "image/jpeg", 0)))
+    val photoStore = FakePhotoStore().apply { stage("file:/old.jpg", "b2xk") }
+    val api =
+      FakeSyncApi().apply {
+        photos["f1"] = decoded("bmV3")
+        pullResponse =
+          pullResponseOf(
+            serverItem(
+              id = "s1",
+              fotos =
+                listOf(
+                  FotoOutDto(
+                    id = "f1",
+                    mime = "image/jpeg",
+                    hash = sha256Of("bmV3"),
+                    ordem = 0,
+                    preferida = true,
+                  )
+                ),
+            )
+          )
+      }
+    val c = coord(clienteDao = dao, fotoDao = fotoDao, api = api, photoStore = photoStore)
+
+    c.sync()
+
+    assertTrue("new materialized row keeps the flag", fotoDao.data.single().preferida)
   }
 
   @Test

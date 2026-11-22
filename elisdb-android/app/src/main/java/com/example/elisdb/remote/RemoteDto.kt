@@ -21,6 +21,11 @@ data class FotoInDto(
   val id: String,
   val mime: String,
   val ordem: Int = 0,
+  /**
+   * True for the client's profile photo. Null only when a client that predates
+   * this field pushes; the server then keeps the stored value.
+   */
+  val preferida: Boolean? = null,
 )
 
 @Serializable
@@ -39,6 +44,11 @@ data class FotoOutDto(
   val id: String,
   val mime: String,
   val ordem: Int = 0,
+  /**
+   * Whether this is the client's profile photo. Null when an older server does
+   * not know the field; the client then keeps its local choice.
+   */
+  val preferida: Boolean? = null,
   val hash: String? = null,
   /**
    * False when the server still knows the photo but has lost its bytes. The
@@ -152,6 +162,9 @@ data class AuditEntryDto(
   @SerialName("key_id") val keyId: String,
   val ts: Long,
   val details: AuditDetailsDto? = null,
+  // Present on global activity entries; the per-client endpoint omits them.
+  @SerialName("cliente_id") val clienteId: String? = null,
+  @SerialName("cliente_nome") val clienteNome: String? = null,
 )
 
 /** A page of history plus the cursor for the next page, when one exists. */
@@ -159,6 +172,13 @@ data class AuditEntryDto(
 data class HistoryPageDto(
   val entries: List<AuditEntryDto> = emptyList(),
   @SerialName("next_after_id") val nextAfterId: Int? = null,
+)
+
+/** A page of the global activity log plus the cursor for older entries. */
+@Serializable
+data class ActivityPageDto(
+  val entries: List<AuditEntryDto> = emptyList(),
+  @SerialName("next_before_id") val nextBeforeId: Int? = null,
 )
 /** The Android package published by the server (`GET /api/app/latest`). */
 @Serializable

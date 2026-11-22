@@ -40,6 +40,8 @@ from .database import (
 )
 from .ratelimit import RateLimiter
 from .models import (
+    ActivityEntryOut,
+    ActivityPageOut,
     AppReleaseOut,
     AuditEntryOut,
     ClienteComFotosOut,
@@ -812,6 +814,18 @@ def create_app(database: Database | None = None) -> FastAPI:
             ) from None
         if not deleted:
             raise HTTPException(status_code=404, detail="client not found")
+
+    @app.get("/api/history", dependencies=[auth_dep])
+    def activity_history(
+        limit: int = Query(50, ge=1, le=MAX_HISTORY_ENTRIES),
+        before_id: int | None = Query(None, ge=0),
+    ) -> ActivityPageOut:
+        """Activity entries for every client, newest first, cursor-paginated."""
+        entries, next_before_id = store.activity_page(limit, before_id)
+        return ActivityPageOut(
+            entries=[ActivityEntryOut.model_validate(e) for e in entries],
+            next_before_id=next_before_id,
+        )
 
     @app.get(
         "/api/clients/{cliente_id}/history",

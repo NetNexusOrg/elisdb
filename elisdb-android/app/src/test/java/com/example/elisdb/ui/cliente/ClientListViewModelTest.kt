@@ -70,6 +70,32 @@ class ClientListViewModelTest {
   }
 
   @Test
+  fun uiState_mostraFotoMarcadaComoPerfil() = runTest(dispatcher) {
+    val repo =
+      FakeClientRepository(
+        clientesComFotosFlow =
+          flowOf(
+            listOf(
+              ClienteComFotos(
+                cliente = Cliente(id = "1", nome = "Maria", latitude = 0.0, longitude = 0.0, dataCriacao = 0, updatedAt = 0),
+                fotos =
+                  listOf(
+                    Foto(id = "1", clienteId = "1", uriLocal = "/path/a.jpg"),
+                    Foto(id = "2", clienteId = "1", uriLocal = "/path/b.jpg", preferida = true),
+                  ),
+              )
+            )
+          )
+      )
+    val viewModel = ClientListViewModel(repo)
+    val state = viewModel.uiState.first { it is ClientListUiState.Success }
+    assertEquals(
+      "/path/b.jpg",
+      (state as ClientListUiState.Success).clientes.single().primeiraFotoUri,
+    )
+  }
+
+  @Test
   fun uiState_semFotosMostraNull() = runTest(dispatcher) {
     val repo =
       FakeClientRepository(

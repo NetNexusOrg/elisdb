@@ -14,7 +14,10 @@ object SyncMapper {
    * content is uploaded to the photo endpoint separately.
    */
   fun toRecord(cliente: Cliente, fotos: List<Foto>): RecordDto {
-    val fotoDtos = fotos.map { FotoInDto(id = it.id, mime = it.mime, ordem = it.ordem) }
+    val fotoDtos =
+      fotos.map {
+        FotoInDto(id = it.id, mime = it.mime, ordem = it.ordem, preferida = it.preferida)
+      }
     return RecordDto(
       client =
         ClienteInDto(

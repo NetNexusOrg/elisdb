@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
   entities = [Cliente::class, Foto::class, SyncMeta::class],
-  version = 12,
+  version = 13,
   exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -218,6 +218,15 @@ abstract class AppDatabase : RoomDatabase() {
           // them. Existing rows stay false; the next completed pull marks any
           // record the server still does not have.
           db.execSQL("ALTER TABLE clientes ADD COLUMN localOnly INTEGER NOT NULL DEFAULT 0")
+        }
+      }
+
+    val MIGRATION_12_13: Migration =
+      object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+          // Chosen profile photo. Existing photos start unmarked and the list
+          // falls back to the first photo by gallery order.
+          db.execSQL("ALTER TABLE fotos ADD COLUMN preferida INTEGER NOT NULL DEFAULT 0")
         }
       }
   }

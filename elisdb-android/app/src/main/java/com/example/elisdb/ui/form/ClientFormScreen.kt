@@ -46,6 +46,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -135,6 +137,7 @@ fun ClientFormScreen(
           onPickPhoto = viewModel::onPhotoPicked,
           onTakePhoto = viewModel::showCamera,
           onRemoveFoto = viewModel::onRemoveFoto,
+          onSetProfilePhoto = viewModel::onSetProfilePhoto,
         )
       }
       if (state.saving) {
@@ -161,6 +164,7 @@ private fun ClientFormContent(
   onPickPhoto: (Uri) -> Unit,
   onTakePhoto: () -> Unit,
   onRemoveFoto: (Foto) -> Unit,
+  onSetProfilePhoto: (Foto) -> Unit,
 ) {
   val context = LocalContext.current
   val photoPicker =
@@ -348,7 +352,7 @@ private fun ClientFormContent(
     }
 
     if (state.fotos.isNotEmpty()) {
-      PhotoGrid(fotos = state.fotos, onRemove = onRemoveFoto)
+      PhotoGrid(fotos = state.fotos, onRemove = onRemoveFoto, onSetProfile = onSetProfilePhoto)
     }
 
     Spacer(Modifier.height(24.dp))
@@ -388,7 +392,11 @@ private fun LocationPermissionButton(onUseCurrentLocation: () -> Unit) {
 }
 
 @Composable
-private fun PhotoGrid(fotos: List<Foto>, onRemove: (Foto) -> Unit) {
+private fun PhotoGrid(
+  fotos: List<Foto>,
+  onRemove: (Foto) -> Unit,
+  onSetProfile: (Foto) -> Unit,
+) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     fotos.chunked(3).forEach { row ->
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -404,6 +412,24 @@ private fun PhotoGrid(fotos: List<Foto>, onRemove: (Foto) -> Unit) {
                   .height(100.dp)
                   .clip(RoundedCornerShape(8.dp)),
             )
+            IconButton(
+              onClick = { onSetProfile(foto) },
+              modifier =
+                Modifier
+                  .align(Alignment.TopStart)
+                  .size(28.dp)
+                  .testTag(if (foto.preferida) "profile_photo_marked" else "profile_photo_unmarked"),
+            ) {
+              Icon(
+                imageVector = if (foto.preferida) Icons.Default.Star else Icons.Default.StarBorder,
+                contentDescription =
+                  if (foto.preferida) "Foto de perfil" else "Definir como foto de perfil",
+                modifier = Modifier.size(16.dp),
+                tint =
+                  if (foto.preferida) MaterialTheme.colorScheme.primary
+                  else MaterialTheme.colorScheme.onSurface,
+              )
+            }
             IconButton(
               onClick = { onRemove(foto) },
               modifier = Modifier.align(Alignment.TopEnd).size(28.dp),

@@ -142,6 +142,12 @@ class ClienteRepositoryImpl(
         val removed = existingFotos.filter { it.id !in keptIds }
         removedFiles += removed
         if (removed.isNotEmpty()) fotoDao.deleteByIds(removed.map { it.id })
+        // Exactly one photo is the profile photo: the first one the user marked
+        // or, when nothing is marked (including photos saved before the flag
+        // existed), the first of the gallery.
+        val preferredIndex =
+          draft.fotos.indexOfFirst { it.preferida }.takeIf { it >= 0 }
+            ?: draft.fotos.indices.firstOrNull()
         draft.fotos
           .forEachIndexed { index, foto ->
             fotoDao.insert(
@@ -149,6 +155,7 @@ class ClienteRepositoryImpl(
                 id = foto.id.ifEmpty { UUID.randomUUID().toString() },
                 clienteId = clienteId,
                 ordem = index,
+                preferida = index == preferredIndex,
               )
             )
           }

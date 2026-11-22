@@ -4,6 +4,8 @@ import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteDao
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.data.local.FotoDao
+import com.example.elisdb.data.local.FotoUri
+import com.example.elisdb.remote.ActivityPageDto
 import com.example.elisdb.remote.ClienteComFotosDto
 import com.example.elisdb.remote.ClienteOutDto
 import com.example.elisdb.remote.FotoOutDto
@@ -41,6 +43,9 @@ class FakeClienteDao(initial: List<Cliente> = emptyList()) : ClienteDao {  val d
   override suspend fun getPending(): List<Cliente> = data.filter { it.pending }
 
   override suspend fun getPendingDeletions(): List<Cliente> = data.filter { it.deletePending }
+
+  override suspend fun getExistingIds(ids: List<String>): List<String> =
+    data.filter { !it.deletePending && it.id in ids }.map { it.id }
 
   override suspend fun insert(cliente: Cliente) {
     data.removeAll { it.id == cliente.id }
@@ -93,6 +98,9 @@ class FakeFotoDao(initial: List<Foto> = emptyList()) : FotoDao {
     val i = data.indexOfFirst { it.id == foto.id }
     if (i >= 0) data[i] = foto else data.add(foto)
   }
+
+  override suspend fun getUrisByIds(ids: List<String>): List<FotoUri> =
+    data.filter { it.id in ids }.map { FotoUri(it.id, it.uriLocal) }
 
   override suspend fun getAllUris(): List<String> = data.map { it.uriLocal }
 }
@@ -322,6 +330,18 @@ class FakeSyncApi : SyncApi {
 
   /** Page fetcher override; defaults to the full [historyResponse]. */
   var historyPageResponse: ((String, Int, Int?) -> HistoryPageDto)? = null
+
+  /** Page returned by [fetchActivityPage]; empty by default. */
+  var activityPageResponse: (Int, Int?) -> ActivityPageDto = { _, _ -> ActivityPageDto() }
+
+  override suspend fun fetchActivityPage(
+    limit: Int,
+    beforeId: Int?,
+    timestamp: Long,
+  ): ActivityPageDto {
+    failWith?.let { throw it }
+    return activityPageResponse(limit, beforeId)
+  }
 
   override suspend fun fetchClientHistoryPage(
     id: String,

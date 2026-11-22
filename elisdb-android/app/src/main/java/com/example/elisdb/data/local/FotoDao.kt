@@ -7,6 +7,9 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+/** The file of a stored photo, used to resolve history thumbnails. */
+data class FotoUri(val id: String, val uriLocal: String)
+
 @Dao
 interface FotoDao {
   @Query("SELECT * FROM fotos WHERE clienteId = :clienteId AND deletePending = 0 ORDER BY ordem, id")
@@ -23,6 +26,10 @@ interface FotoDao {
 
   @Update
   suspend fun update(foto: Foto)
+
+  /** Files of the photos whose ids are listed, used for one history page. */
+  @Query("SELECT id, uriLocal FROM fotos WHERE id IN (:ids)")
+  suspend fun getUrisByIds(ids: List<String>): List<FotoUri>
 
   /** Absolute paths of every stored photo, used by the orphan-file sweep. */
   @Query("SELECT uriLocal FROM fotos")

@@ -49,6 +49,10 @@ interface ClienteDao {
   @Query("SELECT * FROM clientes WHERE deletePending = 1")
   suspend fun getPendingDeletions(): List<Cliente>
 
+  /** Ids among [ids] that still exist locally, used to enable history navigation. */
+  @Query("SELECT id FROM clientes WHERE deletePending = 0 AND id IN (:ids)")
+  suspend fun getExistingIds(ids: List<String>): List<String>
+
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert(cliente: Cliente)
 

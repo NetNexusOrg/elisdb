@@ -25,4 +25,5 @@ data class Foto(
   val mime: String = "image/webp",
   val ordem: Int = 0,
   val deletePending: Boolean = false,
+  val preferida: Boolean = false,
 )

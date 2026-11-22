@@ -401,6 +401,70 @@ class ClientFormViewModelTest {
     assertEquals("48", savedId)
     assertEquals(1, repo.syncCalls)
   }
+
+  @Test
+  fun normalizeProfilePhotos_listaVaziaFicaVazia() {
+    assertEquals(emptyList<Foto>(), normalizeProfilePhotos(emptyList()))
+  }
+
+  @Test
+  fun normalizeProfilePhotos_semMarcadaEscolheAPrimeira() {
+    val fotos = normalizeProfilePhotos(listOf(foto("a"), foto("b")))
+    assertEquals(listOf(true, false), fotos.map { it.preferida })
+  }
+
+  @Test
+  fun normalizeProfilePhotos_variasMarcadasMantemAPrimeiraMarcada() {
+    val fotos = normalizeProfilePhotos(listOf(foto("a"), foto("b", true), foto("c", true)))
+    assertEquals(listOf(false, true, false), fotos.map { it.preferida })
+  }
+
+  @Test
+  fun editMode_normalizaFotoDePerfilDeClienteAntigo() = runTest(dispatcher) {
+    val viewModel = formViewModelWithPhotos(foto("a"), foto("b"))
+    dispatcher.scheduler.advanceUntilIdle()
+    assertEquals(listOf(true, false), viewModel.uiState.value.fotos.map { it.preferida })
+  }
+
+  @Test
+  fun editMode_preservaFotoDePerfilEscolhida() = runTest(dispatcher) {
+    val viewModel = formViewModelWithPhotos(foto("a"), foto("b", true), foto("c"))
+    dispatcher.scheduler.advanceUntilIdle()
+    assertEquals(listOf(false, true, false), viewModel.uiState.value.fotos.map { it.preferida })
+  }
+
+  @Test
+  fun onSetProfilePhoto_moveAMarcaParaAEscolhida() = runTest(dispatcher) {
+    val viewModel = formViewModelWithPhotos(foto("a", true), foto("b"), foto("c"))
+    dispatcher.scheduler.advanceUntilIdle()
+    viewModel.onSetProfilePhoto(viewModel.uiState.value.fotos[2])
+    assertEquals(listOf(false, false, true), viewModel.uiState.value.fotos.map { it.preferida })
+  }
+
+  @Test
+  fun onRemoveFoto_removeAPreferidaEPassaParaAPrimeiraRestante() = runTest(dispatcher) {
+    val viewModel = formViewModelWithPhotos(foto("a"), foto("b", true), foto("c"))
+    dispatcher.scheduler.advanceUntilIdle()
+    viewModel.onRemoveFoto(viewModel.uiState.value.fotos[1])
+    assertEquals(listOf(true, false), viewModel.uiState.value.fotos.map { it.preferida })
+  }
+
+  @Test
+  fun onRemoveFoto_deOutraFotoMantemAPreferida() = runTest(dispatcher) {
+    val viewModel = formViewModelWithPhotos(foto("a"), foto("b", true), foto("c"))
+    dispatcher.scheduler.advanceUntilIdle()
+    viewModel.onRemoveFoto(viewModel.uiState.value.fotos[0])
+    assertEquals(listOf(true, false), viewModel.uiState.value.fotos.map { it.preferida })
+  }
+}
+
+private fun foto(id: String, preferida: Boolean = false) =
+  Foto(id = id, clienteId = "1", uriLocal = "/tmp/$id.webp", preferida = preferida)
+
+private fun formViewModelWithPhotos(vararg fotos: Foto): ClientFormViewModel {
+  val cliente = Cliente(id = "1", nome = "Maria", dataCriacao = 0, updatedAt = 0)
+  val repo = FakeClientRepository(existing = ClienteComFotos(cliente = cliente, fotos = fotos.toList()))
+  return ClientFormViewModel(repo, { null }, "1")
 }
 
 private class FakeClientRepository(

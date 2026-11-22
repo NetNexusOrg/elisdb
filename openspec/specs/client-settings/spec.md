@@ -5,8 +5,7 @@ Gives the user a server screen to view the server connection (base URL, masked e
 ## Requirements
 
 ### Requirement: Server connection settings screen
-
-The system SHALL provide a server screen that shows the server connection (base URL, masked ed25519 signing key, and associated user name) in read-only, non-editable form, configured by importing the server-issued configuration file, and where the entire configuration can be removed in one action. The connection details SHALL be presented with a consistent visual hierarchy: labels and values in clearly distinct, uniform font sizes, and related fields grouped together so the screen is easy to scan.
+The system SHALL provide a server screen showing the connection (base URL, masked ed25519 key, user name) read-only, configured by importing the server-issued file, with one action to remove the whole configuration. Labels and values SHALL use a consistent hierarchy with distinct, uniform font sizes, grouped so the screen is easy to scan.
 
 #### Scenario: View current server configuration
 - **WHEN** the user opens the server screen after importing a configuration file
@@ -90,8 +89,7 @@ The system SHALL remove the stored server configuration in one action. Removing 
 - **AND** the screen SHALL NOT show a "configuration removed" confirmation message
 
 ### Requirement: Signing key encrypted at rest
-
-The system SHALL store the server signing key (and the server base URL) encrypted at rest, with the encryption key held in the platform keystore, so the secret is not readable from plain shared preferences. If the platform keystore or encrypted store is unavailable, the app SHALL fail the configuration operation with a visible, actionable error and SHALL NOT write the signing key to plain-text storage. Existing plain-text values SHALL be migrated only after the encrypted copy is written and verified; until that succeeds, the previous configuration SHALL remain readable so the app can start.
+The system SHALL store the signing key and server URL encrypted at rest with a key held in the platform keystore, so the secret is not readable from plain preferences. If the keystore or encrypted store is unavailable, configuration SHALL fail with a visible, actionable error and SHALL NOT write the key in plain text. Plain-text values SHALL be migrated only after the encrypted copy is written and verified; until then the previous configuration SHALL remain readable.
 
 #### Scenario: Key is not stored in plain text
 - **WHEN** the app persists the server connection

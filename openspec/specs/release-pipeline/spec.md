@@ -74,8 +74,7 @@ The Android workflow SHALL be displayed in GitHub Actions as `Android CI`.
 - **THEN** the Android workflow SHALL be listed as `Android CI`
 
 ### Requirement: CI workload separation
-
-The Android CI SHALL run unit tests, lint and a debug build on every relevant push and pull request, SHALL run the Room migration test as a blocking release gate, SHALL run an automated sync smoke test as a blocking release gate, and SHALL run the full instrumented suite only on pull requests and manual dispatches. The sync smoke test SHALL exercise push, pull, and delete against a disposable server with a freshly provisioned key. Tag releases SHALL require the fast checks, the Room migration gate, and the sync smoke gate.
+The Android CI SHALL run unit tests, lint and a debug build on every relevant push and pull request; run the Room migration and sync smoke tests as blocking release gates; and run the full instrumented suite only on pull requests and manual dispatches. The smoke test SHALL exercise push, pull and delete against a disposable server with a fresh key. Tag releases SHALL require the fast checks and both gates.
 
 #### Scenario: Pull request runs the full suite
 - **WHEN** a pull request targets main

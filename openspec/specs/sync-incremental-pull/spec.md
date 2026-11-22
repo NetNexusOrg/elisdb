@@ -33,8 +33,7 @@ The system SHALL support a pull that returns only client and photo records deliv
 - **THEN** the next pull with that watermark SHALL still return it
 
 ### Requirement: Pull watermark
-
-The app SHALL persist the largest delivery timestamp seen on pulls and SHALL send it back as `since` on subsequent pulls, so a later pull is incremental. When the server returns a `next_since` cursor, the app SHALL continue requesting pages using that cursor until the server returns no further cursor, accumulating records across pages, and SHALL only then advance its watermark. The app SHALL NOT stop after the first page of a paginated pull. When it deliberately skips a record because that record has pending local edits, the watermark SHALL stay below that record's delivery timestamp, so the server's version is fetched again once the local change is pushed.
+The app SHALL persist the largest delivery timestamp seen and send it as `since` on later pulls. When the server returns `next_since`, it SHALL keep requesting pages until no cursor remains, accumulating records, and only then advance the watermark. It SHALL NOT stop after the first page. When it skips a record for pending local edits, the watermark SHALL stay below that record's delivery timestamp so the server version is fetched after the push.
 
 #### Scenario: Watermark advanced after a pull
 - **WHEN** a pull completes

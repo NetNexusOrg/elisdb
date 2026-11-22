@@ -5,8 +5,7 @@ Limita a frequência de pedidos ao servidor de sincronização por chave autenti
 ## Requirements
 
 ### Requirement: Per-key and per-IP rate limiting
-
-The server SHALL limit the rate of authenticated requests per signing key and of unauthenticated requests per client IP address. When a request exceeds its limit, the server SHALL reject it with an HTTP 429 response. Rate limiting SHALL be applied before the request body is read or buffered, so an unauthenticated oversized request is throttled without consuming memory first. Rate limiting SHALL NOT block the normal sync flow: a client performing ordinary pushes and pulls SHALL remain within the limits.
+The server SHALL rate-limit authenticated requests per signing key and unauthenticated requests per client IP, rejecting excess with HTTP 429. Limiting SHALL run before the request body is read or buffered, so an oversized unauthenticated request is throttled without consuming memory. Normal pushes and pulls SHALL remain within the limits.
 
 #### Scenario: Normal sync stays within limits
 - **WHEN** an authenticated client performs ordinary pushes and pulls at a normal cadence

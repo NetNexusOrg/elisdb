@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - Update Purpose after archive.
+Keeps the app usable and its data intact when the device, network or storage misbehaves, covering retries, degraded states and recovery paths.
 
 ## Requirements
 

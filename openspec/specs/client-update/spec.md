@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - Update Purpose after archive.
+Covers how the app discovers, downloads and installs a newer release, including the prompt shown to the user.
 
 ## Requirements
 

@@ -5,8 +5,7 @@ Enables the app to exchange client and photo data with the server's push/pull/de
 ## Requirements
 
 ### Requirement: Push records to the server
-
-The system SHALL send local client and photo records to the server via the push endpoint, including the client's optional tag, returning a per-record status, and SHALL represent unsynced records as base64 photos. Each record SHALL remain pending until the server acknowledges its state, and the acknowledgement SHALL NOT write record content: a record edited while the request was in flight SHALL stay pending with the user's edit intact. Photos the server reports as missing SHALL be uploaded again instead of being remembered as delivered.
+The system SHALL push local client and photo records to the server, including the optional tag, returning a per-record status, and SHALL send unsynced photos as base64. A record SHALL stay pending until its state is acknowledged, and acknowledgement SHALL NOT overwrite content: an edit made while the request was in flight SHALL remain pending with the user's change. Photos the server reports missing SHALL be uploaded again.
 
 #### Scenario: Push returns per-record status
 - **WHEN** the app sends a batch of client and photo records to the server
@@ -264,8 +263,7 @@ The system SHALL fetch a client's edit history from the server, including what c
 - **AND** SHALL still handle entries returned without details
 
 ### Requirement: Pull exhausts pagination
-
-The app SHALL follow the server's pagination cursor returned by the pull endpoint: after each page it SHALL inspect `next_since` (and `next_since_id` when present) and, when a cursor is returned, SHALL request the next page, accumulating records across all pages, before reconciling local data. The app SHALL NOT delete or drop local client records based on a single, partial page of a pull. A local-record sweep (removing clients absent from the server) SHALL run only after the full set of pages has been received, or never for an incremental (delta) pull. The watermark SHALL NOT advance past a record the app deliberately skipped because it had pending edits.
+The app SHALL follow the pull cursor: after each page it SHALL inspect `next_since` (and `next_since_id` when present) and, while a cursor is returned, request the next page and accumulate records before reconciling. It SHALL NOT delete local clients from a partial page. A sweep for clients absent from the server SHALL run only after all pages, or never for a delta pull. The watermark SHALL NOT advance past a record skipped for pending edits.
 
 #### Scenario: Multi-page pull is fully consumed
 - **WHEN** a pull returns a page together with a `next_since` cursor

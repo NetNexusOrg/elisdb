@@ -1,7 +1,8 @@
 # client-startup Specification
 
 ## Purpose
-TBD - created by archiving change require-configured-user. Update Purpose after archive.
+
+Defines how the app starts before a server credential exists and how it reaches the client list once the device is configured.
 
 ## Requirements
 

@@ -5,8 +5,7 @@ Provides the user-facing Compose screens for managing clients: a list of clients
 ## Requirements
 
 ### Requirement: Client list screen
-
-The system SHALL show a list of all clients, each row displaying the client's name, the contract reference when present, all the client's tags when present, and a thumbnail: the client's first photo when present, otherwise a generic profile image. Inactive clients SHALL be labelled. The system SHALL allow filtering the list by a search term, by status and by tag. The screen SHALL have a top bar with a title and a menu holding the create-client, synchronization, server, activity-log and about actions.
+The system SHALL show all clients, each row with name, contract when present, all tags when present, and a thumbnail: the first photo when present, otherwise a generic profile image. Inactive clients SHALL be labelled. The list SHALL be filterable by search term, status and tag. The top bar SHALL show a title and a menu with create, sync, server, activity-log and about actions.
 
 #### Scenario: List shows clients with thumbnails
 - **WHEN** the client list screen is shown and clients exist
@@ -117,8 +116,7 @@ The system SHALL provide an entry point to create a new client from the menu in 
 - **THEN** the system SHALL open the create/edit form in create mode
 
 ### Requirement: Create/edit client form
-
-The system SHALL provide a form to create a new client or edit an existing one, with fields for name (required), contract (optional), a set of tags (optional), location selection (optional), notes, an active switch, and a photo management section, plus a save action. A form opened in create mode SHALL start with all fields empty, no location selected, and the active switch on. A form opened in edit mode SHALL load the data of the selected client only, regardless of which forms were opened previously.
+The system SHALL provide a form to create or edit a client with name (required), contract, tags, location, notes, active switch and a photo section, plus save. Create mode SHALL start with empty fields, no location, and active on. Edit mode SHALL load only the selected client, regardless of previously opened forms.
 
 #### Scenario: Required name validation
 - **WHEN** the user tries to save with an empty name
@@ -194,8 +192,7 @@ The system SHALL provide a form to create a new client or edit an existing one, 
 - **AND** when the switch is on the client SHALL be stored as active
 
 ### Requirement: Client detail screen
-
-The system SHALL show a client's name, all its tags, notes, a map with the client's location when one exists, a photo gallery, an "inactive" label when the client is inactive, and actions to navigate to the location, edit the client, and delete the client. When the client has a contract reference, the top bar SHALL display it next to the back button; the body SHALL NOT show a contract line above the name. The body sections SHALL be presented in the following order: name, tags (when present), map (when the location exists), notes, photo gallery. When the client has no location, the map and the navigate action SHALL NOT be shown. The edit and delete actions SHALL be offered through an overflow menu in the top bar, and the top bar SHALL NOT repeat the client's name.
+The system SHALL show name, tags, notes, map when a location exists, photo gallery, an 'inactive' label, and actions to navigate, edit and delete. With a contract, the top bar SHALL show it next to back; the body SHALL NOT show a contract line. Order: name, tags, map, notes, gallery. Without a location, map and navigate SHALL NOT appear. Edit/delete SHALL be in the top-bar overflow menu, which SHALL NOT repeat the name.
 
 #### Scenario: Show full client information
 - **WHEN** the user opens a client detail screen
@@ -304,8 +301,7 @@ The system SHALL present the client's name in uppercase letters in the client li
 - **THEN** the client's name SHALL be displayed in uppercase letters
 
 ### Requirement: Log action on the client detail screen
-
-The system SHALL offer a "Log" action on the client detail screen that shows who created the client and who edited it, when, and what changed: the fields whose values differ (previous and new value) and the photos added, removed or reordered. Entry timestamps SHALL be presented with a 24-hour clock regardless of the device locale. The view SHALL distinguish a fetch failure from genuinely empty history, SHALL note when a client has local pending changes whose history will only appear after synchronization, and SHALL still present entries recorded without change details.
+The system SHALL offer a 'Log' action in the client detail showing who created and edited the client, when, and what changed: differing fields (previous and new values) and photos added, removed or reordered. Timestamps SHALL use a 24-hour clock regardless of locale. The view SHALL distinguish fetch failure from empty history, note local pending changes awaiting sync, and still show entries without change details.
 
 #### Scenario: Log action opens the history view
 - **WHEN** the user taps "Log" on a client detail screen

@@ -5,8 +5,7 @@ Lets the user import a server-issued ed25519 authentication key into the app set
 ## Requirements
 
 ### Requirement: Import a server configuration file
-
-The system SHALL provide an action in the app settings to import a server-issued configuration file containing the server URL, the ed25519 authentication key and, when present, the user name the server registered for that key, and SHALL store all fields so the device is fully configured in one step. The `server_url` SHALL be validated on import against the app's server URL policy before any value is stored: HTTPS SHALL be accepted for any host, HTTP SHALL be accepted only for localhost, loopback, and private/link-local/CGNAT addresses, and any other scheme or insecure host SHALL be rejected at import time with a clear message.
+The system SHALL let the user import a server-issued configuration file containing the server URL, the ed25519 key and, when present, the user name, storing all fields in one step. The `server_url` SHALL be validated before storage: HTTPS for any host; HTTP only for localhost, loopback, private, link-local or CGNAT addresses; any other scheme or insecure host SHALL be rejected with a clear message.
 
 #### Scenario: Import a configuration file configures URL and key
 - **WHEN** the user selects a configuration file containing a `server_url` and a valid `private_seed`

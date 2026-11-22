@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - Update Purpose after archive.
+Lets the server publish and serve the latest app release, and decides which version each client is offered.
 
 ## Requirements
 

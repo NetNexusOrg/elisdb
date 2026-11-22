@@ -4,10 +4,7 @@ Adds server-side deletion markers (tombstones) so a delete participates in last-
 
 ## Requirements
 ### Requirement: Server keeps deletion tombstones
-
-The server SHALL record a tombstone (identifier, deletion timestamp and delivery timestamp) when a client is deleted, instead of forgetting the identifier, so later pushes can be judged against the deletion and other devices can receive the deletion on an incremental pull.
-
-The deletion timestamp SHALL be the one supplied by the deleting device (or the server's time when absent) and SHALL remain the value used to decide whether a later push is a stale edit or a deliberate re-creation. The delivery timestamp SHALL be assigned by the server, strictly greater than every delivery timestamp already issued, under the same write lock used by pushes.
+The server SHALL record a tombstone (client identifier, deletion timestamp, delivery timestamp) when a client is deleted, so later pushes can be judged against the deletion and other devices receive it on an incremental pull. The deletion timestamp SHALL be the deleting device's time (or the server's when absent) and SHALL decide whether a later push is a stale edit or a re-creation. The delivery timestamp SHALL be server-assigned, strictly increasing, under the push write lock.
 
 #### Scenario: Delete writes a tombstone
 - **WHEN** a client is deleted

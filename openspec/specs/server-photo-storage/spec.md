@@ -92,10 +92,7 @@ The system SHALL ensure that every photo file path is resolved inside the config
 - **THEN** the server SHALL store the photo file inside the configured photos directory as before
 
 ### Requirement: Orphaned photo files are removed
-
-The server SHALL NOT leave photo files on disk that have no corresponding `fotos` row. When a photo row is deleted (cascade or edit), its file SHALL be removed; and the server SHALL provide a cleanup pass that deletes any file in the photos directory lacking a matching `fotos` row, so storage does not grow from orphaned uploads.
-
-The cleanup pass SHALL compare stored paths with absolute paths, so a relative photos directory (development, or a mount configured without a leading slash) never makes every stored photo look orphaned. Entries in the photos directory that are not regular files SHALL be left alone instead of aborting the pass.
+The server SHALL NOT leave photo files without a matching `fotos` row. Deleting a photo row SHALL remove its file, and a cleanup pass SHALL delete any file in the photos directory lacking a row, so orphaned uploads do not accumulate. Cleanup SHALL compare absolute paths, so a relative photos directory never makes every photo look orphaned, and SHALL leave non-regular entries untouched instead of aborting.
 
 #### Scenario: Edited-out photo file is deleted
 - **WHEN** a push removes a photo from a client

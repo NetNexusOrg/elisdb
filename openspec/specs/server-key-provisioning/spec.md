@@ -5,8 +5,7 @@ Provides an operator-facing, documented flow to register an app public key in th
 ## Requirements
 
 ### Requirement: Public key registration
-
-The system SHALL expose a server-managed flow that ISSUES an app's ed25519 keypair: it generates the keypair, records the public key in the server allowlist together with a mandatory comment identifying the user, and emits a configuration file carrying the server URL, the user name and the private seed for the operator to import into the app. Issuance SHALL be the only way to add a public key to the allowlist: the CLI SHALL NOT offer a separate registration command for externally created keys. The issuance flow SHALL be available interactively: running the CLI without arguments SHALL prompt for the required data sequentially, and the URL shall default to the `ELISDB_SERVER_URL` environment variable when the operator does not supply one.
+The system SHALL issue an app's ed25519 keypair: generate it, record the public key in the server allowlist with a mandatory user comment, and emit a configuration file with server URL, user name and private seed. Issuance SHALL be the only way to add a key; the CLI SHALL NOT offer separate registration of external keys. Without arguments the CLI SHALL prompt sequentially and SHALL default the URL to `ELISDB_SERVER_URL`.
 
 #### Scenario: Issue a key for a user
 - **WHEN** an operator issues a key for a named user providing the server URL

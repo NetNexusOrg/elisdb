@@ -5,8 +5,7 @@ Stores client records and their associated photos locally on the device so the a
 ## Requirements
 
 ### Requirement: Client record schema
-
-The system SHALL store client records containing a stable identifier, a mandatory name, an optional contract reference, an optional set of tags stored in a single text field separated by `;`, optional latitude and longitude coordinates, optional free-text notes, an active/inactive status, a creation timestamp, and a modification timestamp, where the identifier and timestamps are compatible with the server so records can be synchronized by identifier and last-write-wins. Tags SHALL be stored trimmed, uppercased, without duplicates and sorted alphabetically.
+The system SHALL store client records with a stable identifier, mandatory name, optional contract reference, tag set, coordinates, notes, active status, and creation/modification timestamps. Identifiers and timestamps SHALL be compatible with the server for synchronization by identifier and last-write-wins. Tags SHALL be trimmed, uppercased, deduplicated and sorted.
 
 #### Scenario: A client record has all required fields
 - **WHEN** a client is created

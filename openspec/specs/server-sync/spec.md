@@ -17,8 +17,7 @@ The server SHALL act as the authoritative, persistent store for client records a
 - **THEN** all previously stored clients and photos SHALL still be available
 
 ### Requirement: Push changes
-
-The server SHALL accept a push of client and photo changes from a client and persist them, including the client's optional set of tags. Pushing a client SHALL also push its photos together with the client. A push SHALL be processed record by record: an invalid record SHALL NOT abort the batch, and the response SHALL carry a per-record result indicating whether each record was accepted, found duplicate, found stale, or rejected as invalid. A record whose photos are referenced but missing from storage SHALL still be accepted, and the result SHALL name those photos so the client sends them again.
+The server SHALL accept and persist a push of client and photo changes, including the optional tags; pushing a client SHALL also push its photos. Processing SHALL be per record: an invalid record SHALL NOT abort the batch, and the response SHALL report whether each was accepted, duplicate, stale or invalid. A record referencing missing photos SHALL still be accepted, and the result SHALL name those photos for re-upload.
 
 #### Scenario: Client pushes new records
 - **WHEN** a client pushes a batch of new or updated client records with their photos
@@ -163,8 +162,7 @@ The server SHALL store a creation timestamp on each client record, set once when
 - **THEN** each record SHALL include its persisted creation timestamp alongside its modification timestamp
 
 ### Requirement: Incremental pull
-
-The server SHALL accept optional `since` (return only records delivered after it) and optional `limit` (page size) query parameters on the pull endpoint, and SHALL keep the default (no parameters) response a flat list for backward compatibility. Pagination SHALL use a cursor composed of the last record's delivery timestamp and its `id` so that records sharing the same delivery timestamp are never skipped. A `limit` value SHALL be at least 1 and SHALL be capped at a server maximum; a `since_id` SHALL only be honored together with a `since` value. Every returned record and tombstone SHALL carry its delivery timestamp, which the client uses as its watermark.
+The server SHALL accept optional `since` (records delivered after it) and `limit` (page size) on pull, keeping the parameterless response a flat list for compatibility. Pagination SHALL use a cursor of the last record's delivery timestamp and `id`, so records sharing a timestamp are never skipped. `limit` SHALL be at least 1 and capped; `since_id` SHALL require `since`. Every record and tombstone SHALL carry its delivery timestamp for the client watermark.
 
 #### Scenario: Pull filtered by since
 - **WHEN** a client pulls with a `since` timestamp
@@ -240,8 +238,7 @@ The delete endpoint SHALL accept the deleting device's timestamp so the deletion
 - **AND** the deletion SHALL reach them on their next delta pull
 
 ### Requirement: Client edit history recorded on push
-
-The server SHALL record an audit entry each time a client change is accepted, capturing the actor's user name (from the authenticated key's allowlist comment), the actor's key id, the timestamp, whether the change created or updated the client, and what changed: the fields whose values differ (previous and new value) and the photos added, removed or reordered. The actor SHALL be read from the per-request `request.state` set by authentication. An accepted push that changes neither a field nor a photo SHALL NOT create an entry.
+The server SHALL record an audit entry for each accepted client change, with the actor's user name (from the key comment), key id, timestamp, whether it created or updated the client, and what changed: differing fields (previous and new values) and photos added, removed or reordered. The actor SHALL come from `request.state`. A push changing neither field nor photo SHALL NOT create an entry.
 
 #### Scenario: Create records the actor
 - **WHEN** a client is created via a push from an authenticated key whose allowlist entry has a user name
@@ -278,8 +275,7 @@ The server SHALL record an audit entry each time a client change is accepted, ca
 - **AND** SHALL NOT list field values as changes
 
 ### Requirement: Per-client edit history endpoint
-
-The server SHALL expose an authenticated endpoint returning the audit history of a client, ordered from oldest to newest, so the app can show who created and edited the client, when, and what changed. Each entry SHALL carry the actor user name when present, the key id, the timestamp, the action marker (`create`, `edit`, or `delete`), and the recorded change details, or a null details value for entries recorded before details existed. The endpoint SHALL accept an optional `limit` (1 to 200) and an optional `after_id` cursor. When a limit is supplied, the response SHALL return at most that many entries whose id is greater than `after_id`, plus a `next_after_id` value when more entries exist. Without pagination parameters, the endpoint SHALL return the full history for backward compatibility.
+The server SHALL expose an authenticated endpoint returning a client's audit history oldest-first, with actor name when present, key id, timestamp, action (`create`, `edit`, `delete`) and change details (null for older entries). It SHALL accept `limit` (1-200) and `after_id`; with a limit it SHALL return at most that many entries with id greater than `after_id`, plus `next_after_id` when more exist. Without parameters it SHALL return the full history.
 
 #### Scenario: History returned for a client
 - **WHEN** the app requests the edit history of a stored client

@@ -478,6 +478,31 @@ class ClientDetailScreenTest {
 
 
   @Test
+  fun detalhe_mostraServicosAntesDasNotas() {
+    val cliente =
+      Cliente(
+        id = "s0",
+        nome = "Maria",
+        notas = "Nota de teste",
+        dataCriacao = 0,
+        updatedAt = 0,
+      )
+    val ratoeira = catalogo("c0", CategoriaCatalogo.ROEDORES, "Ratoeira", ativo = true)
+    val repository =
+      FakeDetailRepository(
+        ClienteComFotos(cliente = cliente, fotos = emptyList()),
+        services = listOf(ClienteServicoComItem(ClienteServico("s0", "c0", 2), ratoeira)),
+      )
+
+    setDetailContent(cliente, repository)
+
+    val servicosTop =
+      composeTestRule.onNodeWithText("Aparelhos e Tratamentos").fetchSemanticsNode().boundsInRoot.top
+    val notasTop = composeTestRule.onNodeWithText("Notas").fetchSemanticsNode().boundsInRoot.top
+    assertTrue("Aparelhos e Tratamentos deveria aparecer acima das notas", servicosTop < notasTop)
+  }
+
+  @Test
   fun detalhe_mostraServicosComTotaisEPorCategoria() {
     val cliente = Cliente(id = "s1", nome = "Maria", dataCriacao = 0, updatedAt = 0)
     val ratoeira = catalogo("c1", CategoriaCatalogo.ROEDORES, "Ratoeira", ativo = true)

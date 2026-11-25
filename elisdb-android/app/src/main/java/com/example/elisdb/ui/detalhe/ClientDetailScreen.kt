@@ -340,6 +340,8 @@ private fun ClientDetailContent(
       }
     }
 
+    ServicosSection(servicos)
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
       SectionTitle("Notas")
       if (cliente.notas.isNullOrBlank()) {
@@ -364,8 +366,6 @@ private fun ClientDetailContent(
         }
       }
     }
-
-    ServicosSection(servicos)
 
     if (data.fotos.isNotEmpty()) {
       Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

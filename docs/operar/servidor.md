@@ -21,7 +21,7 @@ Se a porta estiver ocupada, muda o mapeamento no `compose.yaml`.
 
 ```bash
 curl http://localhost:8000/health
-# {"status":"ok","version":"1.6.0","api_version":2,"instance_id":"..."}
+# {"status":"ok","version":"1.7.0","api_version":2,"instance_id":"..."}
 curl http://localhost:8000/ready
 ```
 

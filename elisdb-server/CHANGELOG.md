@@ -6,6 +6,26 @@ mantém a app Android sincronizada. A versão de release vive em
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-25
+
+### Added
+
+- Catálogo partilhado (`catalogo_itens`) com quatro categorias, desativação e
+  reativação, sincronização last-write-wins e deteção de nomes duplicados sem
+  distinguir maiúsculas nem acentos.
+- Endpoints `GET /api/catalog` e `POST /api/catalog/push`, com resultados por
+  item (`accepted`, `unchanged`, `stale`, `invalid`).
+- Serviços por cliente (`cliente_servicos`) no push e no pull, com quantidades
+  validadas e substituição atómica em conjunto com o cliente.
+- Histórico global e por cliente com alterações ao catálogo e aos serviços.
+
+### Changed
+
+- `client_audit` distingue entradas de cliente e de catálogo através de `kind`,
+  `item_id` e `item_nome`.
+- Nomes do catálogo são normalizados em maiúsculas, tal como os nomes dos
+  clientes.
+
 ## [1.6.0] - 2026-11-22
 
 ### Added

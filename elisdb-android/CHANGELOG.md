@@ -8,6 +8,17 @@ antes de gerar o APK, para não sair uma versão sem notas.
 Escreve para quem usa a app (ou instala o servidor), agrupado em **Novidades**
 e **Correções**. Não incluir secrets, dados de clientes nem fotos.
 
+## [2.3.0] - 2026-11-25
+
+### Novidades
+
+- **Catálogo de modelos.** Nova página **Catálogo** para criar, editar, desativar e reativar modelos em Roedores, Insetos Rastejantes, Insetos Voadores e Tratamentos. Funciona offline e sincroniza com a equipa; nomes repetidos na mesma categoria são recusados.
+- **Aparelhos e tratamentos por cliente.** Na ficha de cada cliente é possível associar modelos do catálogo e indicar as quantidades instaladas. Os tratamentos são associados sem quantidade.
+- **Resumo na ficha.** Os aparelhos e tratamentos aparecem antes das notas, agrupados por categoria e com o total de cada grupo.
+- **Foto de perfil ao lado do mapa.** A ficha mostra a foto de perfil e o mapa lado a lado, com imagens de substituição quando não existem.
+- **Histórico completo.** O Log passa a incluir alterações ao catálogo e aos aparelhos/tratamentos de cada cliente.
+- **Servidor 1.7.0.** Catálogo partilhado, serviços por cliente e histórico conjunto, com compatibilidade progressiva para versões anteriores.
+
 ## [2.2.0] - 2026-11-22
 
 ### Novidades

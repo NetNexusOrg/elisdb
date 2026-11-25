@@ -4,9 +4,15 @@ import android.content.Context
 import android.net.Uri
 import androidx.room.withTransaction
 import com.example.elisdb.data.local.AppDatabase
+import com.example.elisdb.data.local.CatalogoDao
+import com.example.elisdb.data.local.CatalogoItem
+import com.example.elisdb.data.local.CategoriaCatalogo
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
 import com.example.elisdb.data.local.ClienteDao
+import com.example.elisdb.data.local.ClienteServico
+import com.example.elisdb.data.local.ClienteServicoComItem
+import com.example.elisdb.data.local.ClienteServicoDao
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.data.local.FotoDao
 import com.example.elisdb.data.local.joinTags
@@ -15,12 +21,15 @@ import com.example.elisdb.sync.SyncFault
 import com.example.elisdb.sync.SyncManager
 import com.example.elisdb.sync.SyncStatus
 import java.io.File
+import java.text.Normalizer
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+
+data class ServicoDraft(val itemId: String, val quantidade: Int? = null)
 
 data class ClienteDraft(
   val id: String? = null,
@@ -32,6 +41,7 @@ data class ClienteDraft(
   val notas: String? = null,
   val ativo: Boolean = true,
   val fotos: List<Foto> = emptyList(),
+  val servicos: List<ServicoDraft> = emptyList(),
 )
 
 class ClienteRepositoryImpl(
@@ -39,6 +49,8 @@ class ClienteRepositoryImpl(
   private val database: AppDatabase,
   private val clienteDao: ClienteDao,
   private val fotoDao: FotoDao,
+  private val catalogoDao: CatalogoDao,
+  private val clienteServicoDao: ClienteServicoDao,
   private val syncManager: SyncManager? = null,
   private val clockOffsetStore: com.example.elisdb.sync.ClockOffsetStore? = null,
   private val stagedPhotoRegistry: StagedPhotoRegistry? = null,
@@ -159,6 +171,12 @@ class ClienteRepositoryImpl(
               )
             )
           }
+        clienteServicoDao.replaceForCliente(
+          clienteId,
+          draft.servicos.map {
+            ClienteServico(clienteId = clienteId, itemId = it.itemId, quantidade = it.quantidade)
+          },
+        )
         clienteId
       }
     // The photos in the draft now have rows, so a sweep may reclaim them if the
@@ -168,6 +186,72 @@ class ClienteRepositoryImpl(
     draft.fotos.forEach { stagedPhotoRegistry?.remove(it.uriLocal) }
     removedFiles.forEach { deleteFile(it) }
     return clienteId
+  }
+
+  override val catalogo: Flow<List<CatalogoItem>> = catalogoDao.observeAll()
+
+  override fun observeServicos(clienteId: String): Flow<List<ClienteServicoComItem>> =
+    clienteServicoDao.observeForCliente(clienteId)
+
+  override suspend fun getCatalogo(): List<CatalogoItem> = catalogoDao.getAll()
+
+  override suspend fun getServicos(clienteId: String): List<ClienteServicoComItem> =
+    clienteServicoDao.getForCliente(clienteId).mapNotNull { servico ->
+      catalogoDao.getById(servico.itemId)?.let { item ->
+        ClienteServicoComItem(servico, item)
+      } ?: ClienteServicoComItem(servico, null)
+    }
+
+  override suspend fun saveCatalogoItem(
+    id: String?,
+    nome: String,
+    categoria: CategoriaCatalogo,
+  ): String {
+    val clean = nome.trim().replace(Regex("\\s+"), " ")
+    if (clean.isBlank() || clean.length > 80) throw CatalogoNomeInvalidoException()
+    val normalized = normalizarNomeCatalogo(clean)
+    val duplicate = catalogoDao.getByCategoria(categoria.slug, id ?: "").any {
+      it.nomeNormalizado == normalized
+    }
+    if (duplicate) throw CatalogoNomeDuplicadoException()
+    val now = nowEpochSeconds()
+    val itemId =
+      if (id == null) {
+        UUID.randomUUID().toString()
+      } else {
+        val existing = catalogoDao.getById(id) ?: throw CatalogoItemRemovidoException(id)
+        if (existing.categoria != categoria.slug) throw CatalogoCategoriaImutavelException()
+        id
+      }
+    val existing = id?.let { catalogoDao.getById(it) }
+    catalogoDao.upsert(
+      CatalogoItem(
+        id = itemId,
+        categoria = categoria.slug,
+        nome = clean,
+        nomeNormalizado = normalized,
+        ativo = existing?.ativo ?: true,
+        pending = true,
+        syncError = null,
+        createdAt = existing?.createdAt ?: now,
+        updatedAt = now,
+        revision = (existing?.revision ?: 0) + 1,
+      )
+    )
+    return itemId
+  }
+
+  override suspend fun setCatalogoAtivo(id: String, ativo: Boolean) {
+    val existing = catalogoDao.getById(id) ?: throw CatalogoItemRemovidoException(id)
+    catalogoDao.upsert(
+      existing.copy(
+        ativo = ativo,
+        pending = true,
+        syncError = null,
+        updatedAt = nowEpochSeconds(),
+        revision = existing.revision + 1,
+      )
+    )
   }
 
   override suspend fun deleteCliente(id: String) {
@@ -199,3 +283,24 @@ class ClienteRepositoryImpl(
  */
 class ClienteRemovidoException(val clienteId: String) :
   Exception("client $clienteId was removed by a sync")
+
+class CatalogoNomeDuplicadoException :
+  Exception("catalog item name already exists in this category")
+
+class CatalogoNomeInvalidoException : Exception("catalog item name is blank")
+
+class CatalogoCategoriaImutavelException :
+  Exception("catalog item category cannot be changed")
+
+class CatalogoItemRemovidoException(val itemId: String) :
+  Exception("catalog item $itemId does not exist locally")
+
+/** Duplicate detection only: trim, collapse spaces, drop diacritics, uppercase. */
+internal fun normalizarNomeCatalogo(nome: String): String {
+  val decomposed = Normalizer.normalize(nome, Normalizer.Form.NFD)
+  return decomposed
+    .replace(Regex("\\p{M}+"), "")
+    .replace(Regex("\\s+"), " ")
+    .trim()
+    .uppercase(Locale.ROOT)
+}

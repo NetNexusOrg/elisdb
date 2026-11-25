@@ -6,6 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.elisdb.data.ClienteRemovidoException
 import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.ClienteDraft
+import com.example.elisdb.data.ServicoDraft
+import com.example.elisdb.data.local.CatalogoItem
+import com.example.elisdb.data.local.CategoriaCatalogo
+import com.example.elisdb.data.local.ClienteServico
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.data.local.MAX_TAGS_FIELD_LENGTH
 import com.example.elisdb.data.local.MAX_TAGS_PER_CLIENT
@@ -25,6 +29,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+data class ServicoFormItem(
+  val item: CatalogoItem,
+  val quantidade: Int? = null,
+)
+
 data class ClientFormUiState(
   val isNew: Boolean = true,
   val clienteId: String? = null,
@@ -40,6 +49,9 @@ data class ClientFormUiState(
   val latitude: Double? = null,
   val longitude: Double? = null,
   val fotos: List<Foto> = emptyList(),
+  val catalogo: List<CatalogoItem> = emptyList(),
+  val servicos: List<ServicoFormItem> = emptyList(),
+  val servicoError: String? = null,
   val nomeError: Boolean = false,
   val saving: Boolean = false,
   val showCamera: Boolean = false,
@@ -62,9 +74,17 @@ class ClientFormViewModel(
 
   private var wasSaved = false
 
+  // Associations whose catalog item has not arrived yet are kept invisible but
+  // must survive a save; otherwise editing an unrelated field would drop them.
+  private var servicosDesconhecidos: List<ClienteServico> = emptyList()
+
   init {
     if (clienteId != null) {
       loadCliente(clienteId)
+    } else {
+      viewModelScope.launch {
+        _uiState.update { it.copy(catalogo = repository.getCatalogo()) }
+      }
     }
   }
 
@@ -72,6 +92,9 @@ class ClientFormViewModel(
     viewModelScope.launch {
       _uiState.update { it.copy(isLoading = true) }
       val data = repository.getCliente(id)
+      val servicos = repository.getServicos(id)
+      val catalogo = repository.getCatalogo()
+      servicosDesconhecidos = servicos.mapNotNull { if (it.item == null) it.servico else null }
       _uiState.update {
         it.copy(
           isLoading = false,
@@ -86,6 +109,13 @@ class ClientFormViewModel(
           latitude = data?.cliente?.latitude,
           longitude = data?.cliente?.longitude,
           fotos = normalizeProfilePhotos(data?.fotos.orEmpty()),
+          catalogo = catalogo,
+          servicos =
+            servicos.mapNotNull { servico ->
+              servico.item?.let { item ->
+                ServicoFormItem(item = item, quantidade = servico.servico.quantidade)
+              }
+            },
         )
       }
     }
@@ -226,12 +256,62 @@ class ClientFormViewModel(
 
   fun dismissCamera() = _uiState.update { it.copy(showCamera = false) }
 
+  fun onAddServico(item: CatalogoItem) {
+    _uiState.update { state ->
+      if (state.servicos.any { it.item.id == item.id }) return@update state
+      val quantidade = if (CategoriaCatalogo.fromSlug(item.categoria)?.isDevice == true) 1 else null
+      state.copy(
+        servicos = state.servicos + ServicoFormItem(item = item, quantidade = quantidade),
+        servicoError = null,
+      )
+    }
+  }
+
+  fun onRemoveServico(itemId: String) =
+    _uiState.update {
+      it.copy(servicos = it.servicos.filterNot { s -> s.item.id == itemId }, servicoError = null)
+    }
+
+  fun onQuantidadeChange(itemId: String, value: String) {
+    val digits = value.filter { it.isDigit() }.take(4)
+    val quantidade = digits.toIntOrNull()
+    _uiState.update { state ->
+      state.copy(
+        servicos =
+          state.servicos.map { servico ->
+            if (servico.item.id == itemId) servico.copy(quantidade = quantidade) else servico
+          },
+        servicoError = null,
+      )
+    }
+  }
+
   fun save() {
     val state = _uiState.value
     if (state.nome.isBlank()) {
       _uiState.update { it.copy(nomeError = true, message = "O nome é obrigatório.") }
       return
     }
+    val invalidQuantity =
+      state.servicos.any {
+        CategoriaCatalogo.fromSlug(it.item.categoria)?.isDevice == true &&
+          (it.quantidade == null || it.quantidade !in 1..9999)
+      }
+    if (invalidQuantity) {
+      _uiState.update {
+        it.copy(servicoError = "Indique uma quantidade entre 1 e 9999.")
+      }
+      return
+    }
+    val servicos =
+      state.servicos.map {
+        ServicoDraft(
+          itemId = it.item.id,
+          quantidade =
+            if (CategoriaCatalogo.fromSlug(it.item.categoria)?.isDevice == true) it.quantidade
+            else null,
+        )
+      } + servicosDesconhecidos.map { ServicoDraft(it.itemId, it.quantidade) }
     viewModelScope.launch {
       _uiState.update { it.copy(saving = true) }
       runCatching {
@@ -246,6 +326,7 @@ class ClientFormViewModel(
             notas = state.notas,
             ativo = state.ativo,
             fotos = state.fotos,
+            servicos = servicos,
           )
         )
       }

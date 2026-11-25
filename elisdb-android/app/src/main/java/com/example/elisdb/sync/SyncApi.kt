@@ -1,6 +1,9 @@
 package com.example.elisdb.sync
 
 import com.example.elisdb.remote.AuditEntryDto
+import com.example.elisdb.remote.CatalogoItemDto
+import com.example.elisdb.remote.CatalogoPushResultDto
+import com.example.elisdb.remote.CatalogoResponseDto
 import com.example.elisdb.remote.ClienteComFotosDto
 import com.example.elisdb.remote.ActivityPageDto
 import com.example.elisdb.remote.HistoryPageDto
@@ -59,4 +62,13 @@ interface SyncApi {
 
   /** Uploads a photo's raw bytes by id. */
   suspend fun uploadPhoto(id: String, bytes: ByteArray, timestamp: Long = System.currentTimeMillis() / 1000)
+
+  /** Fetches the complete catalog, including inactive items. */
+  suspend fun fetchCatalog(timestamp: Long = System.currentTimeMillis() / 1000): CatalogoResponseDto
+
+  /** Pushes catalog changes; returns one result per item. */
+  suspend fun pushCatalog(
+    items: List<CatalogoItemDto>,
+    timestamp: Long = System.currentTimeMillis() / 1000,
+  ): List<CatalogoPushResultDto>
 }

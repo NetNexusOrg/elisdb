@@ -3,6 +3,7 @@ package com.example.elisdb.ui.form
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -21,13 +22,28 @@ class NewClientFormNotPrefilledTest {
 
   @Test
   fun novo_cliente_formNaoFicaPrePreenchidoComDadosAnteriores() {
-    val repository = ApplicationProvider.getApplicationContext<ElisdbApp>().container.repository
+    val app = ApplicationProvider.getApplicationContext<ElisdbApp>()
+    app.container.settingsStore.save(
+      baseUrl = "https://example.test",
+      signingKey =
+        android.util.Base64.encodeToString(ByteArray(32) { 1 }, android.util.Base64.NO_WRAP),
+      userName = "Teste",
+    )
+    app.container.refreshSettings()
     runBlocking {
-      repository.save(ClienteDraft(nome = "Prefill Seed", latitude = 38.7, longitude = -9.1))
+      app.container.repository.save(
+        ClienteDraft(nome = "Prefill Seed", latitude = 38.7, longitude = -9.1)
+      )
     }
 
     composeTestRule.setContent { MainNavigation() }
     composeTestRule.waitForIdle()
+    composeTestRule.waitUntil(10_000) {
+      composeTestRule
+        .onAllNodesWithContentDescription("Mais opções")
+        .fetchSemanticsNodes()
+        .isNotEmpty()
+    }
 
     composeTestRule.onNodeWithContentDescription("Mais opções").performClick()
     composeTestRule.waitForIdle()
@@ -39,6 +55,12 @@ class NewClientFormNotPrefilledTest {
 
     composeTestRule.onNodeWithContentDescription("Fechar").performClick()
     composeTestRule.waitForIdle()
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule
+        .onAllNodesWithContentDescription("Mais opções")
+        .fetchSemanticsNodes()
+        .isNotEmpty()
+    }
 
     composeTestRule.onNodeWithContentDescription("Mais opções").performClick()
     composeTestRule.waitForIdle()

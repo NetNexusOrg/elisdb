@@ -113,7 +113,7 @@ class ActivityLogViewModel(
     val uris = if (photoIds.isEmpty()) emptyMap() else photosByIds(photoIds)
     val clienteIds =
       entries
-        .filter { it.action != "delete" }
+        .filter { it.kind == "client" && it.action != "delete" }
         .mapNotNull { it.clienteId }
         .distinct()
     val existing =

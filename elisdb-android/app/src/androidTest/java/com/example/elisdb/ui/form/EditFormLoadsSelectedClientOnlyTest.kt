@@ -26,7 +26,7 @@ class EditFormLoadsSelectedClientOnlyTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
     val repository =
-      ClienteRepositoryImpl(context, database, database.clienteDao(), database.fotoDao())
+      ClienteRepositoryImpl(context, database, database.clienteDao(), database.fotoDao(), database.catalogoDao(), database.clienteServicoDao())
     val idA =
       runBlocking {
         repository.save(ClienteDraft(nome = "Ana", latitude = 38.7, longitude = -9.1))

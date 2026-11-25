@@ -1,6 +1,7 @@
 """Pydantic models and the client name normalization used across the server."""
 
 import re
+import unicodedata
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -10,6 +11,33 @@ def normalize_nome(nome: str) -> str:
     insensitive to surrounding/extra whitespace; uppercase so the stored/presented
     name is consistent regardless of input casing."""
     return re.sub(r"\s+", " ", nome).strip().upper()
+
+
+CATALOG_CATEGORIES = (
+    "roedores",
+    "insetos_rastejantes",
+    "insetos_voadores",
+    "tratamentos",
+)
+DEVICE_CATEGORIES = frozenset(
+    {"roedores", "insetos_rastejantes", "insetos_voadores"}
+)
+MAX_CATALOG_NAME_LENGTH = 80
+MAX_SERVICES_PER_CLIENT = 200
+MAX_SERVICE_QUANTITY = 9999
+
+
+def normalize_catalog_name(nome: str) -> str:
+    """Normalize a catalog item name for duplicate detection only.
+
+    Trims, collapses whitespace, removes diacritics and uppercases, so
+    ``Rato\\u0301pido`` and ``RATOPIDO`` are the same name inside a category.
+    """
+    decomposed = unicodedata.normalize("NFKD", nome)
+    without_diacritics = "".join(
+        ch for ch in decomposed if not unicodedata.combining(ch)
+    )
+    return re.sub(r"\s+", " ", without_diacritics).strip().upper()
 
 
 ALLOWED_PHOTO_MIMES = frozenset({"image/jpeg", "image/png", "image/webp"})
@@ -84,11 +112,40 @@ class ClienteIn(BaseModel):
     notas: str | None = Field(None, max_length=100_000)
     ativo: bool = True
     updated_at: int
+    # None preserves the stored associations; an empty list clears them and a
+    # non-empty list replaces them atomically with the client record.
+    servicos: list["ServicoIn"] | None = None
 
     @field_validator("tag")
     @classmethod
     def _normalize_tag_field(cls, v: str | None) -> str | None:
         return normalize_tags(v)
+
+    @field_validator("servicos")
+    @classmethod
+    def _service_list_limits(
+        cls, v: list["ServicoIn"] | None
+    ) -> list["ServicoIn"] | None:
+        if v is None:
+            return None
+        if len(v) > MAX_SERVICES_PER_CLIENT:
+            raise ValueError(
+                f"too many services (maximum {MAX_SERVICES_PER_CLIENT})"
+            )
+        ids = [service.item_id for service in v]
+        if len(ids) != len(set(ids)):
+            raise ValueError("duplicate catalog item in services")
+        return v
+
+
+class ServicoIn(BaseModel):
+    item_id: str = Field(min_length=1, max_length=64)
+    quantidade: int | None = None
+
+
+class ServicoOut(BaseModel):
+    item_id: str
+    quantidade: int | None = None
 
 
 class RecordIn(BaseModel):
@@ -125,6 +182,8 @@ class ClienteOut(BaseModel):
     # Server-assigned cursor for incremental pulls; independent of updated_at,
     # which stays the device timestamp that decides last-write-wins.
     delivery_ts: int = 0
+    # None means "not included" (the summary list); a list is the complete set.
+    servicos: list[ServicoOut] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -158,6 +217,20 @@ class AuditFieldChange(BaseModel):
     truncated: bool = False
 
 
+class AuditServiceChange(BaseModel):
+    """One catalog association added, removed or re-quantified by a push.
+
+    ``nome`` is the item name at the time of the change, so a later rename does
+    not rewrite history.
+    """
+
+    item_id: str
+    nome: str
+    change: str  # added | removed | quantity
+    old: int | None = None
+    new: int | None = None
+
+
 class AuditPhotoChanges(BaseModel):
     """Photos added to / removed from a client by an accepted edit."""
 
@@ -171,6 +244,8 @@ class AuditDetails(BaseModel):
 
     fields: list[AuditFieldChange] = []
     photos: AuditPhotoChanges | None = None
+    # Associations installed on the client, when the push changed them.
+    services: list[AuditServiceChange] = []
     # Present on delete entries: the record as it was immediately before removal.
     deleted_client: dict | None = None
 
@@ -190,10 +265,17 @@ class HistoryPageOut(BaseModel):
 
 
 class ActivityEntryOut(AuditEntryOut):
-    """An audit entry in the global activity log, which names its client."""
+    """An audit entry in the global activity log.
 
-    cliente_id: str
+    Client entries name their client; catalog entries name the catalog item and
+    carry no client.
+    """
+
+    kind: str = "client"
+    cliente_id: str | None = None
     cliente_nome: str | None = None
+    item_id: str | None = None
+    item_nome: str | None = None
 
 
 class ActivityPageOut(BaseModel):
@@ -213,6 +295,64 @@ class PushResult(BaseModel):
     # Photo ids the push referenced whose content the server does not have; the
     # client must upload them again instead of recording them as sent.
     missing_photos: list[str] = []
+
+
+class CatalogItemIn(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    categoria: str
+    nome: str = Field(min_length=1, max_length=MAX_CATALOG_NAME_LENGTH)
+    ativo: bool = True
+    updated_at: int
+
+    @field_validator("id")
+    @classmethod
+    def _id_must_be_safe(cls, v: str) -> str:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", v):
+            raise ValueError("catalog id must use letters, digits, '_' or '-'")
+        return v
+
+    @field_validator("categoria")
+    @classmethod
+    def _category_must_exist(cls, v: str) -> str:
+        if v not in CATALOG_CATEGORIES:
+            raise ValueError(f"unknown catalog category: {v}")
+        return v
+
+    @field_validator("nome")
+    @classmethod
+    def _name_must_not_be_blank(cls, v: str) -> str:
+        if not normalize_catalog_name(v):
+            raise ValueError("catalog name cannot be blank")
+        return v
+
+
+class CatalogPushRequest(BaseModel):
+    items: list[CatalogItemIn] = []
+
+
+class CatalogItemOut(BaseModel):
+    id: str
+    categoria: str
+    nome: str
+    ativo: bool = True
+    created_at: int = 0
+    updated_at: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CatalogResponse(BaseModel):
+    items: list[CatalogItemOut] = []
+    # True when the list is the complete server catalog, including inactive
+    # items. A partial response would make clients keep their local copy.
+    complete: bool = True
+
+
+class CatalogPushResult(BaseModel):
+    id: str
+    status: str  # accepted | unchanged | stale | invalid
+    reason: str | None = None
+    item: CatalogItemOut | None = None
 
 
 class AppReleaseOut(BaseModel):

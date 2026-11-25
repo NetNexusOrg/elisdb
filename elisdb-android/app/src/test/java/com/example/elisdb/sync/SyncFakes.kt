@@ -1,11 +1,20 @@
 package com.example.elisdb.sync
 
+import com.example.elisdb.data.local.CatalogoDao
+import com.example.elisdb.data.local.CatalogoItem
 import com.example.elisdb.data.local.Cliente
+import com.example.elisdb.data.local.ClienteServico
+import com.example.elisdb.data.local.ClienteServicoComItem
+import com.example.elisdb.data.local.ClienteServicoDao
 import com.example.elisdb.data.local.ClienteDao
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.data.local.FotoDao
 import com.example.elisdb.data.local.FotoUri
 import com.example.elisdb.remote.ActivityPageDto
+import com.example.elisdb.remote.CatalogoItemDto
+import com.example.elisdb.remote.CatalogoItemOutDto
+import com.example.elisdb.remote.CatalogoPushResultDto
+import com.example.elisdb.remote.CatalogoResponseDto
 import com.example.elisdb.remote.ClienteComFotosDto
 import com.example.elisdb.remote.ClienteOutDto
 import com.example.elisdb.remote.FotoOutDto
@@ -227,6 +236,10 @@ class FakeSyncApi : SyncApi {
   var deleteResult: (String) -> Boolean = { true }
   var failWith: Exception? = null
 
+  var catalogItems: MutableList<CatalogoItemOutDto> = mutableListOf()
+  var catalogFetchError: Exception? = null
+  var catalogPushError: Exception? = null
+
   /** Server time reported by [fetchServerTime]; defaults to the device clock. */
   var serverTime: Long = System.currentTimeMillis() / 1000
 
@@ -285,6 +298,49 @@ class FakeSyncApi : SyncApi {
   }
 
   override suspend fun fetchServerTime(): Long = serverTime
+
+  /** Catalog returned by [fetchCatalog]. */
+  override suspend fun fetchCatalog(timestamp: Long): CatalogoResponseDto {
+    catalogFetchError?.let { throw it }
+    failWith?.let { throw it }
+    return CatalogoResponseDto(catalogItems.toList())
+  }
+
+  /** Status assigned to each item by [pushCatalog]; defaults to accepted. */
+  var catalogPushStatus: (CatalogoItemDto) -> String = { "accepted" }
+
+  val pushedCatalog = mutableListOf<List<CatalogoItemDto>>()
+
+  override suspend fun pushCatalog(
+    items: List<CatalogoItemDto>,
+    timestamp: Long,
+  ): List<CatalogoPushResultDto> {
+    catalogPushError?.let { throw it }
+    failWith?.let { throw it }
+    pushedCatalog.add(items)
+    return items.map { item ->
+      val status = catalogPushStatus(item)
+      val stored =
+        CatalogoItemOutDto(
+          id = item.id,
+          categoria = item.categoria,
+          nome = item.nome,
+          ativo = item.ativo,
+          createdAt = item.updatedAt,
+          updatedAt = item.updatedAt,
+        )
+      if (status == "accepted" || status == "unchanged") {
+        catalogItems.removeAll { it.id == item.id }
+        catalogItems.add(stored)
+      }
+      CatalogoPushResultDto(
+        id = item.id,
+        status = status,
+        reason = if (status == "invalid") "invalid item" else null,
+        item = if (status == "invalid") null else stored,
+      )
+    }
+  }
 
   /**
    * Latest data timestamp returned by [fetchServerInfo]; null to simulate failure.
@@ -442,4 +498,87 @@ class FakeServerIdentityStore(var value: String? = null) : ServerIdentityStore {
   override fun get(): String? = value
   override fun set(instanceId: String) { value = instanceId }
   override fun clear() { value = null }
+}
+
+/** In-memory fake [CatalogoDao]. */
+class FakeCatalogoDao(initial: List<CatalogoItem> = emptyList()) : CatalogoDao {
+  val data = initial.toMutableList()
+
+  override fun observeAll(): Flow<List<CatalogoItem>> =
+    flowOf(data.sortedWith(compareBy({ it.categoria }, { it.nome.lowercase() })))
+
+  override suspend fun getAll(): List<CatalogoItem> = data.toList()
+
+  override suspend fun getById(id: String): CatalogoItem? = data.firstOrNull { it.id == id }
+
+  override suspend fun getPending(): List<CatalogoItem> = data.filter { it.pending }
+
+  override suspend fun getByCategoria(categoria: String, exceptId: String): List<CatalogoItem> =
+    data.filter { it.categoria == categoria && it.id != exceptId }
+
+  override suspend fun insert(item: CatalogoItem) {
+    data.removeAll { it.id == item.id }
+    data.add(item)
+  }
+
+  override suspend fun upsert(item: CatalogoItem) = insert(item)
+
+  override suspend fun markSynced(id: String, revision: Int) {
+    val index = data.indexOfFirst { it.id == id && it.revision == revision }
+    if (index >= 0) data[index] = data[index].copy(pending = false, syncError = null)
+  }
+
+  override suspend fun setSyncError(id: String, error: String?) {
+    val index = data.indexOfFirst { it.id == id }
+    if (index >= 0) data[index] = data[index].copy(syncError = error)
+  }
+
+  override suspend fun deleteAll() = data.clear()
+
+  override suspend fun deleteAllSynced() {
+    data.removeAll { !it.pending }
+  }
+
+  override suspend fun deleteSyncedExcept(ids: List<String>) {
+    data.removeAll { !it.pending && it.id !in ids }
+  }
+}
+
+/** In-memory fake [ClienteServicoDao]. */
+class FakeClienteServicoDao(initial: List<ClienteServico> = emptyList()) : ClienteServicoDao {
+  val data = initial.toMutableList()
+
+  override fun observeForCliente(clienteId: String): Flow<List<ClienteServicoComItem>> =
+    flowOf(
+      data.filter { it.clienteId == clienteId }.map {
+        ClienteServicoComItem(it, null)
+      }
+    )
+
+  override suspend fun getForCliente(clienteId: String): List<ClienteServico> =
+    data.filter { it.clienteId == clienteId }
+
+  override suspend fun getAll(): List<ClienteServico> = data.toList()
+
+  override suspend fun upsertAll(servicos: List<ClienteServico>) {
+    servicos.forEach { service ->
+      data.removeAll { it.clienteId == service.clienteId && it.itemId == service.itemId }
+      data.add(service)
+    }
+  }
+
+  override suspend fun deleteForCliente(clienteId: String) {
+    data.removeAll { it.clienteId == clienteId }
+  }
+
+  override suspend fun deleteAll() = data.clear()
+
+  override suspend fun deleteAllForSyncedClients() {
+    data.clear()
+  }
+
+  override suspend fun replaceForCliente(clienteId: String, servicos: List<ClienteServico>) {
+    deleteForCliente(clienteId)
+    upsertAll(servicos.map { it.copy(clienteId = clienteId) })
+  }
 }

@@ -97,7 +97,7 @@ internal fun LogEntryCard(
               style = MaterialTheme.typography.bodyLarge,
             )
             Text(
-              text = actionLabel(entry.action),
+              text = actionLabel(entry.action, entry.kind),
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -118,9 +118,23 @@ internal fun LogEntryCard(
 /** What an edit changed: one row per field, then a summary of the photos. */
 @Composable
 private fun ChangeDetails(details: AuditDetailsDto, photoUris: Map<String, String>) {
-  if (details.fields.isEmpty() && details.photos == null) return
+  if (details.fields.isEmpty() && details.photos == null && details.services.isEmpty()) return
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
     details.fields.forEach { change -> FieldChangeRow(change) }
+    details.services.forEach { service ->
+      Text(
+        text =
+          when (service.change) {
+            "added" ->
+              if (service.new != null) "Adicionou ${service.nome} (qtd. ${service.new})"
+              else "Adicionou ${service.nome}"
+            "removed" -> "Removeu ${service.nome}"
+            "quantity" -> "${service.nome}: ${service.old ?: "—"} → ${service.new ?: "—"}"
+            else -> service.nome
+          },
+        style = MaterialTheme.typography.bodySmall,
+      )
+    }
     details.photos?.let { photos -> PhotoChanges(photos = photos, photoUris = photoUris) }
   }
 }
@@ -304,10 +318,22 @@ internal fun actionIcon(action: String): ImageVector =
     else -> Icons.Filled.History
   }
 
-internal fun actionLabel(action: String): String =
-  when (action) {
+internal fun actionLabel(action: String, kind: String = "client"): String {
+  if (kind == "catalog") {
+    return when (action) {
+      "create" -> "Criou o modelo"
+      "update", "edit" -> "Editou o modelo"
+      "deactivate" -> "Desativou o modelo"
+      "reactivate" -> "Reativou o modelo"
+      else -> action
+    }
+  }
+  return when (action) {
     "create" -> "Criou o cliente"
     "update", "edit" -> "Editou o cliente"
     "delete" -> "Apagou o cliente"
+    "deactivate" -> "Desativou o cliente"
+    "reactivate" -> "Ativou o cliente"
     else -> action
   }
+}

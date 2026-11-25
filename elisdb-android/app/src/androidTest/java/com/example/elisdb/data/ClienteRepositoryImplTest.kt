@@ -29,7 +29,7 @@ class ClienteRepositoryImplTest {
   fun setUp() {
     context.deleteDatabase(dbName)
     database = Room.databaseBuilder(context, AppDatabase::class.java, dbName).build()
-    repository = ClienteRepositoryImpl(context, database, database.clienteDao(), database.fotoDao())
+    repository = ClienteRepositoryImpl(context, database, database.clienteDao(), database.fotoDao(), database.catalogoDao(), database.clienteServicoDao())
   }
 
   @After
@@ -209,6 +209,8 @@ class ClienteRepositoryImplTest {
         database,
         database.clienteDao(),
         database.fotoDao(),
+        database.catalogoDao(),
+        database.clienteServicoDao(),
         clockOffsetStore = FakeOffsetStore(offsetSeconds),
       )
 
@@ -222,6 +224,48 @@ class ClienteRepositoryImplTest {
       stored.updatedAt in before..after,
     )
   }
+
+
+  @Test
+  fun catalogo_guardaNormalizaEDetectaDuplicados() = runBlocking {
+    val id = repository.saveCatalogoItem(null, "  Ratoeira   Grande ", com.example.elisdb.data.local.CategoriaCatalogo.ROEDORES)
+    val item = database.catalogoDao().getById(id)
+    assertNotNull(item)
+    assertEquals("Ratoeira Grande", item?.nome)
+    assertEquals("RATOEIRA GRANDE", item?.nomeNormalizado)
+    assertTrue(item?.pending == true)
+
+    val duplicate =
+      runCatching {
+        repository.saveCatalogoItem(null, "RATOEIRA GRANDE", com.example.elisdb.data.local.CategoriaCatalogo.ROEDORES)
+      }
+    assertTrue(duplicate.exceptionOrNull() is CatalogoNomeDuplicadoException)
+
+    repository.setCatalogoAtivo(id, false)
+    val inactive = database.catalogoDao().getById(id)
+    assertFalse(inactive?.ativo ?: true)
+    assertTrue(inactive?.pending == true)
+  }
+
+  @Test
+  fun servicos_saoGuardadosComOClienteERemovidosEmCascata() = runBlocking {
+    val itemId = repository.saveCatalogoItem(null, "Ratoeira", com.example.elisdb.data.local.CategoriaCatalogo.ROEDORES)
+    val clienteId = repository.save(ClienteDraft(nome = "Ana"))
+    repository.save(
+      ClienteDraft(
+        id = clienteId,
+        nome = "Ana",
+        servicos = listOf(ServicoDraft(itemId = itemId, quantidade = 5)),
+      )
+    )
+
+    val stored = database.clienteServicoDao().getForCliente(clienteId)
+    assertEquals(5, stored.single().quantidade)
+
+    database.clienteDao().delete(database.clienteDao().getById(clienteId)!!)
+    assertTrue(database.clienteServicoDao().getForCliente(clienteId).isEmpty())
+  }
+
 }
 
 private class FakeOffsetStore(private val offsetSeconds: Long?) : ClockOffsetStore {

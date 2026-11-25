@@ -110,7 +110,7 @@ class ClientDetailViewModelTest {
 private class FakeClientRepository(
   private val data: ClienteComFotos?,
   private val throwOnDelete: Boolean = false,
-) : ClienteRepository {
+) : com.example.elisdb.EmptyCatalogoRepository() {
   var deletedId: String? = null
   var syncCalls: Int = 0
 

@@ -29,7 +29,7 @@ class EditFormChoosesProfilePhotoTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
     val repository =
-      ClienteRepositoryImpl(context, database, database.clienteDao(), database.fotoDao())
+      ClienteRepositoryImpl(context, database, database.clienteDao(), database.fotoDao(), database.catalogoDao(), database.clienteServicoDao())
     val id =
       runBlocking {
         repository.save(

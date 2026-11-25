@@ -44,6 +44,9 @@ from .models import (
     ActivityPageOut,
     AppReleaseOut,
     AuditEntryOut,
+    CatalogPushRequest,
+    CatalogPushResult,
+    CatalogResponse,
     ClienteComFotosOut,
     ClienteOut,
     HistoryPageOut,
@@ -81,6 +84,7 @@ MAX_PUSH_BYTES = int(os.environ.get("ELISDB_MAX_PUSH_BYTES", str(64 * 1024 * 102
 # the client omitted `limit`.
 MAX_PULL_RECORDS = 1000
 MAX_HISTORY_ENTRIES = 200
+MAX_CATALOG_PUSH_ITEMS = 200
 
 
 def _env_int(name: str, default: int) -> int:
@@ -736,6 +740,35 @@ def create_app(database: Database | None = None) -> FastAPI:
     @app.get("/api/clients", response_model=list[ClienteOut], dependencies=[auth_dep])
     def list_clients() -> list[ClienteOut]:
         return [ClienteOut.model_validate(c) for c in store.list_clients()]
+
+    @app.get(
+        "/api/catalog", response_model=CatalogResponse, dependencies=[auth_dep]
+    )
+    def get_catalog() -> CatalogResponse:
+        """Return every catalog item, including inactive ones.
+
+        ``complete=True`` tells the client this is the authoritative catalog, so
+        it can drop local records the server no longer has.
+        """
+        return CatalogResponse(items=store.list_catalog(), complete=True)
+
+    @app.post(
+        "/api/catalog/push",
+        response_model=list[CatalogPushResult],
+        dependencies=[auth_dep],
+    )
+    def push_catalog(request: Request, req: CatalogPushRequest) -> list[CatalogPushResult]:
+        if len(req.items) > MAX_CATALOG_PUSH_ITEMS:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"too many catalog items in one push "
+                    f"({len(req.items)} > {MAX_CATALOG_PUSH_ITEMS})"
+                ),
+            )
+        actor = getattr(request.state, "authenticated_key", None)
+        results = store.push_catalog(req.items, actor=actor)
+        return [CatalogPushResult.model_validate(result) for result in results]
 
     @app.get("/api/photos/{foto_id}", dependencies=[auth_dep])
     def get_photo(foto_id: str) -> Response:

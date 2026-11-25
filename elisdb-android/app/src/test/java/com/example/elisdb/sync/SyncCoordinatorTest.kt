@@ -1,9 +1,14 @@
 package com.example.elisdb.sync
 
+import com.example.elisdb.data.local.CatalogoItem
 import com.example.elisdb.data.local.Cliente
+import com.example.elisdb.data.local.ClienteServico
 import com.example.elisdb.data.local.Foto
+import com.example.elisdb.remote.CatalogoItemOutDto
+import com.example.elisdb.remote.CatalogoResponseDto
 import com.example.elisdb.remote.AuthCause
 import com.example.elisdb.remote.AuthException
+import com.example.elisdb.remote.ClienteComFotosDto
 import com.example.elisdb.remote.ClienteOutDto
 import com.example.elisdb.remote.ConfigException
 import com.example.elisdb.remote.FotoOutDto
@@ -30,6 +35,8 @@ class SyncCoordinatorTest {
     clockOffsetStore: FakeClockOffsetStore? = null,
     photoPushState: FakePhotoPushState? = null,
     serverIdentityStore: FakeServerIdentityStore? = null,
+    catalogoDao: FakeCatalogoDao? = null,
+    clienteServicoDao: FakeClienteServicoDao? = null,
     maxPhotosPerClient: Int = 500,
     onWarning: (String) -> Unit = {},
     onError: (Throwable) -> Unit = {},
@@ -44,6 +51,8 @@ class SyncCoordinatorTest {
       clockOffsetStore = clockOffsetStore,
       photoPushState = photoPushState,
       serverIdentityStore = serverIdentityStore,
+      catalogoDao = catalogoDao,
+      clienteServicoDao = clienteServicoDao,
       maxPhotosPerClient = maxPhotosPerClient,
       onWarning = onWarning,
       onError = onError,
@@ -1741,5 +1750,175 @@ class SyncCoordinatorTest {
     assertEquals("the at-limit client is not rejected", 1, api.pushCalls)
     assertTrue("client acknowledged", !dao.data.single { it.id == "1" }.pending)
   }
+
+  @Test
+  fun `catalog push clears pending after acceptance`() = runBlocking {
+    val catalogDao =
+      FakeCatalogoDao(
+        listOf(
+          CatalogoItem(
+            id = "item-1",
+            categoria = "roedores",
+            nome = "Ratoeira",
+            nomeNormalizado = "RATOEIRA",
+            pending = true,
+            updatedAt = 10,
+            revision = 1,
+          )
+        )
+      )
+    val api = FakeSyncApi()
+    val c = coord(FakeClienteDao(), api = api, catalogoDao = catalogDao)
+
+    c.sync()
+
+    assertEquals(1, api.pushedCatalog.size)
+    assertFalse(catalogDao.data.single().pending)
+  }
+
+  @Test
+  fun `catalog pull keeps pending items and removes absent synced ones`() = runBlocking {
+    val catalogDao =
+      FakeCatalogoDao(
+        listOf(
+          CatalogoItem(
+            id = "keep",
+            categoria = "roedores",
+            nome = "Local",
+            nomeNormalizado = "LOCAL",
+            pending = true,
+            updatedAt = 10,
+          ),
+          CatalogoItem(
+            id = "remove",
+            categoria = "roedores",
+            nome = "Antigo",
+            nomeNormalizado = "ANTIGO",
+            pending = false,
+            updatedAt = 5,
+          ),
+        )
+      )
+    val api =
+      FakeSyncApi().apply {
+        catalogItems =
+          mutableListOf(
+            CatalogoItemOutDto(
+              id = "remote",
+              categoria = "tratamentos",
+              nome = "Gel",
+              ativo = true,
+              createdAt = 1,
+              updatedAt = 7,
+            )
+          )
+      }
+    val c = coord(FakeClienteDao(), api = api, catalogoDao = catalogDao)
+
+    c.sync()
+
+    assertEquals(setOf("keep", "remote"), catalogDao.data.map { it.id }.toSet())
+    assertTrue(catalogDao.data.first { it.id == "keep" }.ativo)
+  }
+
+  @Test
+  fun `old server without catalog still syncs clients`() = runBlocking {
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, nome = "Ana")))
+    val api =
+      FakeSyncApi().apply {
+        catalogPushError = com.example.elisdb.remote.ServerException("missing", 404)
+        catalogFetchError = com.example.elisdb.remote.ServerException("missing", 404)
+        pullResponse = pullResponseOf(serverItem(id = "1", nome = "Ana", updatedAt = 1))
+      }
+    val c =
+      coord(
+        dao,
+        api = api,
+        catalogoDao =
+          FakeCatalogoDao(
+            listOf(
+              CatalogoItem(
+                id = "item-1",
+                categoria = "roedores",
+                nome = "Ratoeira",
+                nomeNormalizado = "RATOEIRA",
+                pending = true,
+                updatedAt = 10,
+              )
+            )
+          ),
+      )
+
+    val outcome = c.sync()
+
+    assertFalse(dao.data.single().pending)
+    assertTrue(outcome is SyncOutcome.SuccessReport)
+  }
+
+  @Test
+  fun `client push carries services and pull replaces them`() = runBlocking {
+    val serviceDao =
+      FakeClienteServicoDao(
+        listOf(ClienteServico(clienteId = "1", itemId = "item-1", quantidade = 3))
+      )
+    val dao = FakeClienteDao(listOf(cliente("1", pending = true, nome = "Ana")))
+    val api =
+      FakeSyncApi().apply {
+        pullResponse =
+          PullResponseDto(
+            records =
+              listOf(
+                ClienteComFotosDto(
+                  client =
+                    ClienteOutDto(
+                      id = "1",
+                      nome = "ANA",
+                      updatedAt = 5,
+                      servicos = listOf(com.example.elisdb.remote.ServicoDto("item-1", 4)),
+                    ),
+                  fotos = emptyList(),
+                  photosComplete = true,
+                )
+              )
+          )
+      }
+    val c = coord(dao, api = api, clienteServicoDao = serviceDao)
+
+    c.sync()
+
+    assertEquals(3, api.pushed.single().single().client.servicos?.single()?.quantidade)
+    assertEquals(4, serviceDao.data.single().quantidade)
+  }
+
+
+  @Test
+  fun `invalid catalog item stays pending with sync error`() = runBlocking {
+    val catalogDao =
+      FakeCatalogoDao(
+        listOf(
+          CatalogoItem(
+            id = "item-1",
+            categoria = "roedores",
+            nome = "Repetido",
+            nomeNormalizado = "REPETIDO",
+            pending = true,
+            updatedAt = 10,
+            revision = 1,
+          )
+        )
+      )
+    val api =
+      FakeSyncApi().apply {
+        catalogPushStatus = { "invalid" }
+      }
+    val c = coord(FakeClienteDao(), api = api, catalogoDao = catalogDao)
+
+    c.sync()
+
+    val item = catalogDao.data.single()
+    assertTrue(item.pending)
+    assertEquals("invalid item", item.syncError)
+  }
+
 
 }

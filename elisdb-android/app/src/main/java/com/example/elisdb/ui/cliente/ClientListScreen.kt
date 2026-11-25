@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DevicesOther
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
@@ -103,6 +104,7 @@ fun ClientListScreen(
   onAboutClick: () -> Unit = {},
   onMapClick: () -> Unit = {},
   onLogsClick: () -> Unit = {},
+  onCatalogoClick: () -> Unit = {},
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   ClientListScreen(
@@ -119,6 +121,7 @@ fun ClientListScreen(
     onAboutClick = onAboutClick,
     onMapClick = onMapClick,
     onLogsClick = onLogsClick,
+    onCatalogoClick = onCatalogoClick,
     modifier = modifier,
   )
 }
@@ -139,6 +142,7 @@ internal fun ClientListScreen(
   onAboutClick: () -> Unit,
   onMapClick: () -> Unit,
   onLogsClick: () -> Unit,
+  onCatalogoClick: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   Scaffold(
@@ -171,6 +175,11 @@ internal fun ClientListScreen(
               text = { Text("Logs") },
               onClick = { menuOpen = false; onLogsClick() },
               leadingIcon = { Icon(Icons.Default.History, contentDescription = null) },
+            )
+            DropdownMenuItem(
+              text = { Text("Catálogo") },
+              onClick = { menuOpen = false; onCatalogoClick() },
+              leadingIcon = { Icon(Icons.Default.DevicesOther, contentDescription = null) },
             )
             DropdownMenuItem(
               text = { Text("Configuração") },

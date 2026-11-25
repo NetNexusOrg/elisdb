@@ -25,6 +25,8 @@ import com.example.elisdb.ui.cliente.ClientListScreen
 import com.example.elisdb.ui.cliente.ClientListViewModel
 import com.example.elisdb.ui.cliente.ClientMapScreen
 import com.example.elisdb.ui.cliente.ClientMapViewModel
+import com.example.elisdb.ui.catalogo.CatalogoScreen
+import com.example.elisdb.ui.catalogo.CatalogoViewModel
 import com.example.elisdb.ui.detalhe.ClientDetailScreen
 import com.example.elisdb.ui.detalhe.ClientDetailViewModel
 import com.example.elisdb.ui.detalhe.ActivityLogScreen
@@ -100,6 +102,14 @@ private fun MainDestinations(container: AppContainer) {
             onAboutClick = { backStack.add(About) },
             onMapClick = { backStack.add(ClientMap) },
             onLogsClick = { backStack.add(ActivityLog) },
+            onCatalogoClick = { backStack.add(Catalogo) },
+          )
+        }
+        entry<Catalogo> {
+          val container = rememberAppContainer()
+          CatalogoScreen(
+            viewModel = viewModel { CatalogoViewModel(container.repository) },
+            onBack = { backStack.removeLastOrNull() },
           )
         }
         entry<ClientMap> {

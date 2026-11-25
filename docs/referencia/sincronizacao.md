@@ -37,6 +37,22 @@ Consequências úteis ao diagnosticar:
   como recriação).
 - **`ativo`** faz parte do registo e participa no LWW como os outros campos.
 
+## Catálogo e serviços
+
+- O ciclo corre por esta ordem: relógio → push do catálogo → push de clientes →
+  eliminações → pull do catálogo → pull de clientes. Os serviços vão dentro do
+  cliente, por isso o cliente e as suas associações são gravados juntos.
+- Um item de catálogo pendente nunca é substituído pelo pull. O servidor devolve
+  o catálogo **completo** (incluindo inativos); a app remove apenas itens já
+  sincronizados que já não existam lá.
+- Se o servidor não tiver `/api/catalog` (`404`), a app avisa mas continua a
+  sincronizar clientes com a cópia local do catálogo.
+- `servicos` ausente/`null` preserva as associações; `[]` limpa; uma lista
+  substitui. A categoria do modelo é imutável e a quantidade só existe nos
+  aparelhos (1–9999).
+- Na fusão de duplicados, as associações dos dois clientes são unidas por
+  modelo, ficando a maior quantidade; o cliente canónico é reenviado.
+
 ## Lotes no envio
 
 - Registos pendentes são enviados em lotes de até 100 (ou o `max_push_records`

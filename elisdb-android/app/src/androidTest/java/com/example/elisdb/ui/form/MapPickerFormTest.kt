@@ -51,7 +51,7 @@ class MapPickerFormTest {
   }
 }
 
-private class FakeFormRepository : ClienteRepository {
+private class FakeFormRepository : com.example.elisdb.EmptyCatalogoRepository() {
   override val clientes: Flow<List<Cliente>> = flowOf(emptyList())
 
   override val clientesComFotos: Flow<List<ClienteComFotos>> = flowOf(emptyList())

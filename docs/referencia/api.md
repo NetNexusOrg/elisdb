@@ -34,8 +34,10 @@ MÉTODO\nCAMINHO?QUERY\nSHA256(corpo)\nTIMESTAMP
 | GET | `/api/latest` | ✓ | `latest_updated_at`, `client_count`, `api_version`, `instance_id`, `max_push_records` |
 | POST | `/api/push` | ✓ | Enviar clientes e fotos |
 | GET | `/api/pull` | ✓ | Receber alterações desde `since` |
-| GET | `/api/clients` | ✓ | Listar clientes (sem fotos) |
-| GET | `/api/history` | ✓ | Histórico global de alterações |
+| GET | `/api/clients` | ✓ | Listar clientes (sem fotos nem serviços) |
+| GET | `/api/catalog` | ✓ | Catálogo completo de modelos, incluindo inativos |
+| POST | `/api/catalog/push` | ✓ | Enviar alterações ao catálogo |
+| GET | `/api/history` | ✓ | Histórico global de alterações (clientes e catálogo) |
 | GET | `/api/clients/{id}/history` | ✓ | Histórico de auditoria do cliente |
 | DELETE | `/api/clients/{id}` | ✓ | Apagar cliente e fotos |
 | GET | `/api/photos/{id}` | ✓ | Descarregar foto |
@@ -61,12 +63,32 @@ MÉTODO\nCAMINHO?QUERY\nSHA256(corpo)\nTIMESTAMP
 
 ## Push
 
+- Cada cliente pode levar `servicos: [{item_id, quantidade}]`. `null`/ausente
+  preserva as associações guardadas, `[]` limpa-as e uma lista substitui-as
+  atomicamente com o cliente.
+- Nos aparelhos (`roedores`, `insetos_rastejantes`, `insetos_voadores`) a
+  quantidade é obrigatória entre 1 e 9999; em `tratamentos` é `null`.
 - Aceita `Idempotency-Key` (opcional): o mesmo par chave+payload devolve a
   resposta anterior sem escrever; a mesma chave com payload diferente dá `409`.
 - Resposta por registo: `accepted`, `duplicate` (com o registo canónico),
   `stale` (LWW) ou erro.
 - `missing_photos` lista fotos referenciadas cujo ficheiro ainda não existe — o
   cliente reenvia-as; nunca são dadas como enviadas.
+
+## Catálogo
+
+- `GET /api/catalog` devolve `{items, complete: true}` com **todos** os modelos,
+  incluindo inativos. A app usa o catálogo completo para reconciliar a cópia
+  local; um item pendente nunca é substituído.
+- `POST /api/catalog/push` aceita até 200 itens por pedido. Cada item tem `id`,
+  `categoria`, `nome`, `ativo` e `updated_at`.
+- Resposta por item: `accepted`, `unchanged`, `stale` (já existe versão mais
+  recente; devolve o item canónico) ou `invalid` (com `reason`, sem abortar o
+  lote).
+- A categoria é imutável e não pode haver dois nomes iguais na mesma categoria
+  depois de normalizar (espaços, acentos e maiúsculas). O LWW usa `updated_at`.
+- Alterações ao catálogo ficam no histórico global com `kind: "catalog"`,
+  `item_id` e `item_nome`; não têm `cliente_id` nem navegação.
 
 ## Pull
 
@@ -90,8 +112,11 @@ clientes, **mais recentes primeiro**.
 - `limit` é 1–200 (50 por omissão); `before_id` pagina para trás.
 - Resposta: `{entries, next_before_id}`. `next_before_id` só é preenchido quando
   há mais entradas; na última página é `null`.
-- Cada entrada tem `action`, `username`, `key_id`, `ts`, `details`, `cliente_id`
-  e `cliente_nome`.
+- Cada entrada tem `action`, `username`, `key_id`, `ts`, `details`, `kind`,
+  `cliente_id`, `cliente_nome`, `item_id` e `item_nome`.
+- `kind` é `client` ou `catalog`. Entradas de cliente trazem `cliente_id` e
+  `cliente_nome`; entradas de catálogo trazem `item_nome`, `action`
+  (`create`, `edit`, `deactivate`, `reactivate`) e não têm cliente.
 - `cliente_nome` é o nome atual do cliente. Para clientes apagados usa o nome
   guardado em `details.deleted_client`; se não existir, usa o `cliente_id`.
 - Entradas antigas sem detalhes são devolvidas com `details: null`.

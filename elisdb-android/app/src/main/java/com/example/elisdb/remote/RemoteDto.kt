@@ -4,6 +4,12 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class ServicoDto(
+  @SerialName("item_id") val itemId: String,
+  val quantidade: Int? = null,
+)
+
+@Serializable
 data class ClienteInDto(
   val id: String,
   val nome: String,
@@ -14,6 +20,8 @@ data class ClienteInDto(
   val notas: String? = null,
   val ativo: Boolean = true,
   @SerialName("updated_at") val updatedAt: Long,
+  /** Null preserves the server's associations; empty clears; a list replaces. */
+  val servicos: List<ServicoDto>? = null,
 )
 
 @Serializable
@@ -76,6 +84,8 @@ data class ClienteOutDto(
    * [updatedAt], which keeps deciding conflicts. Absent on older servers.
    */
   @SerialName("delivery_ts") val deliveryTs: Long? = null,
+  /** Complete associations; null on old servers or the summary list. */
+  val servicos: List<ServicoDto>? = null,
 )
 
 @Serializable
@@ -147,11 +157,21 @@ data class AuditPhotosDto(
   val reordered: Boolean = false,
 )
 
+@Serializable
+data class AuditServiceChangeDto(
+  @SerialName("item_id") val itemId: String,
+  val nome: String,
+  val change: String,
+  val old: Int? = null,
+  val new: Int? = null,
+)
+
 /** What an edit changed; absent on entries recorded before change tracking. */
 @Serializable
 data class AuditDetailsDto(
   val fields: List<AuditFieldDto> = emptyList(),
   val photos: AuditPhotosDto? = null,
+  val services: List<AuditServiceChangeDto> = emptyList(),
 )
 
 /** One entry of a client's edit history: who acted, when, and what changed. */
@@ -165,6 +185,9 @@ data class AuditEntryDto(
   // Present on global activity entries; the per-client endpoint omits them.
   @SerialName("cliente_id") val clienteId: String? = null,
   @SerialName("cliente_nome") val clienteNome: String? = null,
+  val kind: String = "client",
+  @SerialName("item_id") val itemId: String? = null,
+  @SerialName("item_nome") val itemNome: String? = null,
 )
 
 /** A page of history plus the cursor for the next page, when one exists. */
@@ -188,4 +211,40 @@ data class AppReleaseDto(
   val size: Long,
   val sha256: String,
   val filename: String,
+)
+
+@Serializable
+data class CatalogoItemDto(
+  val id: String,
+  val categoria: String,
+  val nome: String,
+  val ativo: Boolean = true,
+  @SerialName("updated_at") val updatedAt: Long,
+)
+
+@Serializable
+data class CatalogoItemOutDto(
+  val id: String,
+  val categoria: String,
+  val nome: String,
+  val ativo: Boolean = true,
+  @SerialName("created_at") val createdAt: Long? = null,
+  @SerialName("updated_at") val updatedAt: Long,
+)
+
+@Serializable
+data class CatalogoPushRequestDto(val items: List<CatalogoItemDto> = emptyList())
+
+@Serializable
+data class CatalogoPushResultDto(
+  val id: String,
+  val status: String,
+  val reason: String? = null,
+  val item: CatalogoItemOutDto? = null,
+)
+
+@Serializable
+data class CatalogoResponseDto(
+  val items: List<CatalogoItemOutDto> = emptyList(),
+  val complete: Boolean = true,
 )

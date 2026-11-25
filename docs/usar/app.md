@@ -33,6 +33,10 @@ Formulário com nome, contrato, notas, tags, coordenadas e o interruptor
 - **Tags:** toca em **Adicionar tag**, escreve e confirma. Cada tag é um chip
   removível. Máximo 10, guardadas em maiúsculas e por ordem alfabética.
 - **Localização:** escolhe no mapa ou usa a posição atual (ver abaixo).
+- **Aparelhos e tratamentos:** escolhe a categoria (*Roedores*, *Insetos
+  Rastejantes*, *Insetos Voadores* ou *Tratamentos*) e o modelo. Nos aparelhos
+  indica a quantidade instalada (1–9999); os tratamentos não levam quantidade.
+  Cada linha pode ser removida, mas o mesmo modelo não pode entrar duas vezes.
 - **Fotos:** **Foto** abre a câmara e **Galeria** escolhe imagens. Cada foto tem
   um **×** no canto superior direito para a remover e uma **estrela** no canto
   superior esquerdo: a estrela preenchida marca a foto de perfil; toca na
@@ -54,8 +58,12 @@ O ícone de mapa na barra superior abre o mapa dos clientes com localização.
 
 ## Detalhe do cliente
 
-Nome com as tags, mapa, navegação, notas e fotos.
+Nome com as tags, mapa, navegação, notas, aparelhos/tratamentos e fotos.
 
+- **Aparelhos e Tratamentos** aparece depois das notas e antes das fotos, por
+  categoria e por ordem alfabética. Cada grupo mostra o total (soma das
+  quantidades nos aparelhos, número de modelos nos tratamentos) e cada linha o
+  nome e a quantidade. Modelos inativos continuam visíveis e contam.
 - O mapa em ecrã inteiro centra-se no cliente e mostra também a tua posição.
 - O menu (≡) permite **Editar**, **Log** e **Apagar**, por esta ordem.
 - O **Log** mostra o histórico agrupado por dia: quem alterou, a que horas, que
@@ -72,8 +80,11 @@ de todas as alterações aceites pelo servidor.
 - As entradas aparecem por ordem cronológica inversa (mais recentes primeiro) e
   agrupadas por dia.
 - Cada entrada mostra o cliente, o autor, a ação (criou, editou, apagou), a hora
-  e os detalhes: campos alterados, tags e fotos. Quando disponíveis, as fotos
-  adicionadas aparecem em miniatura.
+  e os detalhes: campos alterados, tags, fotos e aparelhos/tratamentos
+  adicionados, removidos ou com quantidade alterada. Quando disponíveis, as
+  fotos adicionadas aparecem em miniatura.
+- Alterações ao catálogo aparecem com o nome do modelo e a ação (criou, editou,
+  desativou, reativou) e não são clicáveis.
 - Toca no nome de um cliente existente para abrir a ficha. Clientes apagados
   aparecem com o nome guardado no momento da eliminação e não são clicáveis.
 - **Carregar mais** continua para as entradas anteriores; no fim deixa de
@@ -82,6 +93,25 @@ de todas as alterações aceites pelo servidor.
   surgem depois de sincronizar.
 - Precisa de um servidor atualizado com `GET /api/history`. Num servidor antigo
   aparece **Não foi possível carregar as alterações.** com **Tentar novamente**.
+
+## Catálogo
+
+**Catálogo** no menu da lista abre os modelos que podem ser instalados nos
+clientes.
+
+- A lista mostra as quatro categorias sempre abertas e os modelos por ordem
+  alfabética. Os inativos ficam visíveis com a etiqueta **Inativo**, mas deixam
+  de ser oferecidos em novos clientes.
+- **+** cria um modelo com nome e categoria. A categoria não pode ser alterada
+  depois; nomes iguais na mesma categoria (ignorando acentos, espaços e
+  maiúsculas) são recusados.
+- **Guardar** envia o catálogo e sincroniza com o servidor; as alterações ficam
+  também guardadas localmente de imediato. Se restarem modelos por sincronizar
+  (por exemplo, rede em baixo), a app avisa.
+- No menu (⋮) de cada modelo podes **Editar**, **Desativar** ou **Reativar**.
+  Não há eliminação definitiva.
+- Alterações ao catálogo sincronizam como os clientes e aparecem no **Logs**
+  global com o nome do modelo.
 
 ## Configuração
 

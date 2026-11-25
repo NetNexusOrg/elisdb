@@ -14,7 +14,17 @@ import threading
 import time
 import uuid
 
-from .models import ClienteIn, FotoIn, normalize_nome
+from .models import (
+    CATALOG_CATEGORIES,
+    DEVICE_CATEGORIES,
+    MAX_CATALOG_NAME_LENGTH,
+    MAX_SERVICE_QUANTITY,
+    MAX_SERVICES_PER_CLIENT,
+    ClienteIn,
+    FotoIn,
+    normalize_catalog_name,
+    normalize_nome,
+)
 
 # Reject data timestamps further in the future than this many seconds, so a
 # malicious or broken client timestamp cannot permanently win last-write-wins.
@@ -53,12 +63,34 @@ CREATE TABLE IF NOT EXISTS tombstones (
     deleted_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tombstones_deleted_at ON tombstones (deleted_at);
+CREATE TABLE IF NOT EXISTS catalogo_itens (
+    id TEXT PRIMARY KEY,
+    categoria TEXT NOT NULL,
+    nome TEXT NOT NULL,
+    nome_normalizado TEXT NOT NULL,
+    ativo INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_catalogo_nome
+    ON catalogo_itens (categoria, nome_normalizado);
+CREATE TABLE IF NOT EXISTS cliente_servicos (
+    cliente_id TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+    item_id TEXT NOT NULL REFERENCES catalogo_itens(id) ON DELETE RESTRICT,
+    quantidade INTEGER,
+    PRIMARY KEY (cliente_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_cliente_servicos_cliente
+    ON cliente_servicos (cliente_id);
 CREATE TABLE IF NOT EXISTS client_audit (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cliente_id TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'client' CHECK(kind IN ('client','catalog')),
+    cliente_id TEXT,
+    item_id TEXT,
+    item_nome TEXT,
     key_id TEXT NOT NULL,
     username TEXT,
-    action TEXT NOT NULL CHECK(action IN ('create','edit','delete')),
+    action TEXT NOT NULL CHECK(action IN ('create','edit','delete','deactivate','reactivate')),
     ts INTEGER NOT NULL,
     details TEXT
 );
@@ -324,26 +356,37 @@ def _migrate_client_audit_details(conn: sqlite3.Connection) -> None:
 
 
 def _migrate_client_audit_actions(conn: sqlite3.Connection) -> None:
-    """Widen the client_audit action constraint to include deletes.
+    """Rebuild client_audit for catalog entries and the widened action set.
 
-    SQLite cannot alter a CHECK constraint in place, so rebuild the table while
-    preserving every existing audit row. The migration is idempotent: a table
-    whose SQL already mentions the delete action is left untouched.
+    Old databases have a mandatory ``cliente_id`` and only create/edit/delete.
+    The table is rebuilt (SQLite cannot relax NOT NULL or change a CHECK) while
+    preserving every audit row, tagged ``kind='client'``. Idempotent: a table
+    that already has ``kind`` and the catalog actions is left untouched.
     """
     row = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'client_audit'"
     ).fetchone()
-    if row is None or (row["sql"] and "'delete'" in row["sql"]):
+    if row is None:
+        return
+    columns = [
+        column["name"]
+        for column in conn.execute("PRAGMA table_info(client_audit)").fetchall()
+    ]
+    sql = row["sql"] or ""
+    if "kind" in columns and "'deactivate'" in sql and "'reactivate'" in sql:
         return
     conn.execute("ALTER TABLE client_audit RENAME TO client_audit_legacy")
     conn.execute(
         """
         CREATE TABLE client_audit (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_id TEXT NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'client' CHECK(kind IN ('client','catalog')),
+            cliente_id TEXT,
+            item_id TEXT,
+            item_nome TEXT,
             key_id TEXT NOT NULL,
             username TEXT,
-            action TEXT NOT NULL CHECK(action IN ('create','edit','delete')),
+            action TEXT NOT NULL CHECK(action IN ('create','edit','delete','deactivate','reactivate')),
             ts INTEGER NOT NULL,
             details TEXT
         )
@@ -351,8 +394,9 @@ def _migrate_client_audit_actions(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         """
-        INSERT INTO client_audit (id, cliente_id, key_id, username, action, ts, details)
-        SELECT id, cliente_id, key_id, username, action, ts, details
+        INSERT INTO client_audit
+            (id, kind, cliente_id, key_id, username, action, ts, details)
+        SELECT id, 'client', cliente_id, key_id, username, action, ts, details
         FROM client_audit_legacy
         """
     )
@@ -420,11 +464,54 @@ def _audit_location(latitude: str | None, longitude: str | None) -> str | None:
     return ", ".join(parts) if parts else None
 
 
+def _service_changes(
+    before: dict[str, dict], after: dict[str, dict]
+) -> list[dict]:
+    """Describe added, removed and changed catalog associations."""
+    changes: list[dict] = []
+    for item_id, after_item in after.items():
+        before_item = before.get(item_id)
+        if before_item is None:
+            changes.append(
+                {
+                    "item_id": item_id,
+                    "nome": after_item["nome"],
+                    "change": "added",
+                    "old": None,
+                    "new": after_item["quantidade"],
+                }
+            )
+        elif before_item["quantidade"] != after_item["quantidade"]:
+            changes.append(
+                {
+                    "item_id": item_id,
+                    "nome": after_item["nome"],
+                    "change": "quantity",
+                    "old": before_item["quantidade"],
+                    "new": after_item["quantidade"],
+                }
+            )
+    for item_id, before_item in before.items():
+        if item_id not in after:
+            changes.append(
+                {
+                    "item_id": item_id,
+                    "nome": before_item["nome"],
+                    "change": "removed",
+                    "old": before_item["quantidade"],
+                    "new": None,
+                }
+            )
+    return changes
+
+
 def build_audit_details(
     before: dict | None,
     after: dict,
     before_photos: list[str],
     after_photos: list[str],
+    before_services: dict[str, dict] | None = None,
+    after_services: dict[str, dict] | None = None,
 ) -> dict | None:
     """Describe what an accepted write changed, or None when nothing did.
 
@@ -433,15 +520,21 @@ def build_audit_details(
     are shortened to ``AUDIT_TEXT_LIMIT`` and flagged; coordinates are compared
     with six decimals and presented as a single "localizacao" field.
     """
+    services = _service_changes(
+        before_services or {}, after_services or {}
+    )
     if before is None:
-        return (
-            {
-                "fields": [],
-                "photos": {"added": list(after_photos), "removed": [], "reordered": False},
-            }
+        details: dict = {"fields": []}
+        if services:
+            details["services"] = services
+        photo_detail = (
+            {"added": list(after_photos), "removed": [], "reordered": False}
             if after_photos
             else None
         )
+        if photo_detail is not None:
+            details["photos"] = photo_detail
+        return details if services or photo_detail else None
 
     fields: list[dict] = []
     for name in ("nome", "contrato", "tag", "notas"):
@@ -499,11 +592,13 @@ def build_audit_details(
         else None
     )
 
-    if not fields and photos is None:
+    if not fields and photos is None and not services:
         return None
     details: dict = {"fields": fields}
     if photos is not None:
         details["photos"] = photos
+    if services:
+        details["services"] = services
     return details
 
 
@@ -665,6 +760,76 @@ class Database:
             self._remove_file(path)
         return result
 
+    def _validated_services(
+        self, conn: sqlite3.Connection, services
+    ) -> list[tuple[str, int | None]] | None:
+        """Validate a pushed service list against the current catalog.
+
+        Returns None when the push omits the field (preserve the stored set).
+        Raises ValueError for an unknown item or a quantity that does not match
+        the item category, so the whole record is rejected atomically.
+        """
+        if services is None:
+            return None
+        if len(services) > MAX_SERVICES_PER_CLIENT:
+            raise ValueError(
+                f"too many services (maximum {MAX_SERVICES_PER_CLIENT})"
+            )
+        item_ids = [service.item_id for service in services]
+        if len(item_ids) != len(set(item_ids)):
+            raise ValueError("duplicate catalog item in services")
+        validated: list[tuple[str, int | None]] = []
+        for service in services:
+            row = conn.execute(
+                "SELECT categoria, ativo FROM catalogo_itens WHERE id = ?",
+                (service.item_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"unknown catalog item: {service.item_id}")
+            quantity = service.quantidade
+            if row["categoria"] in DEVICE_CATEGORIES:
+                if quantity is None or not 1 <= quantity <= MAX_SERVICE_QUANTITY:
+                    raise ValueError(
+                        "device quantity must be between 1 and "
+                        f"{MAX_SERVICE_QUANTITY}"
+                    )
+            elif quantity is not None:
+                raise ValueError("treatments do not carry a quantity")
+            validated.append((service.item_id, quantity))
+        return validated
+
+    def _service_snapshot(
+        self, conn: sqlite3.Connection, cliente_id: str
+    ) -> dict[str, dict]:
+        """Current associations of a client, keyed by item id, with item names."""
+        rows = conn.execute(
+            "SELECT s.item_id, s.quantidade, c.nome FROM cliente_servicos s "
+            "JOIN catalogo_itens c ON c.id = s.item_id WHERE s.cliente_id = ?",
+            (cliente_id,),
+        ).fetchall()
+        return {
+            row["item_id"]: {
+                "quantidade": row["quantidade"],
+                "nome": row["nome"],
+            }
+            for row in rows
+        }
+
+    def _replace_services(
+        self,
+        conn: sqlite3.Connection,
+        cliente_id: str,
+        services: list[tuple[str, int | None]],
+    ) -> None:
+        conn.execute(
+            "DELETE FROM cliente_servicos WHERE cliente_id = ?", (cliente_id,)
+        )
+        conn.executemany(
+            "INSERT INTO cliente_servicos (cliente_id, item_id, quantidade) "
+            "VALUES (?, ?, ?)",
+            [(cliente_id, item_id, quantity) for item_id, quantity in services],
+        )
+
     def _save_client_on_conn(
         self,
         conn: sqlite3.Connection,
@@ -689,6 +854,8 @@ class Database:
         # or broken timestamp cannot permanently win last-write-wins.
         if cliente.updated_at > int(time.time()) + MAX_FUTURE_SKEW_SECONDS:
             raise ValueError("updated_at is too far in the future")
+
+        services = self._validated_services(conn, cliente.servicos)
 
         # Read the delivery clock before touching any row: a resurrection
         # deletes the tombstone, and the new record still has to be handed
@@ -727,6 +894,7 @@ class Database:
                 conn.execute("DELETE FROM tombstones WHERE id = ?", (cliente.id,))
             before = dict(existing)
             before_photos = self._photo_ids(conn, cliente.id)
+            before_services = self._service_snapshot(conn, cliente.id)
             conn.execute(
                 "UPDATE clientes SET nome=?, contrato=?, tag=?, latitude=?, longitude=?, notas=?, ativo=?, updated_at=?, delivery_ts=? WHERE id=?",
                 (
@@ -745,6 +913,9 @@ class Database:
             kept_ids, missing_ids, files_to_remove = self._replace_fotos(
                 conn, cliente.id, fotos
             )
+            if services is not None:
+                self._replace_services(conn, cliente.id, services)
+            after_services = self._service_snapshot(conn, cliente.id)
             details = build_audit_details(
                 before,
                 {
@@ -758,6 +929,8 @@ class Database:
                 },
                 before_photos,
                 kept_ids,
+                before_services,
+                after_services,
             )
             # A push that changes nothing records no entry: "edited" with no
             # visible difference is noise in the history.
@@ -798,6 +971,9 @@ class Database:
         kept_ids, missing_ids, files_to_remove = self._replace_fotos(
             conn, cliente.id, fotos
         )
+        if services is not None:
+            self._replace_services(conn, cliente.id, services)
+        after_services = self._service_snapshot(conn, cliente.id)
         details = build_audit_details(
             None,
             {
@@ -811,6 +987,8 @@ class Database:
             },
             [],
             kept_ids,
+            {},
+            after_services,
         )
         self._record_audit(
             conn, cliente.id, actor, "create", cliente.updated_at, details
@@ -905,6 +1083,193 @@ class Database:
             self._remove_file(path)
         return results
 
+    def list_catalog(self) -> list[dict]:
+        """Every catalog item, including inactive ones, in display order."""
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT id, categoria, nome, ativo, created_at, updated_at "
+                "FROM catalogo_itens ORDER BY categoria, nome COLLATE NOCASE, id"
+            ).fetchall()
+            return [
+                {
+                    **dict(row),
+                    "ativo": bool(row["ativo"]),
+                }
+                for row in rows
+            ]
+        finally:
+            conn.close()
+
+    def push_catalog(self, items: list, actor: dict | None = None) -> list[dict]:
+        """Apply a catalog push item by item inside one transaction.
+
+        An invalid item never aborts the batch: its savepoint is rolled back and
+        the remaining items are still applied. Retrying the same batch is safe
+        because every item is last-write-wins by ``updated_at``.
+        """
+        conn = self._conn()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            results: list[dict] = []
+            for item in items:
+                conn.execute("SAVEPOINT catalog_item")
+                try:
+                    result = self._save_catalog_item_on_conn(conn, item, actor)
+                except ValueError as exc:
+                    conn.execute("ROLLBACK TO catalog_item")
+                    conn.execute("RELEASE catalog_item")
+                    results.append(
+                        {
+                            "id": item.id,
+                            "status": "invalid",
+                            "reason": str(exc)
+                            or "invalid catalog item",
+                            "item": None,
+                        }
+                    )
+                else:
+                    conn.execute("RELEASE catalog_item")
+                    results.append(result)
+            conn.commit()
+            return results
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def _save_catalog_item_on_conn(
+        self, conn: sqlite3.Connection, item, actor: dict | None
+    ) -> dict:
+        nome = " ".join(item.nome.split()).strip()
+        normalized = normalize_catalog_name(nome)
+        if not normalized or len(nome) > MAX_CATALOG_NAME_LENGTH:
+            raise ValueError("catalog name is blank or too long")
+        if item.categoria not in CATALOG_CATEGORIES:
+            raise ValueError("unknown catalog category")
+        if item.updated_at > int(time.time()) + MAX_FUTURE_SKEW_SECONDS:
+            raise ValueError("updated_at is too far in the future")
+
+        existing = conn.execute(
+            "SELECT id, categoria, nome, nome_normalizado, ativo, created_at, updated_at "
+            "FROM catalogo_itens WHERE id = ?",
+            (item.id,),
+        ).fetchone()
+
+        if existing is not None and existing["categoria"] != item.categoria:
+            raise ValueError("catalog category cannot be changed")
+
+        other = conn.execute(
+            "SELECT id FROM catalogo_itens "
+            "WHERE categoria = ? AND nome_normalizado = ? AND id != ?",
+            (item.categoria, normalized, item.id),
+        ).fetchone()
+        if other is not None:
+            raise ValueError("duplicate_name")
+
+        if existing is None:
+            conn.execute(
+                "INSERT INTO catalogo_itens "
+                "(id, categoria, nome, nome_normalizado, ativo, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    item.id,
+                    item.categoria,
+                    nome,
+                    normalized,
+                    1 if item.ativo else 0,
+                    item.updated_at,
+                    item.updated_at,
+                ),
+            )
+            self._record_catalog_audit(
+                conn, item.id, nome, actor, "create", item.updated_at
+            )
+        else:
+            same_content = (
+                existing["nome"] == nome
+                and existing["nome_normalizado"] == normalized
+                and bool(existing["ativo"]) == item.ativo
+            )
+            if item.updated_at == existing["updated_at"] and same_content:
+                return {
+                    "id": item.id,
+                    "status": "unchanged",
+                    "reason": None,
+                    "item": self._catalog_item_row(conn, item.id),
+                }
+            if item.updated_at <= existing["updated_at"]:
+                return {
+                    "id": item.id,
+                    "status": "stale",
+                    "reason": None,
+                    "item": self._catalog_item_row(conn, item.id),
+                }
+            if same_content:
+                # Same content with a newer timestamp is accepted so the
+                # catalog version advances without an audit entry.
+                conn.execute(
+                    "UPDATE catalogo_itens SET updated_at = ? WHERE id = ?",
+                    (item.updated_at, item.id),
+                )
+                return {
+                    "id": item.id,
+                    "status": "accepted",
+                    "reason": None,
+                    "item": self._catalog_item_row(conn, item.id),
+                }
+            action = "edit"
+            if bool(existing["ativo"]) != item.ativo:
+                action = "deactivate" if existing["ativo"] else "reactivate"
+            details = None
+            if existing["nome"] != nome:
+                details = {
+                    "fields": [
+                        {
+                            "field": "nome",
+                            "old": existing["nome"],
+                            "new": nome,
+                            "truncated": False,
+                        }
+                    ]
+                }
+            conn.execute(
+                "UPDATE catalogo_itens SET nome = ?, nome_normalizado = ?, ativo = ?, "
+                "updated_at = ? WHERE id = ?",
+                (
+                    nome,
+                    normalized,
+                    1 if item.ativo else 0,
+                    item.updated_at,
+                    item.id,
+                ),
+            )
+            self._record_catalog_audit(
+                conn,
+                item.id,
+                nome,
+                actor,
+                action,
+                item.updated_at,
+                details,
+            )
+        return {
+            "id": item.id,
+            "status": "accepted",
+            "reason": None,
+            "item": self._catalog_item_row(conn, item.id),
+        }
+
+    @staticmethod
+    def _catalog_item_row(conn: sqlite3.Connection, item_id: str) -> dict | None:
+        row = conn.execute(
+            "SELECT id, categoria, nome, ativo, created_at, updated_at "
+            "FROM catalogo_itens WHERE id = ?",
+            (item_id,),
+        ).fetchone()
+        return {**dict(row), "ativo": bool(row["ativo"])} if row else None
+
     @staticmethod
     def _push_result(
         record,
@@ -935,10 +1300,39 @@ class Database:
         if actor is None:
             return
         conn.execute(
-            "INSERT INTO client_audit (cliente_id, key_id, username, action, ts, details) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO client_audit "
+            "(kind, cliente_id, key_id, username, action, ts, details) "
+            "VALUES ('client', ?, ?, ?, ?, ?, ?)",
             (
                 cliente_id,
+                actor.get("id", ""),
+                actor.get("comment") or None,
+                action,
+                ts,
+                json.dumps(details, ensure_ascii=False) if details is not None else None,
+            ),
+        )
+
+    def _record_catalog_audit(
+        self,
+        conn: sqlite3.Connection,
+        item_id: str,
+        item_nome: str,
+        actor: dict | None,
+        action: str,
+        ts: int,
+        details: dict | None = None,
+    ) -> None:
+        """Append an audit entry for an accepted catalog change."""
+        if actor is None:
+            return
+        conn.execute(
+            "INSERT INTO client_audit "
+            "(kind, item_id, item_nome, key_id, username, action, ts, details) "
+            "VALUES ('catalog', ?, ?, ?, ?, ?, ?, ?)",
+            (
+                item_id,
+                item_nome,
                 actor.get("id", ""),
                 actor.get("comment") or None,
                 action,
@@ -1380,7 +1774,7 @@ class Database:
         try:
             rows = conn.execute(
                 "SELECT action, username, key_id, ts, details FROM client_audit "
-                "WHERE cliente_id = ? ORDER BY ts, id",
+                "WHERE kind = 'client' AND cliente_id = ? ORDER BY ts, id",
                 (cliente_id,),
             ).fetchall()
         finally:
@@ -1406,13 +1800,13 @@ class Database:
             if after_id is None:
                 rows = conn.execute(
                     "SELECT id, action, username, key_id, ts, details FROM client_audit "
-                    "WHERE cliente_id = ? ORDER BY id LIMIT ?",
+                    "WHERE kind = 'client' AND cliente_id = ? ORDER BY id LIMIT ?",
                     (cliente_id, limit + 1),
                 ).fetchall()
             else:
                 rows = conn.execute(
                     "SELECT id, action, username, key_id, ts, details FROM client_audit "
-                    "WHERE cliente_id = ? AND id > ? ORDER BY id LIMIT ?",
+                    "WHERE kind = 'client' AND cliente_id = ? AND id > ? ORDER BY id LIMIT ?",
                     (cliente_id, after_id, limit + 1),
                 ).fetchall()
         finally:
@@ -1444,16 +1838,18 @@ class Database:
         try:
             if before_id is None:
                 rows = conn.execute(
-                    "SELECT a.id, a.cliente_id, a.action, a.username, a.key_id, a.ts, "
-                    "a.details, c.nome AS cliente_nome "
+                    "SELECT a.id, a.kind, a.cliente_id, a.item_id, a.item_nome, "
+                    "a.action, a.username, a.key_id, a.ts, a.details, "
+                    "c.nome AS cliente_nome "
                     "FROM client_audit a LEFT JOIN clientes c ON c.id = a.cliente_id "
                     "ORDER BY a.id DESC LIMIT ?",
                     (limit + 1,),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT a.id, a.cliente_id, a.action, a.username, a.key_id, a.ts, "
-                    "a.details, c.nome AS cliente_nome "
+                    "SELECT a.id, a.kind, a.cliente_id, a.item_id, a.item_nome, "
+                    "a.action, a.username, a.key_id, a.ts, a.details, "
+                    "c.nome AS cliente_nome "
                     "FROM client_audit a LEFT JOIN clientes c ON c.id = a.cliente_id "
                     "WHERE a.id < ? ORDER BY a.id DESC LIMIT ?",
                     (before_id, limit + 1),
@@ -1462,7 +1858,11 @@ class Database:
             kept = rows[:limit]
             next_before_id = kept[-1]["id"] if has_more and kept else None
 
-            missing_names = [row["cliente_id"] for row in kept if not row["cliente_nome"]]
+            missing_names = [
+                row["cliente_id"]
+                for row in kept
+                if row["kind"] == "client" and not row["cliente_nome"]
+            ]
             deleted_names: dict[str, str] = {}
             if missing_names:
                 placeholders = ",".join("?" * len(missing_names))
@@ -1493,12 +1893,17 @@ class Database:
         for row in kept:
             entry = dict(row)
             entry.pop("id", None)
-            cliente_id = entry["cliente_id"]
-            entry["cliente_nome"] = (
-                entry.get("cliente_nome")
-                or deleted_names.get(cliente_id)
-                or cliente_id
-            )
+            if entry.get("kind") == "catalog":
+                entry["cliente_id"] = None
+                entry["cliente_nome"] = None
+            else:
+                entry["kind"] = "client"
+                cliente_id = entry["cliente_id"]
+                entry["cliente_nome"] = (
+                    entry.get("cliente_nome")
+                    or deleted_names.get(cliente_id)
+                    or cliente_id
+                )
             raw = entry.get("details")
             entry["details"] = json.loads(raw) if raw else None
             history.append(entry)
@@ -1543,6 +1948,7 @@ class Database:
 
         clients: dict[str, sqlite3.Row] = {}
         photos: dict[str, list[sqlite3.Row]] = {}
+        services: dict[str, list[dict]] = {}
         chunk_size = 500
         for start in range(0, len(cliente_ids), chunk_size):
             chunk = cliente_ids[start : start + chunk_size]
@@ -1561,6 +1967,17 @@ class Database:
                 chunk,
             ).fetchall():
                 photos.setdefault(row["cliente_id"], []).append(row)
+            for row in conn.execute(
+                "SELECT cliente_id, item_id, quantidade FROM cliente_servicos "
+                f"WHERE cliente_id IN ({placeholders}) ORDER BY cliente_id, item_id",
+                chunk,
+            ).fetchall():
+                services.setdefault(row["cliente_id"], []).append(
+                    {
+                        "item_id": row["item_id"],
+                        "quantidade": row["quantidade"],
+                    }
+                )
 
         hash_updates: list[tuple[str, str]] = []
         records: list[dict] = []
@@ -1592,7 +2009,10 @@ class Database:
                 )
             records.append(
                 {
-                    "client": dict(row),
+                    "client": {
+                        **dict(row),
+                        "servicos": services.get(cliente_id, []),
+                    },
                     "fotos": foto_out,
                     "photos_complete": True,
                 }
@@ -1647,7 +2067,17 @@ class Database:
                 }
             )
         return {
-            "client": dict(row),
+            "client": {
+                **dict(row),
+                "servicos": [
+                    {"item_id": service["item_id"], "quantidade": service["quantidade"]}
+                    for service in conn.execute(
+                        "SELECT item_id, quantidade FROM cliente_servicos "
+                        "WHERE cliente_id = ? ORDER BY item_id",
+                        (cliente_id,),
+                    ).fetchall()
+                ],
+            },
             "fotos": foto_out,
             "photos_complete": True,
         }

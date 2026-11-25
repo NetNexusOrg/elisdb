@@ -2,6 +2,7 @@ package com.example.elisdb.sync
 
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.Foto
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,6 +29,26 @@ class SyncMapperTest {
         fotos = listOf(Foto(id = "1", clienteId = "1", uriLocal = "/tmp/a.webp", preferida = true)),
       )
     assertTrue(record.fotos.single().preferida == true)
+  }
+
+  @Test
+  fun toRecord_enviaServicosDoCliente() {
+    val record =
+      SyncMapper.toRecord(
+        cliente(ativo = true),
+        fotos = emptyList(),
+        servicos =
+          listOf(
+            com.example.elisdb.data.local.ClienteServico(
+              clienteId = "1",
+              itemId = "c1",
+              quantidade = 3,
+            )
+          ),
+      )
+    assertEquals(1, record.client.servicos?.size)
+    assertEquals("c1", record.client.servicos?.single()?.itemId)
+    assertEquals(3, record.client.servicos?.single()?.quantidade)
   }
 
   private fun cliente(ativo: Boolean) =

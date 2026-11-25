@@ -529,6 +529,47 @@ class ApiClient(
     }
   }
 
+  /** Fetches the complete catalog, including inactive items. */
+  override suspend fun fetchCatalog(timestamp: Long): CatalogoResponseDto {
+    val path = "/api/catalog"
+    val response = execute(timestamp) { ts ->
+      client.get("$baseUrl$path") {
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("GET", path, ByteArray(0), ts))
+      }
+    }
+    if (response.status != HttpStatusCode.OK) {
+      throw ServerException("catalog fetch failed HTTP ${response.status}", response.status.value)
+    }
+    return response.body()
+  }
+
+  /** Pushes catalog changes; returns one result per item. */
+  override suspend fun pushCatalog(
+    items: List<CatalogoItemDto>,
+    timestamp: Long,
+  ): List<CatalogoPushResultDto> {
+    val body =
+      ApiClient.json.encodeToString(
+        CatalogoPushRequestDto.serializer(),
+        CatalogoPushRequestDto(items),
+      )
+    val bodyBytes = body.toByteArray(Charsets.UTF_8)
+    val path = "/api/catalog/push"
+    val response = execute(timestamp) { ts ->
+      client.post("$baseUrl$path") {
+        contentType(ContentType.Application.Json)
+        header(AuthHeaders.TIMESTAMP, ts.toString())
+        header(AuthHeaders.SIGNATURE, signer.signRequest("POST", path, bodyBytes, ts))
+        setBody(bodyBytes)
+      }
+    }
+    if (response.status != HttpStatusCode.OK) {
+      throw ServerException("catalog push failed HTTP ${response.status}", response.status.value)
+    }
+    return response.body()
+  }
+
   /** Closes the underlying HTTP client, releasing its connection pool. */
   fun close() {
     client.close()

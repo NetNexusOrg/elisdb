@@ -15,6 +15,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object ActivityLog : NavKey
 
+@Serializable data object Catalogo : NavKey
+
 @Serializable data class PhotoViewer(val clienteId: String, val indiceFoto: Int) : NavKey
 
 @Serializable data class MapFullscreen(val clienteId: String) : NavKey

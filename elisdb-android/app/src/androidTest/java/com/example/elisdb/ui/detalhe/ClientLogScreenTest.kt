@@ -286,7 +286,7 @@ class ClientLogScreenTest {
   }
 }
 
-private class FakeLogScreenRepository(private val data: ClienteComFotos) : ClienteRepository {
+private class FakeLogScreenRepository(private val data: ClienteComFotos) : com.example.elisdb.EmptyCatalogoRepository() {
   override val clientes: Flow<List<Cliente>> = flowOf(emptyList())
 
   override val clientesComFotos: Flow<List<ClienteComFotos>> = flowOf(emptyList())

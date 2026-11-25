@@ -87,7 +87,7 @@ class PhotoViewerViewModelTest {
   }
 }
 
-private class FotoClientRepository(private val fotos: List<Foto>) : ClienteRepository {
+private class FotoClientRepository(private val fotos: List<Foto>) : com.example.elisdb.EmptyCatalogoRepository() {
   override val clientes: Flow<List<Cliente>> = flowOf(emptyList())
 
   override val clientesComFotos: Flow<List<ClienteComFotos>> = flowOf(emptyList())

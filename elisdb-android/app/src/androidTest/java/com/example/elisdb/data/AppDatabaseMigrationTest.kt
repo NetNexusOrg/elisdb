@@ -46,7 +46,7 @@ class AppDatabaseMigrationTest {
           AppDatabase.MIGRATION_6_7,
           AppDatabase.MIGRATION_7_8,
           AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
-          AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13,
+          AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15,
         )
         .build()
 
@@ -65,7 +65,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13)
+        .addMigrations(AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -98,7 +98,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13)
+        .addMigrations(AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -131,7 +131,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13)
+        .addMigrations(AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -160,7 +160,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13)
+        .addMigrations(AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -187,7 +187,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13)
+        .addMigrations(AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -219,7 +219,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13)
+        .addMigrations(AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -241,7 +241,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13)
+        .addMigrations(AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -266,7 +266,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13)
+        .addMigrations(AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -290,7 +290,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13)
+        .addMigrations(AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -311,7 +311,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13)
+        .addMigrations(AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
         .build()
 
     val cliente = runBlocking { database.clienteDao().getById("1") }
@@ -332,7 +332,7 @@ class AppDatabaseMigrationTest {
 
     val database =
       Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(AppDatabase.MIGRATION_12_13)
+        .addMigrations(AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
         .build()
 
     val fotos = runBlocking { database.fotoDao().getByCliente("1") }
@@ -345,6 +345,155 @@ class AppDatabaseMigrationTest {
     database.close()
   }
 
+
+
+  @Test
+  fun migracao_13_14_criaCatalogoEPreservaCliente() {
+    createDatabaseV13WithClient()
+
+    val database =
+      Room.databaseBuilder(context, AppDatabase::class.java, dbName)
+        .addMigrations(AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
+        .build()
+
+    val cliente = runBlocking { database.clienteDao().getById("1") }
+    assertNotNull(cliente)
+    assertEquals("Maria", cliente?.nome)
+
+    val tables =
+      database.openHelper.writableDatabase.query("SELECT name FROM sqlite_master WHERE type='table'").use { cursor ->
+        buildSet {
+          while (cursor.moveToNext()) add(cursor.getString(0))
+        }
+      }
+    assertTrue(tables.contains("catalogo_itens"))
+
+    val item =
+      com.example.elisdb.data.local.CatalogoItem(
+        id = "c1",
+        categoria = "roedores",
+        nome = "Ratoeira",
+        nomeNormalizado = "RATOEIRA",
+      )
+    runBlocking { database.catalogoDao().insert(item) }
+    assertEquals("Ratoeira", runBlocking { database.catalogoDao().getById("c1") }?.nome)
+
+    database.close()
+  }
+
+  @Test
+  fun migracao_14_15_criaServicosComCascata() {
+    createDatabaseV14WithCatalog()
+
+    val database =
+      Room.databaseBuilder(context, AppDatabase::class.java, dbName)
+        .addMigrations(AppDatabase.MIGRATION_14_15)
+        .build()
+
+    runBlocking {
+      database.clienteServicoDao().upsertAll(
+        listOf(
+          com.example.elisdb.data.local.ClienteServico(
+            clienteId = "1",
+            itemId = "c1",
+            quantidade = 4,
+          )
+        )
+      )
+    }
+    assertEquals(4, runBlocking { database.clienteServicoDao().getForCliente("1") }.single().quantidade)
+
+    runBlocking { database.clienteDao().delete(runBlocking { database.clienteDao().getById("1") }!!) }
+    assertTrue(runBlocking { database.clienteServicoDao().getForCliente("1") }.isEmpty())
+
+    database.close()
+  }
+
+  private fun createDatabaseV13WithClient() {
+    val configuration =
+      SupportSQLiteOpenHelper.Configuration.builder(context)
+        .name(dbName)
+        .callback(
+          object : SupportSQLiteOpenHelper.Callback(13) {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+              db.execSQL(
+                "CREATE TABLE IF NOT EXISTS clientes (" +
+                  "id TEXT NOT NULL PRIMARY KEY, " +
+                  "nome TEXT NOT NULL, contrato TEXT, tag TEXT, " +
+                  "latitude REAL, longitude REAL, " +
+                  "notas TEXT, dataCriacao INTEGER NOT NULL, " +
+                  "createdAt INTEGER NOT NULL DEFAULT 0, " +
+                  "updatedAt INTEGER NOT NULL, " +
+                  "pending INTEGER NOT NULL DEFAULT 0, " +
+                  "deletePending INTEGER NOT NULL DEFAULT 0, " +
+                  "revision INTEGER NOT NULL DEFAULT 0, " +
+                  "ativo INTEGER NOT NULL DEFAULT 1, " +
+                  "localOnly INTEGER NOT NULL DEFAULT 0)"
+              )
+              db.execSQL(
+                "CREATE TABLE IF NOT EXISTS fotos (" +
+                  "id TEXT NOT NULL PRIMARY KEY, " +
+                  "clienteId TEXT NOT NULL, uriLocal TEXT NOT NULL, " +
+                  "mime TEXT NOT NULL DEFAULT 'image/jpeg', " +
+                  "ordem INTEGER NOT NULL DEFAULT 0, " +
+                  "deletePending INTEGER NOT NULL DEFAULT 0, " +
+                  "preferida INTEGER NOT NULL DEFAULT 0, " +
+                  "FOREIGN KEY(clienteId) REFERENCES clientes(id) " +
+                  "ON UPDATE NO ACTION ON DELETE CASCADE)"
+              )
+              db.execSQL("CREATE INDEX IF NOT EXISTS index_fotos_clienteId ON fotos (clienteId)")
+              db.execSQL(
+                "CREATE TABLE IF NOT EXISTS sync_meta (" +
+                  "`key` TEXT NOT NULL PRIMARY KEY, " +
+                  "value INTEGER NOT NULL)"
+              )
+            }
+
+            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+          }
+        )
+        .build()
+
+    val helper = FrameworkSQLiteOpenHelperFactory().create(configuration)
+    helper.writableDatabase.use { db ->
+      db.execSQL(
+        "INSERT INTO clientes (id, nome, contrato, latitude, longitude, dataCriacao, updatedAt, pending, deletePending, revision, ativo, localOnly) " +
+          "VALUES ('1', 'Maria', 'CT-1', 1.0, 2.0, 1758000000, 1758000000, 0, 0, 0, 1, 0)"
+      )
+    }
+    helper.close()
+  }
+
+  private fun createDatabaseV14WithCatalog() {
+    createDatabaseV13WithClient()
+    val helper =
+      FrameworkSQLiteOpenHelperFactory()
+        .create(
+          SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(dbName)
+            .callback(object : SupportSQLiteOpenHelper.Callback(14) {
+              override fun onCreate(db: SupportSQLiteDatabase) = Unit
+              override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+            })
+            .build()
+        )
+    helper.writableDatabase.use { db ->
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS catalogo_itens (" +
+          "id TEXT NOT NULL PRIMARY KEY, categoria TEXT NOT NULL, nome TEXT NOT NULL, " +
+          "nomeNormalizado TEXT NOT NULL, ativo INTEGER NOT NULL DEFAULT 1, " +
+          "pending INTEGER NOT NULL DEFAULT 0, syncError TEXT, " +
+          "createdAt INTEGER NOT NULL DEFAULT 0, updatedAt INTEGER NOT NULL DEFAULT 0, " +
+          "revision INTEGER NOT NULL DEFAULT 0)"
+      )
+      db.execSQL("CREATE INDEX IF NOT EXISTS index_catalogo_itens_categoria ON catalogo_itens (categoria)")
+      db.execSQL(
+        "INSERT INTO catalogo_itens (id, categoria, nome, nomeNormalizado, ativo, pending, createdAt, updatedAt, revision) " +
+          "VALUES ('c1', 'roedores', 'Ratoeira', 'RATOEIRA', 1, 0, 1, 1, 0)"
+      )
+    }
+    helper.close()
+  }
 
   private fun createDatabaseV12WithPhoto() {
     val configuration =

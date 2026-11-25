@@ -15,8 +15,12 @@ import androidx.compose.ui.geometry.Offset
 import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.sync.SyncStatus
 import com.example.elisdb.data.ClienteDraft
+import com.example.elisdb.data.local.CatalogoItem
+import com.example.elisdb.data.local.CategoriaCatalogo
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteComFotos
+import com.example.elisdb.data.local.ClienteServico
+import com.example.elisdb.data.local.ClienteServicoComItem
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.theme.ElisdbTheme
 import java.io.File
@@ -366,6 +370,84 @@ class ClientDetailScreenTest {
     )
   }
 
+
+  @Test
+  fun detalhe_mostraServicosComTotaisEPorCategoria() {
+    val cliente = Cliente(id = "s1", nome = "Maria", dataCriacao = 0, updatedAt = 0)
+    val ratoeira = catalogo("c1", CategoriaCatalogo.ROEDORES, "Ratoeira", ativo = true)
+    val estacao = catalogo("c2", CategoriaCatalogo.ROEDORES, "Estação", ativo = false)
+    val gel = catalogo("c3", CategoriaCatalogo.TRATAMENTOS, "Gel", ativo = true)
+    val repository =
+      FakeDetailRepository(
+        ClienteComFotos(cliente = cliente, fotos = emptyList()),
+        services =
+          listOf(
+            ClienteServicoComItem(ClienteServico("s1", "c1", 3), ratoeira),
+            ClienteServicoComItem(ClienteServico("s1", "c2", 2), estacao),
+            ClienteServicoComItem(ClienteServico("s1", "c3", null), gel),
+            ClienteServicoComItem(ClienteServico("s1", "missing", 9), null),
+          ),
+      )
+
+    setDetailContent(cliente, repository)
+
+    composeTestRule.onNodeWithText("Aparelhos e Tratamentos").assertExists()
+    composeTestRule.onNodeWithText("Roedores").assertExists()
+    composeTestRule.onNodeWithText("Tratamentos").assertExists()
+    composeTestRule.onNodeWithText("Ratoeira").assertExists()
+    composeTestRule.onNodeWithText("Estação").assertExists()
+    composeTestRule.onNodeWithText("Gel").assertExists()
+    composeTestRule.onNodeWithText("3").assertExists()
+    composeTestRule.onNodeWithText("2").assertExists()
+    composeTestRule.onNodeWithText("Inativo").assertDoesNotExist()
+    composeTestRule.onNodeWithText("missing").assertDoesNotExist()
+    val totals = composeTestRule.onAllNodesWithText("5").fetchSemanticsNodes()
+    assertTrue("O total de Roedores deveria ser 5", totals.isNotEmpty())
+  }
+
+  @Test
+  fun detalhe_servicoComNomeLongoMantemLinhaETotal() {
+    val cliente = Cliente(id = "s3", nome = "Rui", dataCriacao = 0, updatedAt = 0)
+    val nomeLongo = "Estação de Controlo de Roedores Exterior"
+    val estacao = catalogo("c4", CategoriaCatalogo.ROEDORES, nomeLongo, ativo = true)
+    val repository =
+      FakeDetailRepository(
+        ClienteComFotos(cliente = cliente, fotos = emptyList()),
+        services =
+          listOf(
+            ClienteServicoComItem(ClienteServico("s3", "c4", 4), estacao),
+          ),
+      )
+
+    setDetailContent(cliente, repository)
+
+    composeTestRule.onNodeWithText(nomeLongo).assertExists()
+    val totals = composeTestRule.onAllNodesWithText("4").fetchSemanticsNodes()
+    assertTrue("O total de Roedores deveria ser 4", totals.size >= 2)
+  }
+
+  @Test
+  fun detalhe_semServicosMostraEstadoVazio() {
+    val cliente = Cliente(id = "s2", nome = "Ana", dataCriacao = 0, updatedAt = 0)
+    setDetailContent(cliente)
+
+    composeTestRule.onNodeWithText("Aparelhos e Tratamentos").assertExists()
+    composeTestRule.onNodeWithText("Sem aparelhos ou tratamentos.").assertExists()
+  }
+
+  private fun catalogo(
+    id: String,
+    categoria: CategoriaCatalogo,
+    nome: String,
+    ativo: Boolean,
+  ) = CatalogoItem(
+    id = id,
+    categoria = categoria.slug,
+    nome = nome,
+    nomeNormalizado = com.example.elisdb.data.normalizarNomeCatalogo(nome),
+    ativo = ativo,
+  )
+
   private fun setDetailContent(
     cliente: Cliente,
     repository: FakeDetailRepository =
@@ -390,8 +472,12 @@ class ClientDetailScreenTest {
 
 private class FakeDetailRepository(
   private val data: ClienteComFotos,
-) : ClienteRepository {
+  private val services: List<ClienteServicoComItem> = emptyList(),
+) : com.example.elisdb.EmptyCatalogoRepository() {
   var deleteCalls = 0
+
+  override fun observeServicos(clienteId: String): Flow<List<ClienteServicoComItem>> =
+    flowOf(services)
   override val clientes: Flow<List<Cliente>> = flowOf(emptyList())
 
   override val clientesComFotos: Flow<List<ClienteComFotos>> = flowOf(emptyList())

@@ -532,7 +532,7 @@ private class FakeClientViewPreferences(
 
 private class FakeClientRepository(
   private val clientesComFotosFlow: Flow<List<ClienteComFotos>> = flowOf(emptyList()),
-) : ClienteRepository {
+) : com.example.elisdb.EmptyCatalogoRepository() {
   override val clientes: Flow<List<Cliente>> = flowOf(emptyList())
 
   override val clientesComFotos: Flow<List<ClienteComFotos>> = clientesComFotosFlow

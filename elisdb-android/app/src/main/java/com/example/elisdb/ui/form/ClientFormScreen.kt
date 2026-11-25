@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,13 +19,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,11 +65,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
+import com.example.elisdb.data.local.CatalogoItem
+import com.example.elisdb.data.local.CategoriaCatalogo
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.ui.map.MapPicker
 import com.example.elisdb.ui.map.ElisMap
@@ -130,6 +137,9 @@ fun ClientFormScreen(
           onCancelAddTag = viewModel::onCancelAddTag,
           onAddTag = viewModel::onAddTag,
           onRemoveTag = viewModel::onRemoveTag,
+          onAddServico = viewModel::onAddServico,
+          onRemoveServico = viewModel::onRemoveServico,
+          onQuantidadeChange = viewModel::onQuantidadeChange,
           onNotasChange = viewModel::onNotasChange,
           onAtivoChange = viewModel::onAtivoChange,
           onLocationChange = viewModel::onLocationChange,
@@ -157,6 +167,9 @@ private fun ClientFormContent(
   onCancelAddTag: () -> Unit,
   onAddTag: () -> Unit,
   onRemoveTag: (String) -> Unit,
+  onAddServico: (CatalogoItem) -> Unit,
+  onRemoveServico: (String) -> Unit,
+  onQuantidadeChange: (String, String) -> Unit,
   onNotasChange: (String) -> Unit,
   onAtivoChange: (Boolean) -> Unit,
   onLocationChange: (Double, Double) -> Unit,
@@ -179,6 +192,8 @@ private fun ClientFormContent(
         Toast.makeText(context, "Sem permissão para usar a câmara.", Toast.LENGTH_SHORT).show()
       }
     }
+
+  var pickerCategoria by remember { mutableStateOf<CategoriaCatalogo?>(null) }
 
   Column(
     modifier =
@@ -278,6 +293,63 @@ private fun ClientFormContent(
       }
     }
 
+    Text("Aparelhos e tratamentos", style = MaterialTheme.typography.titleMedium)
+    CategoriaCatalogo.entries.chunked(2).forEach { row ->
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        row.forEach { categoria ->
+          OutlinedButton(
+            onClick = { pickerCategoria = categoria },
+            modifier = Modifier.weight(1f),
+          ) {
+            Text(categoria.label, maxLines = 1)
+          }
+        }
+      }
+    }
+    if (state.servicos.isEmpty()) {
+      Text(
+        "Nenhum aparelho ou tratamento associado.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    } else {
+      state.servicos.forEach { servico ->
+        val isDevice = CategoriaCatalogo.fromSlug(servico.item.categoria)?.isDevice == true
+        Card(modifier = Modifier.fillMaxWidth()) {
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            Text(
+              servico.item.nome,
+              style = MaterialTheme.typography.bodyLarge,
+              modifier = Modifier.weight(1f),
+            )
+            if (isDevice) {
+              OutlinedTextField(
+                value = servico.quantidade?.toString().orEmpty(),
+                onValueChange = { onQuantidadeChange(servico.item.id, it) },
+                label = { Text("Qtd.") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.width(100.dp),
+              )
+            }
+            IconButton(onClick = { onRemoveServico(servico.item.id) }) {
+              Icon(Icons.Default.Close, contentDescription = "Remover ${servico.item.nome}")
+            }
+          }
+        }
+      }
+    }
+    state.servicoError?.let {
+      Text(it, color = MaterialTheme.colorScheme.error)
+    }
+
     Text("Localização", style = MaterialTheme.typography.titleMedium)
     var showMapPicker by remember { mutableStateOf(false) }
     val position =
@@ -356,6 +428,46 @@ private fun ClientFormContent(
     }
 
     Spacer(Modifier.height(24.dp))
+  }
+
+  pickerCategoria?.let { categoria ->
+    val escolhidos = state.servicos.map { it.item.id }.toSet()
+    val opcoes =
+      state.catalogo
+        .filter { it.categoria == categoria.slug && it.ativo && it.id !in escolhidos }
+        .sortedBy { com.example.elisdb.data.normalizarNomeCatalogo(it.nome) }
+    AlertDialog(
+      onDismissRequest = { pickerCategoria = null },
+      title = { Text("Adicionar ${categoria.label}") },
+      text = {
+        Column(
+          modifier = Modifier.verticalScroll(rememberScrollState()),
+          verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+          if (opcoes.isEmpty()) {
+            Text(
+              "Não há modelos ativos disponíveis nesta categoria.",
+              style = MaterialTheme.typography.bodyMedium,
+            )
+          } else {
+            opcoes.forEach { item ->
+              TextButton(
+                onClick = {
+                  onAddServico(item)
+                  pickerCategoria = null
+                },
+                modifier = Modifier.fillMaxWidth(),
+              ) {
+                Text(item.nome, modifier = Modifier.fillMaxWidth())
+              }
+            }
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(onClick = { pickerCategoria = null }) { Text("Fechar") }
+      },
+    )
   }
 }
 

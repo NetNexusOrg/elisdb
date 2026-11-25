@@ -456,6 +456,47 @@ class ClientFormViewModelTest {
     viewModel.onRemoveFoto(viewModel.uiState.value.fotos[0])
     assertEquals(listOf(true, false), viewModel.uiState.value.fotos.map { it.preferida })
   }
+
+  @Test
+  fun servicos_adicionaAparelhoComQuantidadeENaoDuplica() = runTest(dispatcher) {
+    val repo = FakeClientRepository(savedId = "1")
+    val viewModel = ClientFormViewModel(repo, { null }, null)
+    val item =
+      com.example.elisdb.data.local.CatalogoItem(
+        id = "c1",
+        categoria = com.example.elisdb.data.local.CategoriaCatalogo.ROEDORES.slug,
+        nome = "Ratoeira",
+        nomeNormalizado = "RATOEIRA",
+      )
+    viewModel.onNomeChange("Ana")
+    viewModel.onAddServico(item)
+    viewModel.onAddServico(item)
+    assertEquals(1, viewModel.uiState.value.servicos.size)
+    assertEquals(1, viewModel.uiState.value.servicos.single().quantidade)
+
+    viewModel.onQuantidadeChange("c1", "0")
+    viewModel.save()
+    assertEquals("Indique uma quantidade entre 1 e 9999.", viewModel.uiState.value.servicoError)
+
+    viewModel.onQuantidadeChange("c1", "12")
+    viewModel.save()
+    dispatcher.scheduler.advanceUntilIdle()
+    assertEquals(12, repo.savedDraft?.servicos?.single()?.quantidade)
+  }
+
+  @Test
+  fun servicos_tratamentoNaoTemQuantidade() = runTest(dispatcher) {
+    val viewModel = ClientFormViewModel(FakeClientRepository(savedId = "1"), { null }, null)
+    val item =
+      com.example.elisdb.data.local.CatalogoItem(
+        id = "c2",
+        categoria = com.example.elisdb.data.local.CategoriaCatalogo.TRATAMENTOS.slug,
+        nome = "Gel",
+        nomeNormalizado = "GEL",
+      )
+    viewModel.onAddServico(item)
+    assertNull(viewModel.uiState.value.servicos.single().quantidade)
+  }
 }
 
 private fun foto(id: String, preferida: Boolean = false) =
@@ -473,7 +514,7 @@ private class FakeClientRepository(
   private val throwOnSave: Boolean = false,
   private val saveError: Throwable? = null,
   private val syncError: Throwable? = null,
-) : ClienteRepository {
+) : com.example.elisdb.EmptyCatalogoRepository() {
   var saved = false
     private set
   var savedDraft: ClienteDraft? = null

@@ -339,7 +339,7 @@ private fun cliente(
 
 private class FakeMapRepository(
   private val clientesFlow: Flow<List<Cliente>>,
-) : ClienteRepository {
+) : com.example.elisdb.EmptyCatalogoRepository() {
   override val clientes: Flow<List<Cliente>> = clientesFlow
 
   override val clientesComFotos: Flow<List<ClienteComFotos>> = flowOf(emptyList())

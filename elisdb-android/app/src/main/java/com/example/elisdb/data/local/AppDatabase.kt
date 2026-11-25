@@ -6,8 +6,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-  entities = [Cliente::class, Foto::class, SyncMeta::class],
-  version = 13,
+  entities = [Cliente::class, Foto::class, SyncMeta::class, CatalogoItem::class, ClienteServico::class],
+  version = 15,
   exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -16,6 +16,10 @@ abstract class AppDatabase : RoomDatabase() {
   abstract fun fotoDao(): FotoDao
 
   abstract fun syncMetaDao(): SyncMetaDao
+
+  abstract fun catalogoDao(): CatalogoDao
+
+  abstract fun clienteServicoDao(): ClienteServicoDao
 
   companion object {
     val MIGRATION_1_2: Migration =
@@ -227,6 +231,48 @@ abstract class AppDatabase : RoomDatabase() {
           // Chosen profile photo. Existing photos start unmarked and the list
           // falls back to the first photo by gallery order.
           db.execSQL("ALTER TABLE fotos ADD COLUMN preferida INTEGER NOT NULL DEFAULT 0")
+        }
+      }
+
+    val MIGRATION_13_14: Migration =
+      object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+          db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS catalogo_itens (
+              id TEXT NOT NULL PRIMARY KEY,
+              categoria TEXT NOT NULL,
+              nome TEXT NOT NULL,
+              nomeNormalizado TEXT NOT NULL,
+              ativo INTEGER NOT NULL DEFAULT 1,
+              pending INTEGER NOT NULL DEFAULT 0,
+              syncError TEXT,
+              createdAt INTEGER NOT NULL DEFAULT 0,
+              updatedAt INTEGER NOT NULL DEFAULT 0,
+              revision INTEGER NOT NULL DEFAULT 0
+            )
+            """
+          )
+          db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_catalogo_itens_categoria ON catalogo_itens (categoria)"
+          )
+        }
+      }
+
+    val MIGRATION_14_15: Migration =
+      object : Migration(14, 15) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+          db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS cliente_servicos (
+              clienteId TEXT NOT NULL,
+              itemId TEXT NOT NULL,
+              quantidade INTEGER,
+              PRIMARY KEY (clienteId, itemId),
+              FOREIGN KEY (clienteId) REFERENCES clientes(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """
+          )
         }
       }
   }

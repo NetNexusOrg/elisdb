@@ -4,18 +4,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.elisdb.data.ClienteRepository
 import com.example.elisdb.data.local.ClienteComFotos
+import com.example.elisdb.data.local.ClienteServicoComItem
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class ClientDetailUiState(
   val isLoading: Boolean = true,
   val cliente: ClienteComFotos? = null,
+  val servicos: List<ClienteServicoComItem> = emptyList(),
   val showDeleteConfirmation: Boolean = false,
   val navigateMessage: String? = null,
   val message: String? = null,
@@ -34,11 +37,17 @@ class ClientDetailViewModel(
 
   init {
     viewModelScope.launch {
-      repository.observeCliente(clienteId).collect { data ->
-        // The first emission ends loading; a null afterwards means the client
-        // is gone (e.g. deleted by sync), not that it is still loading.
-        _uiState.update { it.copy(isLoading = false, cliente = data) }
-      }
+      combine(
+          repository.observeCliente(clienteId),
+          repository.observeServicos(clienteId),
+        ) { data, servicos -> data to servicos }
+        .collect { (data, servicos) ->
+          // The first emission ends loading; a null client afterwards means the
+          // client is gone (e.g. deleted by sync), not that it is still loading.
+          _uiState.update {
+            it.copy(isLoading = false, cliente = data, servicos = servicos)
+          }
+        }
     }
   }
 

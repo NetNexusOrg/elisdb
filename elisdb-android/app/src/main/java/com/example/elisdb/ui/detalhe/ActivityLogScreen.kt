@@ -115,13 +115,20 @@ private fun ActivityTimeline(
       }
       items(dayEntries) { entry ->
         val clienteId = entry.clienteId
+        val isCatalog = entry.kind == "catalog"
         LogEntryCard(
           entry = entry,
           timeFormat = timeFormat,
           photoUris = photoUris,
-          clienteNome = entry.clienteNome ?: clienteId,
+          clienteNome =
+            if (isCatalog) entry.itemNome ?: "Modelo"
+            else entry.clienteNome ?: clienteId,
           onClienteClick =
-            if (entry.action != "delete" && clienteId != null && clienteId in existingClienteIds) {
+            if (!isCatalog &&
+              entry.action != "delete" &&
+              clienteId != null &&
+              clienteId in existingClienteIds
+            ) {
               { onClienteClick(clienteId) }
             } else {
               null

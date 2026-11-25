@@ -2,8 +2,13 @@ package com.example.elisdb.sync
 
 import com.example.elisdb.data.local.Cliente
 import com.example.elisdb.data.local.ClienteDao
+import com.example.elisdb.data.local.CatalogoDao
+import com.example.elisdb.data.local.CatalogoItem
+import com.example.elisdb.data.local.ClienteServico
+import com.example.elisdb.data.local.ClienteServicoDao
 import com.example.elisdb.data.local.Foto
 import com.example.elisdb.data.local.FotoDao
+import com.example.elisdb.remote.CatalogoItemDto
 import com.example.elisdb.remote.AuthCause
 import com.example.elisdb.remote.AuthException
 import com.example.elisdb.remote.ClienteComFotosDto
@@ -37,6 +42,8 @@ class SyncCoordinator(
   private val photoPushState: PhotoPushState? = null,
   private val serverIdentityStore: ServerIdentityStore? = null,
   private val maxPhotosPerClient: Int = 500,
+  private val catalogoDao: CatalogoDao? = null,
+  private val clienteServicoDao: ClienteServicoDao? = null,
   private val onWarning: (String) -> Unit = {},
   /**
    * Receives the unexpected exception that aborts a run. The UI only shows a
@@ -53,17 +60,20 @@ class SyncCoordinator(
   suspend fun sync(): SyncOutcome =
     try {
       refreshClockOffset()
+      val catalogPushWarning = pushCatalogEdits()
       val push = pushEdits()
       pushDeletions()
+      val catalogPullWarning = pullCatalog()
       val pull = pull()
+      val warnings = push.warnings + listOfNotNull(catalogPushWarning, catalogPullWarning)
       when {
-        push.mergedNome != null && push.warnings.isEmpty() && !pull.identityChanged ->
+        push.mergedNome != null && warnings.isEmpty() && !pull.identityChanged ->
           SyncOutcome.DuplicateMerged(push.mergedNome)
-        push.staleNames.isNotEmpty() && push.warnings.isEmpty() && !pull.identityChanged ->
+        push.staleNames.isNotEmpty() && warnings.isEmpty() && !pull.identityChanged ->
           SyncOutcome.SuccessWithStatuses(accepted = 0, stale = push.staleNames)
-        push.warnings.isNotEmpty() || pull.identityChanged ->
+        warnings.isNotEmpty() || pull.identityChanged ->
           SyncOutcome.SuccessReport(
-            warnings = push.warnings,
+            warnings = warnings,
             identityChanged = pull.identityChanged,
             stale = push.staleNames,
           )
@@ -92,6 +102,11 @@ class SyncCoordinator(
     try {
       snapshot()
       refreshClockOffset()
+      runInTransaction {
+        catalogoDao?.deleteAllSynced()
+        clienteServicoDao?.deleteAllForSyncedClients()
+      }
+      pullCatalog()
       pull(destructive = true, forceFull = true)
       SyncOutcome.Success
     } catch (e: ConfigException) {
@@ -166,6 +181,126 @@ class SyncCoordinator(
    * cannot block every later batch: a 422 is retried with a smaller batch and
    * eventually isolated to the single offending record.
    */
+  /**
+   * Pushes pending catalog items. Returns a user-facing warning when the server
+   * predates the catalog (404), in which case client sync still proceeds.
+   */
+  private suspend fun pushCatalogEdits(): String? {
+    val dao = catalogoDao ?: return null
+    val pending = dao.getPending()
+    if (pending.isEmpty()) return null
+    return try {
+      for (chunk in pending.chunked(CATALOG_PUSH_BATCH)) {
+        val results =
+          api.pushCatalog(
+            chunk.map {
+              CatalogoItemDto(
+                id = it.id,
+                categoria = it.categoria,
+                nome = it.nome,
+                ativo = it.ativo,
+                updatedAt = it.updatedAt,
+              )
+            },
+            timestamp = normalizedEpochSeconds(),
+          )
+        val byId = results.associateBy { it.id }
+        runInTransaction {
+          chunk.forEach { item ->
+            val result = byId[item.id]
+            when (result?.status) {
+              "accepted", "unchanged", "stale" -> {
+                result.item?.let { canonical ->
+                  dao.upsert(
+                    item.copy(
+                      nome = canonical.nome,
+                      ativo = canonical.ativo,
+                      pending = false,
+                      syncError = null,
+                      updatedAt = canonical.updatedAt,
+                    )
+                  )
+                } ?: dao.markSynced(item.id, item.revision)
+              }
+              "invalid" -> dao.setSyncError(
+                item.id,
+                result.reason ?: "Item rejeitado pelo servidor",
+              )
+              else -> dao.setSyncError(item.id, "Sem resposta do servidor")
+            }
+          }
+        }
+      }
+      null
+    } catch (e: AuthException) {
+      throw e
+    } catch (e: ConfigException) {
+      throw e
+    } catch (e: ServerException) {
+      if (e.status == 404) {
+        val message =
+          "O servidor não suporta o catálogo; os clientes continuam a sincronizar."
+        onWarning(message)
+        message
+      } else {
+        throw e
+      }
+    }
+  }
+
+  /** Pulls the complete catalog. A failure keeps the local copy and does not block clients. */
+  private suspend fun pullCatalog(): String? {
+    val dao = catalogoDao ?: return null
+    return try {
+      val response = api.fetchCatalog(normalizedEpochSeconds())
+      if (!response.complete) {
+        return "O servidor devolveu um catálogo incompleto; a cópia local foi mantida."
+      }
+      runInTransaction {
+        val remoteIds = response.items.map { it.id }
+        if (remoteIds.isEmpty()) {
+          dao.deleteAllSynced()
+        } else {
+          dao.deleteSyncedExcept(remoteIds)
+        }
+        response.items.forEach { remote ->
+          val local = dao.getById(remote.id)
+          if (local != null && local.pending) return@forEach
+          dao.upsert(
+            CatalogoItem(
+              id = remote.id,
+              categoria = remote.categoria,
+              nome = remote.nome,
+              nomeNormalizado = com.example.elisdb.data.normalizarNomeCatalogo(remote.nome),
+              ativo = remote.ativo,
+              pending = false,
+              syncError = null,
+              createdAt = remote.createdAt ?: local?.createdAt ?: 0,
+              updatedAt = remote.updatedAt,
+              revision = local?.revision ?: 0,
+            )
+          )
+        }
+      }
+      null
+    } catch (e: AuthException) {
+      throw e
+    } catch (e: ConfigException) {
+      throw e
+    } catch (e: ServerException) {
+      if (e.status == 404) {
+        val message =
+          "O servidor não suporta o catálogo; a cópia local foi mantida."
+        onWarning(message)
+        message
+      } else {
+        "Falha ao atualizar o catálogo; a cópia local foi mantida."
+      }
+    } catch (e: Exception) {
+      "Falha ao atualizar o catálogo; a cópia local foi mantida."
+    }
+  }
+
   private suspend fun pushEdits(): PushReport {
     val pending = clienteDao.getPending().filter { !it.deletePending }
     if (pending.isEmpty()) return PushReport()
@@ -205,7 +340,14 @@ class SyncCoordinator(
         onWarning(message)
         continue
       }
-      batchRecords += PushRecord(cliente, SyncMapper.toRecord(cliente, fotos), hashes, fotos)
+      val servicos = clienteServicoDao?.getForCliente(cliente.id) ?: emptyList()
+      batchRecords +=
+        PushRecord(
+          cliente,
+          SyncMapper.toRecord(cliente, fotos, servicos),
+          hashes,
+          fotos,
+        )
     }
     if (batchRecords.isEmpty()) return PushReport(warnings = warnings)
 
@@ -506,6 +648,24 @@ class SyncCoordinator(
     // removals arrive through the normal pull path with a complete photo list.
 
     val localFotos = fotoDao.getByCliente(cliente.id).filter { !it.deletePending }
+    val localServices = clienteServicoDao?.getForCliente(cliente.id) ?: emptyList()
+    val canonicalServices =
+      result.client?.servicos?.map { ClienteServico(existingId, it.itemId, it.quantidade) }
+    val mergedServices =
+      if (canonicalServices == null) {
+        localServices
+      } else {
+        (localServices + canonicalServices)
+          .groupBy { it.itemId }
+          .map { (itemId, rows) ->
+            val quantities = rows.mapNotNull { it.quantidade }
+            ClienteServico(
+              clienteId = existingId,
+              itemId = itemId,
+              quantidade = quantities.maxOrNull(),
+            )
+          }
+      }
     val now = normalizedEpochSeconds()
     runInTransaction {
       // upsert (not insert/REPLACE): preserves any canonical row already stored,
@@ -521,6 +681,7 @@ class SyncCoordinator(
       )
       canonicalUpserts.forEach { fotoDao.insert(it) }
       localFotos.forEach { fotoDao.insert(it.copy(clienteId = existingId)) }
+      clienteServicoDao?.replaceForCliente(existingId, mergedServices)
       clienteDao.delete(cliente)
     }
     // Old files are returned (not deleted here): the enclosing push transaction
@@ -884,6 +1045,14 @@ class SyncCoordinator(
         clienteDao.upsert(cliente)
         upserts.forEach { fotoDao.insert(it) }
         if (removedRows.isNotEmpty()) fotoDao.deleteByIds(removedRows.map { it.id })
+        server.servicos?.let { services ->
+          clienteServicoDao?.replaceForCliente(
+            cliente.id,
+            services.map {
+              ClienteServico(cliente.id, it.itemId, it.quantidade)
+            },
+          )
+        }
       }
     }
 
@@ -933,6 +1102,7 @@ class SyncCoordinator(
      * The server default is 200, so this still fits an older server.
      */
     const val DEFAULT_PUSH_BATCH_SIZE = 100
+    const val CATALOG_PUSH_BATCH = 100
 
     /** Pause before retrying a failed photo download. */
     const val PHOTO_RETRY_DELAY_MS = 500L

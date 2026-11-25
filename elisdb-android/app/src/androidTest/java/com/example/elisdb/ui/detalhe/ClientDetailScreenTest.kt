@@ -2,10 +2,12 @@ package com.example.elisdb.ui.detalhe
 
 import android.net.Uri
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -128,13 +130,117 @@ class ClientDetailScreenTest {
   }
 
   @Test
-  fun detalhe_semLocalizacaoNaoMostraMapaNemNavegacao() {
+  fun detalhe_semLocalizacaoMostraApenasPlaceholderDeMapa() {
     val cliente = Cliente(id = "3", nome = "Ana", latitude = null, longitude = null, dataCriacao = 0, updatedAt = 0)
     setDetailContent(cliente)
 
+    composeTestRule.onNodeWithTag("mapPlaceholder").assertIsDisplayed()
+    composeTestRule.onNodeWithContentDescription("Localização indisponível").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Localização").assertDoesNotExist()
+    composeTestRule.onNodeWithTag("detailMap").assertDoesNotExist()
     composeTestRule.onNodeWithText("Navegar até aqui").assertDoesNotExist()
-    composeTestRule.onNodeWithText("Sem localização definida.").assertExists()
+    composeTestRule.onNodeWithText("Sem localização definida.").assertDoesNotExist()
     composeTestRule.onNodeWithContentDescription("Navegar até aqui").assertDoesNotExist()
+  }
+
+  @Test
+  fun detalhe_mostraFotoDePerfilAoLadoDoMapa() {
+    val cliente = Cliente(id = "30", nome = "Sofia", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
+    val fotos =
+      listOf(
+        Foto(id = "f1", clienteId = cliente.id, uriLocal = "/f1.jpg"),
+        Foto(id = "f2", clienteId = cliente.id, uriLocal = "/f2.jpg", preferida = true),
+      )
+    val repository = FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = fotos))
+    setDetailContent(cliente, repository)
+
+    val photo = composeTestRule.onNodeWithTag("profilePhoto").fetchSemanticsNode().boundsInRoot
+    val map = composeTestRule.onNodeWithTag("detailMap").fetchSemanticsNode().boundsInRoot
+
+    assertTrue("A foto deveria ficar à esquerda do mapa", photo.right <= map.left)
+    assertEquals(photo.height, map.height, 1f)
+    assertEquals(photo.width, map.width, 1f)
+  }
+
+  @Test
+  fun detalhe_clicarFotoDePerfilAbreGaleriaNoIndiceCerto() {
+    val cliente = Cliente(id = "31", nome = "Sara", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
+    val fotos =
+      listOf(
+        Foto(id = "f1", clienteId = cliente.id, uriLocal = "/f1.jpg"),
+        Foto(id = "f2", clienteId = cliente.id, uriLocal = "/f2.jpg", preferida = true),
+        Foto(id = "f3", clienteId = cliente.id, uriLocal = "/f3.jpg"),
+      )
+    val repository = FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = fotos))
+    val viewModel = ClientDetailViewModel(repository, cliente.id)
+    var clickedIndex = -1
+    composeTestRule.setContent {
+      ElisdbTheme {
+        ClientDetailScreen(
+          viewModel = viewModel,
+          onBack = {},
+          onEdit = {},
+          onViewLog = {},
+          onDeleted = {},
+          onPhotoClick = { clickedIndex = it },
+          onOpenFullscreenMap = {},
+        )
+      }
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("profilePhoto").performClick()
+    composeTestRule.waitForIdle()
+
+    assertEquals(1, clickedIndex)
+  }
+
+  @Test
+  fun detalhe_clicarMapaAbreEcraInteiro() {
+    val cliente = Cliente(id = "32", nome = "Tiago", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
+    val repository = FakeDetailRepository(ClienteComFotos(cliente = cliente, fotos = emptyList()))
+    val viewModel = ClientDetailViewModel(repository, cliente.id)
+    var openedId: String? = null
+    composeTestRule.setContent {
+      ElisdbTheme {
+        ClientDetailScreen(
+          viewModel = viewModel,
+          onBack = {},
+          onEdit = {},
+          onViewLog = {},
+          onDeleted = {},
+          onPhotoClick = {},
+          onOpenFullscreenMap = { openedId = it },
+        )
+      }
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("detailMap").performClick()
+    composeTestRule.waitForIdle()
+
+    assertEquals("32", openedId)
+  }
+
+  @Test
+  fun detalhe_semFotoMostraPlaceholderDePessoa() {
+    val cliente = Cliente(id = "33", nome = "Ugo", latitude = 1.0, longitude = 2.0, dataCriacao = 0, updatedAt = 0)
+    setDetailContent(cliente)
+
+    composeTestRule.onNodeWithTag("profilePhotoPlaceholder").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("profilePhoto").assertDoesNotExist()
+    composeTestRule.onNodeWithTag("detailMap").assertIsDisplayed()
+  }
+
+  @Test
+  fun detalhe_semFotoNemLocalizacaoMostraOsDoisPlaceholders() {
+    val cliente = Cliente(id = "34", nome = "Vera", latitude = null, longitude = null, dataCriacao = 0, updatedAt = 0)
+    setDetailContent(cliente)
+
+    composeTestRule.onNodeWithTag("profilePhotoPlaceholder").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("mapPlaceholder").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("profilePhoto").assertDoesNotExist()
+    composeTestRule.onNodeWithTag("detailMap").assertDoesNotExist()
   }
 
   @Test

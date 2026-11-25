@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,6 +26,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -51,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -290,33 +294,49 @@ private fun ClientDetailContent(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      SectionTitle("Localização")
       val latitude = cliente.latitude
       val longitude = cliente.longitude
-      if (latitude != null && longitude != null) {
-        Card(
-          onClick = onOpenFullscreenMap,
-          modifier =
-            Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(16.dp)),
-        ) {
-          ElisMap(
-            markerPosition = LatLng(latitude, longitude),
-            draggable = false,
-            interactive = false,
-            modifier = Modifier.fillMaxSize(),
-          )
+      val hasLocation = latitude != null && longitude != null
+      val profileIndex =
+        data.fotos.indexOfFirst { it.preferida }.takeIf { it >= 0 }
+          ?: data.fotos.indices.firstOrNull()
+
+      Row(
+        modifier = Modifier.fillMaxWidth().height(200.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        ProfilePhotoCard(
+          foto = profileIndex?.let { data.fotos[it] },
+          onClick = profileIndex?.let { index -> { onPhotoClick(index) } },
+          modifier = Modifier.weight(1f).fillMaxHeight(),
+        )
+        if (latitude != null && longitude != null) {
+          Card(
+            onClick = onOpenFullscreenMap,
+            modifier =
+              Modifier.weight(1f)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(16.dp))
+                .testTag("detailMap"),
+          ) {
+            ElisMap(
+              markerPosition = LatLng(latitude, longitude),
+              draggable = false,
+              interactive = false,
+              modifier = Modifier.fillMaxSize(),
+            )
+          }
+        } else {
+          MapPlaceholderCard(modifier = Modifier.weight(1f).fillMaxHeight())
         }
+      }
+
+      if (hasLocation) {
         OutlinedButton(onClick = onNavigateHere, modifier = Modifier.fillMaxWidth()) {
           Icon(Icons.Default.Navigation, contentDescription = null)
           Spacer(Modifier.size(8.dp))
           Text("Navegar até aqui")
         }
-      } else {
-        Text(
-          "Sem localização definida.",
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
       }
     }
 
@@ -370,6 +390,57 @@ private fun ClientDetailContent(
     }
 
     Spacer(Modifier.height(8.dp))
+  }
+}
+
+@Composable
+private fun ProfilePhotoCard(foto: Foto?, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
+  if (foto != null && onClick != null) {
+    Card(
+      onClick = onClick,
+      shape = RoundedCornerShape(16.dp),
+      modifier = modifier.testTag("profilePhoto"),
+    ) {
+      AsyncImage(
+        model = File(foto.uriLocal),
+        contentDescription = "Foto de perfil",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize(),
+      )
+    }
+  } else {
+    Surface(
+      color = MaterialTheme.colorScheme.surfaceVariant,
+      shape = RoundedCornerShape(16.dp),
+      modifier = modifier.testTag("profilePhotoPlaceholder"),
+    ) {
+      Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Icon(
+          Icons.Default.Person,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.size(48.dp),
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun MapPlaceholderCard(modifier: Modifier = Modifier) {
+  Surface(
+    color = MaterialTheme.colorScheme.surfaceVariant,
+    shape = RoundedCornerShape(16.dp),
+    modifier = modifier.testTag("mapPlaceholder"),
+  ) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+      Icon(
+        Icons.Outlined.Map,
+        contentDescription = "Localização indisponível",
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(48.dp),
+      )
+    }
   }
 }
 

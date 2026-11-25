@@ -58,8 +58,12 @@ O ícone de mapa na barra superior abre o mapa dos clientes com localização.
 
 ## Detalhe do cliente
 
-Nome com as tags, mapa, navegação, notas, aparelhos/tratamentos e fotos.
+Nome e tags, seguidos da foto de perfil à esquerda e do mapa à direita,
+navegação, notas, aparelhos/tratamentos e fotos.
 
+- A foto de perfil aparece à esquerda e o mapa à direita. Sem foto aparece um
+  ícone de pessoa; sem localização aparece apenas um ícone de mapa, sem botão de
+  navegação.
 - **Aparelhos e Tratamentos** aparece depois das notas e antes das fotos, por
   categoria e por ordem alfabética. Cada grupo mostra o total (soma das
   quantidades nos aparelhos, número de modelos nos tratamentos) e cada linha o

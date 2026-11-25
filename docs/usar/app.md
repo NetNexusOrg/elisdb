@@ -59,12 +59,12 @@ O ícone de mapa na barra superior abre o mapa dos clientes com localização.
 ## Detalhe do cliente
 
 Nome e tags, seguidos da foto de perfil à esquerda e do mapa à direita,
-navegação, notas, aparelhos/tratamentos e fotos.
+navegação, aparelhos/tratamentos, notas e fotos.
 
 - A foto de perfil aparece à esquerda e o mapa à direita. Sem foto aparece um
   ícone de pessoa; sem localização aparece apenas um ícone de mapa, sem botão de
   navegação.
-- **Aparelhos e Tratamentos** aparece depois das notas e antes das fotos, por
+- **Aparelhos e Tratamentos** aparece depois da localização e antes das notas, por
   categoria e por ordem alfabética. Cada grupo mostra o total (soma das
   quantidades nos aparelhos, número de modelos nos tratamentos) e cada linha o
   nome e a quantidade. Modelos inativos continuam visíveis e contam.
@@ -106,9 +106,9 @@ clientes.
 - A lista mostra as quatro categorias sempre abertas e os modelos por ordem
   alfabética. Os inativos ficam visíveis com a etiqueta **Inativo**, mas deixam
   de ser oferecidos em novos clientes.
-- **+** cria um modelo com nome e categoria. A categoria não pode ser alterada
-  depois; nomes iguais na mesma categoria (ignorando acentos, espaços e
-  maiúsculas) são recusados.
+- **+** cria um modelo com nome e categoria. O nome é guardado e apresentado em
+  maiúsculas. A categoria não pode ser alterada depois; nomes iguais na mesma
+  categoria (ignorando acentos, espaços e maiúsculas) são recusados.
 - **Guardar** envia o catálogo e sincroniza com o servidor; as alterações ficam
   também guardadas localmente de imediato. Se restarem modelos por sincronizar
   (por exemplo, rede em baixo), a app avisa.

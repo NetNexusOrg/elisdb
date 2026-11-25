@@ -231,7 +231,7 @@ class ClienteRepositoryImplTest {
     val id = repository.saveCatalogoItem(null, "  Ratoeira   Grande ", com.example.elisdb.data.local.CategoriaCatalogo.ROEDORES)
     val item = database.catalogoDao().getById(id)
     assertNotNull(item)
-    assertEquals("Ratoeira Grande", item?.nome)
+    assertEquals("RATOEIRA GRANDE", item?.nome)
     assertEquals("RATOEIRA GRANDE", item?.nomeNormalizado)
     assertTrue(item?.pending == true)
 

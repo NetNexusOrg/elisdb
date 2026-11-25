@@ -61,12 +61,12 @@ def test_catalog_push_is_lww_and_idempotent(server):
         json.dumps({"items": [_item("i1", nome="Nova", updated_at=1100).model_dump()]}),
     )
     assert newer.json()[0]["status"] == "accepted"
-    assert newer.json()[0]["item"]["nome"] == "Nova"
+    assert newer.json()[0]["item"]["nome"] == "NOVA"
 
     catalog = client.get("/api/catalog?x=1").json()
     assert catalog["complete"] is True
-    assert [item["nome"] for item in catalog["items"]] == ["Nova"]
-    assert db.list_catalog()[0]["nome"] == "Nova"
+    assert [item["nome"] for item in catalog["items"]] == ["NOVA"]
+    assert db.list_catalog()[0]["nome"] == "NOVA"
 
 
 def test_catalog_category_is_immutable(server):
@@ -145,7 +145,7 @@ def test_catalog_deactivate_and_reactivate_are_logged(server):
     actions = [entry["action"] for entry in history["entries"]]
     assert actions[:3] == ["reactivate", "deactivate", "create"]
     assert history["entries"][0]["kind"] == "catalog"
-    assert history["entries"][0]["item_nome"] == "Ratoeira"
+    assert history["entries"][0]["item_nome"] == "RATOEIRA"
     assert history["entries"][0]["cliente_id"] is None
 
 
@@ -193,14 +193,14 @@ def test_client_services_push_pull_and_history(server):
     assert history[-1]["details"]["services"] == [
         {
             "item_id": "i1",
-            "nome": "Ratoeira",
+            "nome": "RATOEIRA",
             "change": "added",
             "old": None,
             "new": 3,
         },
         {
             "item_id": "i2",
-            "nome": "Desinfecao",
+            "nome": "DESINFECAO",
             "change": "added",
             "old": None,
             "new": None,

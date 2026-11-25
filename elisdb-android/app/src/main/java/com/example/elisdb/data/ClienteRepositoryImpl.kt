@@ -207,7 +207,7 @@ class ClienteRepositoryImpl(
     nome: String,
     categoria: CategoriaCatalogo,
   ): String {
-    val clean = nome.trim().replace(Regex("\\s+"), " ")
+    val clean = nome.trim().replace(Regex("\\s+"), " ").uppercase(Locale.ROOT)
     if (clean.isBlank() || clean.length > 80) throw CatalogoNomeInvalidoException()
     val normalized = normalizarNomeCatalogo(clean)
     val duplicate = catalogoDao.getByCategoria(categoria.slug, id ?: "").any {

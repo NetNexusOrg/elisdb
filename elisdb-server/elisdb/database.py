@@ -1142,7 +1142,7 @@ class Database:
     def _save_catalog_item_on_conn(
         self, conn: sqlite3.Connection, item, actor: dict | None
     ) -> dict:
-        nome = " ".join(item.nome.split()).strip()
+        nome = normalize_nome(item.nome)
         normalized = normalize_catalog_name(nome)
         if not normalized or len(nome) > MAX_CATALOG_NAME_LENGTH:
             raise ValueError("catalog name is blank or too long")
